@@ -1,0 +1,6 @@
+# Fallback if `esptool.py flash_id` reports 4 MB: ~2 MB LittleFS (~45 s of clips).
+# Name,     Type, SubType,  Offset,   Size
+nvs,        data, nvs,      0x9000,   0x5000
+phy_init,   data, phy,      0xe000,   0x2000
+factory,    app,  factory,  0x10000,  0x200000
+spiffs,     data, spiffs,   0x210000, 0x1F0000

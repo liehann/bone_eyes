@@ -1,0 +1,9 @@
+.pio/
+.vscode/
+*.pyc
+__pycache__/
+.DS_Store
+.claude/HANDOVER.md
+.claude/settings.local.json
+data/clips/*.png
+recordings/
