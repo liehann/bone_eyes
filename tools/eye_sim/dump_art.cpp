@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "fire_render.h"
+#include "fire_eye.h"
 #include "flame_overlay.h"
 
 static void put(FILE* f, const void* p, size_t n) { fwrite(p, 1, n, f); }  // host is little endian
@@ -101,6 +102,28 @@ int main(int argc, char** argv) {
     free(b.heat);
     free(b.smoke);
     free(b.open);
+  }
+  // Fire eye: 60 frames of fire iris + smoke, mood = pose index.
+  fprintf(j, "],\"fireEyeChecksums\":[");
+  for (size_t k = 0; k < sizeof(kPoses) / sizeof(kPoses[0]); k++) {
+    const float* q = kPoses[k];
+    uint8_t* m = (uint8_t*)malloc(3 * 160 * 160);
+    fire_eye::Buffers b{m, m + 160 * 160, m + 2 * 160 * 160};
+    fire_eye::reset(b, 777 + (uint32_t)k);
+    fire_render::State st;
+    int track = 128;
+    for (uint32_t n = 0, t = 500; n < 60; n++, t += 29) {
+      fire_render::Params fp = fire_render::compute(kDefaultEye, q[0], q[1], q[2], q[3], q[4] != 0, track, (int)k, t, st);
+      fire_eye::step(b, kDefaultEye, fp, (int)k);
+    }
+    uint32_t h = 2166136261u;
+    uint16_t row[eye_render::kOut];
+    for (int y = 0; y < eye_render::kOut; y++) {
+      fire_eye::row(b, y, row);
+      for (int x = 0; x < eye_render::kOut; x++) h = (h ^ row[x]) * 16777619u;
+    }
+    fprintf(j, "%s%u", k ? "," : "", h);
+    free(m);
   }
   fprintf(j, "]}\n");
   fclose(j);

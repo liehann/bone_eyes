@@ -237,6 +237,106 @@
     }
   };
 
+  // --- fire eye (fire iris + its smoke): port of src/fire_eye.h ---
+  const FIRE_EMIT = [[3, 110], [3, 110], [3, 110], [6, 100]];
+
+  function fireHeat(t, p, ox, oy) {
+    const Q = t.quad, NW = t.noiseW;
+    const uy = p.cy - oy, ay = uy < 0 ? -uy : uy;
+    const dx = ox - p.cx, ax = dx < 0 ? -dx : dx;
+    if (ax >= Q || ay >= Q) return 0;
+    const r = t.radius[ay * Q + ax];
+    if (r < p.pupilR) return 0;
+    const a = t.angle[ay * Q + ax];
+    let ang;
+    if (dx >= 0) ang = uy >= 0 ? a : (256 - a) & 255;
+    else ang = uy >= 0 ? 128 - a : 128 + a;
+    const d = r - p.pupilR;
+    const n1 = t.noise[((d - p.s1) & 63) * NW + ((ang + p.rot) & 255)];
+    const n2 = t.noise[((d * 2 - p.s2) & 63) * NW + ((ang * 2 + 97 - p.rot) & 255)];
+    const n = (n1 * 5 + n2 * 3) >> 3;
+    let len = p.len + t.upBias[ang];
+    if (len < 4) len = 4;
+    let h = p.base + Math.trunc(((n - 128) * 3) / 2) - Math.trunc((d * 255) / len);
+    if (d < 4) h += (4 - d) * 20;
+    return h < 0 ? 0 : h > 255 ? 255 : h;
+  }
+
+  function lidCovered(lidArt, L, ox, oy) {
+    const S = lidArt.lidSize, src = srcMap(S);
+    const ly = src[oy], lx = L.lidFlip ? S - 1 - src[ox] : src[ox];
+    return lidArt.lower[ly * S + lx] <= L.lThr || lidArt.upper[ly * S + lx] <= L.uThr;
+  }
+
+  function FireEye(seed) {
+    Flames.call(this, seed);
+    this.cx = this.cy = OUT >> 1;
+    this.coreR = 0;
+  }
+  FireEye.prototype.next = function () { return Flames.prototype.next.call(this); };
+  FireEye.prototype.step = function (lidArt, fp, mood, t) {
+    const N = OUT, heat = this.heat, smoke = this.smoke, open = this.open;
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        heat[y * N + x] = fireHeat(t, fp, x, y);
+        open[y * N + x] = lidCovered(lidArt, fp.lids, x, y) ? 0 : 1;
+      }
+    }
+    this.frame = (this.frame + 1) >>> 0;
+    this.cx = fp.cx; this.cy = fp.cy;
+    this.coreR = fp.pupilR + Math.trunc(fp.len / 2);
+    const R = this.coreR;
+    if (this.frame & 1) {
+      for (let y = 0; y < N - 1; y++) {
+        const sb = y * N, bb = sb + N, dy = y - fp.cy;
+        const swayB = ((y + (this.frame >>> 1)) & 63) * t.noiseW;
+        for (let x = 0; x < N; x++) {
+          const r = this.next();
+          const dx = x - fp.cx, adx = dx < 0 ? -dx : dx, side = dx < 0 ? -1 : 1;
+          const w = t.noise[swayB + ((x >> 3) & 255)];
+          let sx = x + (w > 150 ? 1 : w < 106 ? -1 : 0);
+          if (adx < R + 8 && dy > Math.trunc(-R / 2)) {
+            sx = x - side;
+            if (adx < Math.trunc(R / 2) && (r & 8)) sx -= side;
+          } else if (adx < R + 12 && dy <= Math.trunc(-R / 2) && (r & 3) === 0) {
+            sx = x + side;
+          }
+          if (sx < 1 || sx >= N - 1) { smoke[sb + x] = 0; continue; }
+          const v = ((smoke[bb + sx - 1] + 2 * smoke[bb + sx] + smoke[bb + sx + 1]) >> 2) - (((r >>> 9) & 3) === 0 ? 1 : 0);
+          smoke[sb + x] = v < 0 ? 0 : v;
+        }
+      }
+      for (let x = 0; x < N; x++) smoke[(N - 1) * N + x] = 0;
+    }
+    const e = FIRE_EMIT[mood & 3], Q = t.quad;
+    for (let y = 0; y < N; y++) {
+      const dy = y - fp.cy, ady = dy < 0 ? -dy : dy;
+      for (let x = 0; x < N; x++) {
+        const i = y * N + x;
+        const dx = x - fp.cx, adx = dx < 0 ? -dx : dx;
+        if (adx < Q && ady < Q && t.radius[ady * Q + adx] < R) { smoke[i] = 0; continue; }
+        const h = heat[i];
+        if (h > 25 && h < 60 && (this.next() & 63) < e[0]) {
+          const v = smoke[i] + e[1];
+          smoke[i] = v > 160 ? 160 : v;
+        }
+      }
+    }
+  };
+  FireEye.prototype.row = function (t, y, out) {
+    const N = OUT;
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      const h = this.open[i] ? this.heat[i] : 0;
+      const f = t.palette[h];
+      let g = h < 40 ? Math.trunc(this.smoke[i] * 3 / 4) : 0;
+      if (h) g = Math.trunc(g * (40 - h) / 40);
+      const r5 = (f >> 11) + (g >> 3), g6 = ((f >> 5) & 63) + (Math.trunc(g * 7 / 8) >> 2),
+            b5 = (f & 31) + (Math.trunc(g * 3 / 4) >> 3);
+      out[x] = ((r5 > 31 ? 31 : r5) << 11) | ((g6 > 63 ? 63 : g6) << 5) | (b5 > 31 ? 31 : b5);
+    }
+  };
+
   // --- controller: port of eyeTask() in src/eyes.cpp ---
   const MOOD = {
     idle: { lid: 0.72, pupil: 0.45 },
@@ -307,7 +407,7 @@
     };
   };
 
-  const api = { OUT, compute, row, Controller, MOOD, FireState, fireCompute, fireRow, MOOD_INDEX, Flames };
+  const api = { OUT, compute, row, Controller, MOOD, FireState, fireCompute, fireRow, MOOD_INDEX, Flames, FireEye };
   if (typeof module !== 'undefined') module.exports = api;
   else root.EyeCore = api;
 })(this);

@@ -125,10 +125,11 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
       <legend>Look</legend>
       <div class="seg" id="art" role="group" aria-label="Eye style">
         <button type="button" data-v="default" aria-pressed="false">Hazel</button>
-        <button type="button" data-v="dragon" aria-pressed="true">Dragon</button>
-        <button type="button" data-v="fire" aria-pressed="false">Fire iris</button>
+        <button type="button" data-v="dragon" aria-pressed="false">Dragon</button>
+        <button type="button" data-v="fire" aria-pressed="true">Fire</button>
       </div>
-      <label class="check" for="flames"><input id="flames" type="checkbox" checked> Flames and smoke rising from the eyes</label>
+      <label class="check" for="flames"><input id="flames" type="checkbox"> Flames and smoke around hazel and dragon eyes</label>
+      <p class="hint">Fire has its own smoke: flame tips turn to smoke, which flows around the iris and drifts up over the lids.</p>
       <label class="row" for="bl">Backlight <input id="bl" type="range" min="0" max="255" value="200"><output id="blOut">200</output></label>
       <div class="seg" id="zoom" role="group" aria-label="Display size">
         <button type="button" data-v="real" aria-pressed="false">Actual size</button>
@@ -159,7 +160,7 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   </div>
 
   <div class="notes">
-    <p>The renderer, fire iris and flame overlay here are checked against the C++ ones when the page is built, using pixel checksums over several poses and frame sequences. The browser shows RGB565 expanded to 8 bits, so expect the real IPS panel's gamma and brightness to differ.</p>
+    <p>The renderer, fire and smoke, and flame overlay here are checked against the C++ ones when the page is built, using pixel checksums over several poses and frame sequences. The browser shows RGB565 expanded to 8 bits, so expect the real IPS panel's gamma and brightness to differ.</p>
     <p>Built by <code>tools/eye_sim/build.py</code>. Edit <code>src/eye_render.h</code> or <code>src/eyes.cpp</code>, then mirror the change in <code>eye_core.js</code> and rebuild.</p>
   </div>
 </div>
@@ -169,7 +170,7 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
 (function () {
   const ARTS = /*ART_DATA*/[];
   const FIRE = /*FIRE_DATA*/{};
-  const { compute, row, Controller, OUT, FireState, fireCompute, fireRow, MOOD_INDEX, Flames } = EyeCore;
+  const { compute, row, Controller, OUT, FireState, fireCompute, MOOD_INDEX, Flames, FireEye } = EyeCore;
 
   function decode(m) {
     const bin = atob(m.data);
@@ -199,8 +200,8 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
     });
   })();
   // Styles as in the firmware's `art` command; fire uses the default lids.
-  let style = 'dragon';
-  let flamesOn = true;
+  let style = 'fire';
+  let flamesOn = false;
 
   // RGB565 -> RGBA (little-endian ImageData word), same expansion as eye_preview.
   const lut = new Uint32Array(65536);
@@ -212,8 +213,8 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   // Firmware config.h defaults.
   const EYE_L_LID_FLIP = false, EYE_R_LID_FLIP = true;
   const eyes = [
-    { cv: document.getElementById('cvL'), flip: EYE_L_LID_FLIP, track: { u: 128 }, fire: new FireState(), flames: new Flames(0x9E3779B9) },
-    { cv: document.getElementById('cvR'), flip: EYE_R_LID_FLIP, track: { u: 128 }, fire: new FireState(), flames: new Flames(0x9E3779BA) },
+    { cv: document.getElementById('cvL'), flip: EYE_L_LID_FLIP, track: { u: 128 }, fire: new FireState(), flames: new Flames(0x9E3779B9), fireEye: new FireEye(0x9E3779B9) },
+    { cv: document.getElementById('cvR'), flip: EYE_R_LID_FLIP, track: { u: 128 }, fire: new FireState(), flames: new Flames(0x9E3779BA), fireEye: new FireEye(0x9E3779BA) },
   ];
   eyes.forEach(e => {
     e.ctx = e.cv.getContext('2d');
@@ -226,18 +227,24 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
     const fire = style === 'fire';
     const art = style === 'dragon' ? arts.dragon : arts.default;
     const mood = MOOD_INDEX[st.mood];
-    let p, fp;
+    // Same effect switching as the firmware: fire style = fire iris + its own
+    // smoke; the flame overlay is for hazel/dragon only.
+    const flames = !fire && flamesOn;
+    let p;
     if (fire) {
-      fp = fireCompute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track, mood, Math.floor(now) >>> 0, e.fire);
-      p = fp.lids;
+      const fp = fireCompute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track, mood, Math.floor(now) >>> 0, e.fire);
+      e.fireEye.step(art, fp, mood, fireT);
     } else {
       p = compute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track);
+      if (flames) e.flames.step(art, p, mood, fireT);
     }
-    if (flamesOn) e.flames.step(art, p, mood, fireT);
     for (let y = 0; y < OUT; y++) {
-      if (fire) fireRow(art, fireT, fp, y, rowBuf);
-      else row(art, p, y, rowBuf);
-      if (flamesOn) e.flames.composite(fireT, y, rowBuf);
+      if (fire) {
+        e.fireEye.row(fireT, y, rowBuf);
+      } else {
+        row(art, p, y, rowBuf);
+        if (flames) e.flames.composite(fireT, y, rowBuf);
+      }
       const base = y * OUT;
       for (let x = 0; x < OUT; x++) e.px[base + x] = lut[rowBuf[x]];
     }
@@ -269,7 +276,7 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
     const state = ctl.held ? 'held' : s.tracking ? 'tracking' : 'saccades';
     readout.innerHTML =
       `<span class="state">${state}</span> · gaze ${s.left.gazeX.toFixed(2).padStart(5)} ${s.left.gazeY.toFixed(2).padStart(5)}` +
-      ` · lid ${s.left.lid.toFixed(2)} · pupil ${s.left.pupil.toFixed(2)} · ${style}${flamesOn ? ' + flames' : ''} · ${fps.toFixed(0)} fps`;
+      ` · lid ${s.left.lid.toFixed(2)} · pupil ${s.left.pupil.toFixed(2)} · ${style}${style !== 'fire' && flamesOn ? ' + flames' : ''} · ${fps.toFixed(0)} fps`;
   }
   requestAnimationFrame(loop);
 

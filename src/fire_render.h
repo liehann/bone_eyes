@@ -64,49 +64,42 @@ inline Params compute(const EyeArt& lidArt, float gazeX, float gazeY, float lid,
   return p;
 }
 
-inline void row(const EyeArt& lidArt, const Params& p, int oy, uint16_t* out) {
+// Heat 0..255 at a panel pixel, ignoring the lids. 0 in the pupil.
+inline int heat(const Params& p, int ox, int oy) {
   using namespace fire_tables;
-  const int S = lidArt.lidSize;
-  const uint8_t* src = eye_render::srcMap(S);
-  const int ly = src[oy];
-  const uint8_t* upperRow = lidArt.upper + ly * S;
-  const uint8_t* lowerRow = lidArt.lower + ly * S;
   const int uy = p.cy - oy;  // up is positive
   const int ay = uy < 0 ? -uy : uy;
-  for (int ox = 0; ox < eye_render::kOut; ox++) {
-    const int lx = src[ox];
-    const int lidX = p.lids.lidFlip ? S - 1 - lx : lx;
-    if (lowerRow[lidX] <= p.lids.lThr || upperRow[lidX] <= p.lids.uThr) {
-      out[ox] = 0;
-      continue;
-    }
-    const int dx = ox - p.cx;
-    const int ax = dx < 0 ? -dx : dx;
-    if (ax >= kQuad || ay >= kQuad) {
-      out[ox] = 0;
-      continue;
-    }
-    const int r = kRadius[ay * kQuad + ax];
-    if (r < p.pupilR) {
-      out[ox] = 0;  // the void
-      continue;
-    }
-    const int a = kAngle[ay * kQuad + ax];
-    int ang;  // 0..255 counter-clockwise from +x, 64 = straight up
-    if (dx >= 0) ang = uy >= 0 ? a : (256 - a) & 255;
-    else ang = uy >= 0 ? 128 - a : 128 + a;
+  const int dx = ox - p.cx;
+  const int ax = dx < 0 ? -dx : dx;
+  if (ax >= kQuad || ay >= kQuad) return 0;
+  const int r = kRadius[ay * kQuad + ax];
+  if (r < p.pupilR) return 0;  // the void
+  const int a = kAngle[ay * kQuad + ax];
+  int ang;  // 0..255 counter-clockwise from +x, 64 = straight up
+  if (dx >= 0) ang = uy >= 0 ? a : (256 - a) & 255;
+  else ang = uy >= 0 ? 128 - a : 128 + a;
 
-    const int d = r - p.pupilR;
-    const int n1 = kNoise[((d - p.s1) & 63) * kNoiseW + ((ang + p.rot) & 255)];
-    const int n2 = kNoise[((d * 2 - p.s2) & 63) * kNoiseW + ((ang * 2 + 97 - p.rot) & 255)];
-    const int n = (n1 * 5 + n2 * 3) >> 3;
-    int len = p.len + kUpBias[ang];
-    if (len < 4) len = 4;
-    int heat = p.base + ((n - 128) * 3) / 2 - (d * 255) / len;
-    if (d < 4) heat += (4 - d) * 20;  // white-hot rim on the pupil
-    heat = heat < 0 ? 0 : heat > 255 ? 255 : heat;
-    out[ox] = kPalette[heat];
-  }
+  const int d = r - p.pupilR;
+  const int n1 = kNoise[((d - p.s1) & 63) * kNoiseW + ((ang + p.rot) & 255)];
+  const int n2 = kNoise[((d * 2 - p.s2) & 63) * kNoiseW + ((ang * 2 + 97 - p.rot) & 255)];
+  const int n = (n1 * 5 + n2 * 3) >> 3;
+  int len = p.len + kUpBias[ang];
+  if (len < 4) len = 4;
+  int h = p.base + ((n - 128) * 3) / 2 - (d * 255) / len;
+  if (d < 4) h += (4 - d) * 20;  // white-hot rim on the pupil
+  return h < 0 ? 0 : h > 255 ? 255 : h;
+}
+
+inline bool lidCovered(const EyeArt& lidArt, const eye_render::Params& lids, int ox, int oy) {
+  const int S = lidArt.lidSize;
+  const uint8_t* src = eye_render::srcMap(S);
+  const int ly = src[oy], lx = lids.lidFlip ? S - 1 - src[ox] : src[ox];
+  return lidArt.lower[ly * S + lx] <= lids.lThr || lidArt.upper[ly * S + lx] <= lids.uThr;
+}
+
+inline void row(const EyeArt& lidArt, const Params& p, int oy, uint16_t* out) {
+  for (int ox = 0; ox < eye_render::kOut; ox++)
+    out[ox] = lidCovered(lidArt, p.lids, ox, oy) ? 0 : fire_tables::kPalette[heat(p, ox, oy)];
 }
 
 }  // namespace fire_render

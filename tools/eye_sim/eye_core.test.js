@@ -3,7 +3,7 @@
 // firmware renderer's.
 const fs = require('fs');
 const path = require('path');
-const { compute, row, OUT, FireState, fireCompute, fireRow, Flames } = require('./eye_core.js');
+const { compute, row, OUT, FireState, fireCompute, fireRow, Flames, FireEye } = require('./eye_core.js');
 
 const dir = process.argv[2];
 const meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));
@@ -93,5 +93,23 @@ poses.forEach((q, k) => {
   const ok = h === fire.flameChecksums[k];
   if (!ok) failed++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} flames pose ${k}: js ${h} c++ ${fire.flameChecksums[k]}`);
+});
+poses.forEach((q, k) => {
+  const fe = new FireEye(777 + k);
+  const st = new FireState();
+  const track = { u: 128 };
+  for (let n = 0, t = 500; n < 60; n++, t += 29) {
+    const fp = fireCompute(loaded.default, q[0], q[1], q[2], q[3], !!q[4], track, k, t, st);
+    fe.step(loaded.default, fp, k, fire);
+  }
+  let h = 2166136261 >>> 0;
+  const out = new Uint16Array(OUT);
+  for (let y = 0; y < OUT; y++) {
+    fe.row(fire, y, out);
+    for (let x = 0; x < OUT; x++) h = Math.imul(h ^ out[x], 16777619) >>> 0;
+  }
+  const ok = h === fire.fireEyeChecksums[k];
+  if (!ok) failed++;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} fire eye pose ${k}: js ${h} c++ ${fire.fireEyeChecksums[k]}`);
 });
 process.exit(failed ? 1 : 0);

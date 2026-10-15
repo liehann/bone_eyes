@@ -68,8 +68,8 @@ Type `help` in the monitor.
 | `eyes blink`, `eyes mood idle\|alert\|talking\|goodbye` | trigger a blink / set the mood |
 | `eyes bl <0-255>` | backlight |
 | `eyes lcd` / `eyes pixel` | switch eye backend |
-| `art default\|dragon\|fire` | LCD eye style (fire = procedural burning iris) |
-| `flames on\|off` | flames and smoke rising from the eyes, over any style |
+| `art default\|dragon\|fire` | LCD eye style. `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids |
+| `flames on\|off` | flames and smoke rising from hazel/dragon eyes |
 
 ### Display bring-up checklist (milestone 2)
 

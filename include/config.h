@@ -56,8 +56,8 @@ constexpr bool EYE_GAZE_X_INVERT = false;  // `eyes look 1 0` should look toward
 // tools/eye_preview.cpp).
 constexpr bool EYE_L_LID_FLIP = false;
 constexpr bool EYE_R_LID_FLIP = true;
-constexpr const char* EYE_ART_DEFAULT = "dragon";  // "default" (hazel), "dragon" or "fire"
-constexpr bool EYE_FLAMES_DEFAULT = true;          // flames + smoke rising from the eyes
+constexpr const char* EYE_ART_DEFAULT = "fire";   // "default" (hazel), "dragon" or "fire" (burning, smoking iris)
+constexpr bool EYE_FLAMES_DEFAULT = false;         // flames + smoke around hazel/dragon eyes
 
 // ---------------------------------------------------------------------------
 // Jaw (calibrate after mounting; `jaw closed <deg>` / `jaw open <deg>` then
