@@ -85,7 +85,12 @@ Type `help` in the monitor.
    both irises should move toward the skull's right. If they move the other
    way, set `EYE_GAZE_X_INVERT`.
 
-Preview the renderer on the Mac without hardware:
+Simulate the eyes in a browser: `tools/eye_sim/build.py` builds
+`tools/eye_sim/eye_sim.html`, which animates both eyes with a JS port of the
+renderer and eye controller, with controls for mood, gaze and a visitor. The
+build checks the port against the C++ renderer with pixel checksums.
+
+For a static contact sheet of poses instead:
 
 ```sh
 c++ -std=c++17 -O2 -Itools/host_shim -Isrc tools/eye_preview.cpp \

@@ -1,0 +1,329 @@
+<title>Bone Eyes Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,750&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one dark "skull plate" holding the two round panels, controls in a
+   wrapping grid underneath. Single dark look on purpose: it's a night prop. */
+:root {
+  --bg: #0e0c0a;          /* night, warm-biased black */
+  --plate: #1a1714;       /* the skull's face plate */
+  --line: #3a332b;        /* hairlines, bezels */
+  --bone: #e9dfca;        /* primary text, bone */
+  --dim: #a89c86;         /* secondary text */
+  --ember: #ff8a3d;       /* the one accent: active controls */
+  --ember-ink: #1a0f06;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--bone); font: 15px/1.5 var(--font-body); }
+.wrap {
+  max-width: 980px; margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 22px;
+}
+header { display: grid; gap: 4px; }
+h1 { font: 750 clamp(26px, 5vw, 38px)/1.05 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--dim); margin: 0; max-width: 62ch; }
+
+.plate {
+  background: radial-gradient(120% 90% at 50% 40%, var(--plate), var(--bg));
+  border: 1px solid var(--line); border-radius: 28px;
+  padding: clamp(18px, 4vw, 40px) 12px;
+  display: grid; justify-items: center; gap: 18px;
+}
+.eyes { display: flex; gap: var(--gap, 56px); align-items: flex-start; justify-content: center; flex-wrap: nowrap; max-width: 100%; }
+.eye { display: grid; justify-items: center; gap: 10px; min-width: 0; }
+.bezel {
+  border-radius: 50%; padding: var(--bezel, 10px); background: #050404;
+  box-shadow: 0 0 0 1px var(--line), 0 12px 40px rgba(0,0,0,.6);
+}
+canvas {
+  display: block; border-radius: 50%; image-rendering: pixelated;
+  width: var(--eye, 240px); height: var(--eye, 240px); max-width: 100%;
+}
+.cap { font: 400 12px/1.3 var(--font-mono); color: var(--dim); text-align: center; letter-spacing: .02em; }
+.cap b { color: var(--bone); font-weight: 600; }
+.readout { font: 400 12.5px/1.4 var(--font-mono); color: var(--dim); font-variant-numeric: tabular-nums; text-align: center; min-height: 1.4em; }
+.readout .state { color: var(--ember); }
+
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+fieldset { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 16px; margin: 0; display: grid; gap: 12px; min-width: 0; }
+legend { font: 600 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--dim); padding: 0 6px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+button {
+  font: 600 13px/1 var(--font-body); color: var(--bone); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--dim); }
+button[aria-pressed="true"] { background: var(--ember); border-color: var(--ember); color: var(--ember-ink); }
+button:focus-visible, input:focus-visible, .pad:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+label.row { display: grid; grid-template-columns: 7.5em 1fr 4.2em; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
+label.row output { font: 400 12px var(--font-mono); color: var(--bone); text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--ember); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--bone); }
+.check input { accent-color: var(--ember); width: 16px; height: 16px; }
+.hint { font-size: 12.5px; color: var(--dim); margin: 0; }
+
+.padbox { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.pad {
+  width: 128px; height: 128px; border-radius: 50%; border: 1px solid var(--line);
+  background: radial-gradient(circle, rgba(233,223,202,.06), transparent 70%); position: relative; touch-action: none; cursor: crosshair;
+}
+.pad::before, .pad::after { content: ""; position: absolute; background: var(--line); }
+.pad::before { left: 50%; top: 8px; bottom: 8px; width: 1px; }
+.pad::after { top: 50%; left: 8px; right: 8px; height: 1px; }
+.dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--dim); left: 50%; top: 50%; z-index: 1; }
+.pad.held .dot { background: var(--ember); }
+
+.notes { color: var(--dim); font-size: 13px; display: grid; gap: 6px; max-width: 70ch; }
+.notes p { margin: 0; }
+code { font: 400 12px var(--font-mono); color: var(--bone); }
+@media (max-width: 560px) { .eyes { --gap: 18px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Bone Eyes Simulator</h1>
+    <p class="sub">Both 160×160 GC9D01 eyes, as the skull shows them to a visitor. The pixels come from the firmware renderer's tables and maths; the motion is a port of the firmware's eye task.</p>
+  </header>
+
+  <section class="plate" aria-label="Eyes">
+    <div class="eyes" id="eyes">
+      <div class="eye">
+        <div class="bezel"><canvas id="cvR" width="160" height="160" aria-label="Skull's right eye"></canvas></div>
+        <div class="cap"><b>Right eye</b> · viewer's left · CS 15</div>
+      </div>
+      <div class="eye">
+        <div class="bezel"><canvas id="cvL" width="160" height="160" aria-label="Skull's left eye"></canvas></div>
+        <div class="cap"><b>Left eye</b> · viewer's right · CS 5</div>
+      </div>
+    </div>
+    <div class="readout" id="readout" aria-live="off"></div>
+  </section>
+
+  <div class="controls">
+    <fieldset>
+      <legend>Mood</legend>
+      <div class="seg" id="mood" role="group" aria-label="Mood">
+        <button type="button" data-v="idle" aria-pressed="true">Idle</button>
+        <button type="button" data-v="alert" aria-pressed="false">Alert</button>
+        <button type="button" data-v="talking" aria-pressed="false">Talking</button>
+        <button type="button" data-v="goodbye" aria-pressed="false">Goodbye</button>
+      </div>
+      <div class="seg">
+        <button type="button" id="blink">Blink</button>
+      </div>
+      <p class="hint">Moods set the lid opening and pupil size the controller eases toward. Blinks also fire on their own every 2–6 s.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Artwork</legend>
+      <div class="seg" id="art" role="group" aria-label="Artwork"></div>
+      <label class="row" for="bl">Backlight <input id="bl" type="range" min="0" max="255" value="200"><output id="blOut">200</output></label>
+      <div class="seg" id="zoom" role="group" aria-label="Display size">
+        <button type="button" data-v="real" aria-pressed="false">Actual size</button>
+        <button type="button" data-v="1.5" aria-pressed="true">1.5×</button>
+        <button type="button" data-v="2.5" aria-pressed="false">2.5×</button>
+      </div>
+      <p class="hint">Actual size is 18 mm across. Its accuracy depends on your screen's DPI.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Hold a gaze</legend>
+      <div class="padbox">
+        <div class="pad" id="pad" tabindex="0" aria-label="Gaze pad. Drag to hold the eyes on a point; arrow keys nudge it."><div class="dot" id="dot"></div></div>
+        <div style="display:grid; gap:10px; min-width:0">
+          <p class="hint">Drag in the circle to hold the gaze, like <code>eyes look x y</code>. Right is the viewer's right.</p>
+          <div class="seg"><button type="button" id="release">Release (<code>eyes free</code>)</button></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Visitor (planned tracking)</legend>
+      <label class="check" for="visitor"><input id="visitor" type="checkbox"> Someone is in front of the skull</label>
+      <label class="row" for="dist">Distance <input id="dist" type="range" min="30" max="400" value="120"><output id="distOut">120 cm</output></label>
+      <label class="row" for="side">Position <input id="side" type="range" min="-100" max="100" value="0"><output id="sideOut">centre</output></label>
+      <p class="hint">The LD2410C reports distance only. Position stands in for the faked direction. Closer visitors make the eyes converge.</p>
+    </fieldset>
+  </div>
+
+  <div class="notes">
+    <p>The renderer here is checked against the C++ one when the page is built, using pixel checksums over several poses for both artworks. The browser shows RGB565 expanded to 8 bits, so expect the real IPS panel's gamma and brightness to differ.</p>
+    <p>Built by <code>tools/eye_sim/build.py</code>. Edit <code>src/eye_render.h</code> or <code>src/eyes.cpp</code>, then mirror the change in <code>eye_core.js</code> and rebuild.</p>
+  </div>
+</div>
+
+<script>/*EYE_CORE*/</script>
+<script>
+(function () {
+  const ARTS = /*ART_DATA*/[];
+  const { compute, row, Controller, OUT } = EyeCore;
+
+  function decode(m) {
+    const bin = atob(m.data);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    let o = 0;
+    const take = (Type, n) => { const v = new Type(u8.buffer, o, n); o += n * Type.BYTES_PER_ELEMENT; return v; };
+    return Object.assign({}, m, {
+      sclera: take(Uint16Array, m.scleraW * m.scleraH),
+      iris: take(Uint16Array, m.irisMapW * m.irisMapH),
+      upper: take(Uint8Array, m.lidSize * m.lidSize),
+      lower: take(Uint8Array, m.lidSize * m.lidSize),
+      polar: take(Uint16Array, m.irisW * m.irisH),
+    });
+  }
+  const arts = {};
+  ARTS.forEach(m => { arts[m.name] = decode(m); });
+  let art = arts.dragon || Object.values(arts)[0];
+
+  // RGB565 -> RGBA (little-endian ImageData word), same expansion as eye_preview.
+  const lut = new Uint32Array(65536);
+  for (let c = 0; c < 65536; c++) {
+    const r = ((c >> 11) & 31) * 255 / 31 | 0, g = ((c >> 5) & 63) * 255 / 63 | 0, b = (c & 31) * 255 / 31 | 0;
+    lut[c] = 0xff000000 | (b << 16) | (g << 8) | r;
+  }
+
+  // Firmware config.h defaults.
+  const EYE_L_LID_FLIP = false, EYE_R_LID_FLIP = true;
+  const eyes = [
+    { cv: document.getElementById('cvL'), flip: EYE_L_LID_FLIP, track: { u: 128 } },
+    { cv: document.getElementById('cvR'), flip: EYE_R_LID_FLIP, track: { u: 128 } },
+  ];
+  eyes.forEach(e => {
+    e.ctx = e.cv.getContext('2d');
+    e.img = e.ctx.createImageData(OUT, OUT);
+    e.px = new Uint32Array(e.img.data.buffer);
+  });
+  const rowBuf = new Uint16Array(OUT);
+
+  function draw(e, st) {
+    const p = compute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track);
+    for (let y = 0; y < OUT; y++) {
+      row(art, p, y, rowBuf);
+      const base = y * OUT;
+      for (let x = 0; x < OUT; x++) e.px[base + x] = lut[rowBuf[x]];
+    }
+    e.ctx.putImageData(e.img, 0, 0);
+  }
+
+  const ctl = new Controller(performance.now());
+  const readout = document.getElementById('readout');
+  const visitor = document.getElementById('visitor');
+  const dist = document.getElementById('dist');
+  const side = document.getElementById('side');
+  let frames = 0, fpsT0 = performance.now(), fps = 0, lastDraw = 0;
+  const FRAME_MS = 1000 / 35;  // roughly what the ESP32 should manage
+
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (now - lastDraw < FRAME_MS - 1) return;
+    lastDraw = now;
+    if (visitor.checked) {
+      const cm = +dist.value;
+      // Planned behaviour: look slightly down at a person, converge when close.
+      ctl.lookAt(-(+side.value) / 100, -0.15, cm, now);
+    }
+    const s = ctl.step(now);
+    draw(eyes[0], s.left);
+    draw(eyes[1], s.right);
+    frames++;
+    if (now - fpsT0 > 500) { fps = frames * 1000 / (now - fpsT0); frames = 0; fpsT0 = now; }
+    const state = ctl.held ? 'held' : s.tracking ? 'tracking' : 'saccades';
+    readout.innerHTML =
+      `<span class="state">${state}</span> · gaze ${s.left.gazeX.toFixed(2).padStart(5)} ${s.left.gazeY.toFixed(2).padStart(5)}` +
+      ` · lid ${s.left.lid.toFixed(2)} · pupil ${s.left.pupil.toFixed(2)} · ${art.name} · ${fps.toFixed(0)} fps`;
+  }
+  requestAnimationFrame(loop);
+
+  // --- controls ---
+  function segmented(id, onPick) {
+    const el = document.getElementById(id);
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('button');
+      if (!b) return;
+      el.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      onPick(b.dataset.v);
+    });
+  }
+  segmented('mood', v => { ctl.mood = v; });
+  document.getElementById('blink').addEventListener('click', () => { ctl.blinkReq = true; });
+
+  const artSeg = document.getElementById('art');
+  Object.keys(arts).forEach(name => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.v = name;
+    b.textContent = name === 'default' ? 'Hazel (default)' : name[0].toUpperCase() + name.slice(1);
+    b.setAttribute('aria-pressed', String(arts[name] === art));
+    artSeg.appendChild(b);
+  });
+  segmented('art', v => { art = arts[v]; });
+
+  const bl = document.getElementById('bl'), blOut = document.getElementById('blOut');
+  function setBl() {
+    blOut.textContent = bl.value;
+    const f = (+bl.value / 255).toFixed(3);
+    eyes.forEach(e => { e.cv.style.filter = `brightness(${f})`; });
+  }
+  bl.addEventListener('input', setBl);
+  setBl();
+
+  const eyesEl = document.getElementById('eyes');
+  function setZoom(v) {
+    if (v === 'real') {
+      eyesEl.style.setProperty('--eye', '18mm');
+      eyesEl.style.setProperty('--bezel', '1.5mm');
+      eyesEl.style.setProperty('--gap', '22mm');
+    } else {
+      const px = Math.round(160 * +v);
+      eyesEl.style.setProperty('--eye', `min(${px}px, 40vw)`);
+      eyesEl.style.setProperty('--bezel', '10px');
+      eyesEl.style.removeProperty('--gap');
+    }
+  }
+  segmented('zoom', setZoom);
+  setZoom('1.5');
+
+  dist.addEventListener('input', () => { document.getElementById('distOut').textContent = dist.value + ' cm'; });
+  side.addEventListener('input', () => {
+    const v = +side.value;
+    document.getElementById('sideOut').textContent = v === 0 ? 'centre' : (v < 0 ? 'left ' : 'right ') + Math.abs(v) + '%';
+  });
+
+  // Gaze pad: viewer's right = skull's left = negative gazeX.
+  const pad = document.getElementById('pad'), dot = document.getElementById('dot');
+  let hx = 0, hy = 0;
+  function setHold(x, y) {
+    const r = Math.hypot(x, y);
+    if (r > 1) { x /= r; y /= r; }
+    hx = x; hy = y;
+    ctl.held = { x: -x, y: y };
+    pad.classList.add('held');
+    dot.style.left = (50 + x * 44) + '%';
+    dot.style.top = (50 - y * 44) + '%';
+  }
+  function fromEvent(ev) {
+    const r = pad.getBoundingClientRect();
+    setHold(((ev.clientX - r.left) / r.width) * 2 - 1, 1 - ((ev.clientY - r.top) / r.height) * 2);
+  }
+  pad.addEventListener('pointerdown', ev => { pad.setPointerCapture(ev.pointerId); fromEvent(ev); });
+  pad.addEventListener('pointermove', ev => { if (pad.hasPointerCapture(ev.pointerId)) fromEvent(ev); });
+  pad.addEventListener('keydown', ev => {
+    const step = 0.1, k = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[ev.key];
+    if (!k) return;
+    ev.preventDefault();
+    setHold(hx + k[0], hy + k[1]);
+  });
+  document.getElementById('release').addEventListener('click', () => {
+    ctl.held = null; hx = hy = 0;
+    pad.classList.remove('held');
+    dot.style.left = '50%'; dot.style.top = '50%';
+  });
+})();
+</script>
