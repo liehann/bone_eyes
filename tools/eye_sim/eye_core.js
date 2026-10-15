@@ -92,6 +92,151 @@
     }
   }
 
+
+  // --- fire: port of src/fire_render.h. tables = {quad, noiseW, radius,
+  // angle, upBias (Int8Array), noise, palette (Uint16Array)} ---
+  const FIRE_MOODS = [[72, 45, 185], [115, 95, 235], [100, 80, 225], [40, 20, 150]];
+  const MOOD_INDEX = { idle: 0, alert: 1, talking: 2, goodbye: 3 };
+
+  function FireState() { this.lastMs = 0; this.flowMilli = 0; this.len = 72 * 16; this.speed = 45; this.base = 185 * 16; }
+
+  function fireCompute(lidArt, gazeX, gazeY, lid, pupil, lidFlip, track, mood, nowMs, s) {
+    const p = {};
+    p.lids = compute(lidArt, gazeX, gazeY, lid, pupil, lidFlip, track);
+    p.cx = (OUT >> 1) - Math.trunc(f(clampf(f(gazeX), -1, 1) * f(30)));
+    p.cy = (OUT >> 1) - Math.trunc(f(clampf(f(gazeY), -1, 1) * f(30)));
+    p.pupilR = 8 + Math.trunc(f(clampf(f(pupil), 0, 1) * f(10)));
+    const m = FIRE_MOODS[mood & 3];
+    let dt = s.lastMs ? (nowMs - s.lastMs) >>> 0 : 0;
+    if (dt > 200) dt = 200;
+    s.lastMs = nowMs;
+    s.len += Math.trunc((m[0] * 16 - s.len) / 8);
+    s.base += Math.trunc((m[2] * 16 - s.base) / 8);
+    s.speed += Math.trunc((m[1] - s.speed) / 4);
+    s.flowMilli = (s.flowMilli + dt * s.speed) % 2048000;
+    p.len = Math.trunc(s.len / 16);
+    p.base = Math.trunc(s.base / 16);
+    p.s1 = Math.trunc(s.flowMilli / 1000);
+    p.s2 = Math.trunc(s.flowMilli * 3 / 2000);
+    p.rot = Math.trunc(s.flowMilli / 8000);
+    return p;
+  }
+
+  function fireRow(lidArt, t, p, oy, out) {
+    const S = lidArt.lidSize, Q = t.quad, NW = t.noiseW;
+    const src = srcMap(S);
+    const lidBase = src[oy] * S;
+    const uy = p.cy - oy, ay = uy < 0 ? -uy : uy;
+    const L = p.lids;
+    for (let ox = 0; ox < OUT; ox++) {
+      const lx = src[ox];
+      const lidX = L.lidFlip ? S - 1 - lx : lx;
+      if (lidArt.lower[lidBase + lidX] <= L.lThr || lidArt.upper[lidBase + lidX] <= L.uThr) { out[ox] = 0; continue; }
+      const dx = ox - p.cx, ax = dx < 0 ? -dx : dx;
+      if (ax >= Q || ay >= Q) { out[ox] = 0; continue; }
+      const r = t.radius[ay * Q + ax];
+      if (r < p.pupilR) { out[ox] = 0; continue; }
+      const a = t.angle[ay * Q + ax];
+      let ang;
+      if (dx >= 0) ang = uy >= 0 ? a : (256 - a) & 255;
+      else ang = uy >= 0 ? 128 - a : 128 + a;
+      const d = r - p.pupilR;
+      const n1 = t.noise[((d - p.s1) & 63) * NW + ((ang + p.rot) & 255)];
+      const n2 = t.noise[((d * 2 - p.s2) & 63) * NW + ((ang * 2 + 97 - p.rot) & 255)];
+      const n = (n1 * 5 + n2 * 3) >> 3;
+      let len = p.len + t.upBias[ang];
+      if (len < 4) len = 4;
+      let heat = p.base + Math.trunc(((n - 128) * 3) / 2) - Math.trunc((d * 255) / len);
+      if (d < 4) heat += (4 - d) * 20;
+      heat = heat < 0 ? 0 : heat > 255 ? 255 : heat;
+      out[ox] = t.palette[heat];
+    }
+  }
+
+  // --- flames + smoke overlay: port of src/flame_overlay.h ---
+  const FLAME_MOODS = [[22, 210], [12, 250], [15, 240], [40, 170]];
+
+  function Flames(seed) {
+    this.heat = new Uint8Array(OUT * OUT);
+    this.smoke = new Uint8Array(OUT * OUT);
+    this.open = new Uint8Array(OUT * OUT);
+    this.rng = (seed >>> 0) || 1;
+    this.frame = 0;
+  }
+  Flames.prototype.next = function () {
+    let x = this.rng;
+    x = (x ^ (x << 13)) >>> 0;
+    x = (x ^ (x >>> 17)) >>> 0;
+    x = (x ^ (x << 5)) >>> 0;
+    this.rng = x;
+    return x;
+  };
+  Flames.prototype.step = function (lidArt, lids, mood, t) {
+    const N = OUT, m = FLAME_MOODS[mood & 3], S = lidArt.lidSize, src = srcMap(S);
+    const heat = this.heat, smoke = this.smoke, open = this.open;
+    for (let y = 0; y < N; y++) {
+      const ub = src[y] * S;
+      for (let x = 0; x < N; x++) {
+        const lx = lids.lidFlip ? S - 1 - src[x] : src[x];
+        open[y * N + x] = (lidArt.lower[ub + lx] <= lids.lThr || lidArt.upper[ub + lx] <= lids.uThr) ? 0 : 1;
+      }
+    }
+    this.frame = (this.frame + 1) >>> 0;
+    for (let y = 0; y < N - 1; y++) {
+      const hb = y * N, bb = hb + N, cb = ((y + this.frame) & 63) * t.noiseW;
+      for (let x = 0; x < N; x++) {
+        const r = this.next();
+        let sx = x + (r % 3) - 1;
+        sx = sx < 0 ? 0 : sx >= N ? N - 1 : sx;
+        const cv = t.noise[cb + x];
+        const c = ((cv * cv * m[0]) >>> 15) + ((r >>> 8) & 1);
+        const v = heat[bb + sx] - c;
+        heat[hb + x] = v < 0 ? 0 : v;
+      }
+    }
+    for (let x = 0; x < N; x++) heat[(N - 1) * N + x] = 0;
+    for (let i = 0; i < N * N; i++) {
+      if (open[i]) {
+        const v = m[1] - (this.next() & 31);
+        heat[i] = v < 0 ? 0 : v;
+      }
+    }
+    if (this.frame & 1) {
+      const sway = (Math.floor(this.frame / 32) % 3) - 1;
+      for (let y = 0; y < N - 1; y++) {
+        const sb = y * N, bb = sb + N;
+        for (let x = 0; x < N; x++) {
+          let sx = x + sway;
+          sx = sx < 0 ? 0 : sx >= N ? N - 1 : sx;
+          const v = smoke[bb + sx] - (this.next() % 5);
+          smoke[sb + x] = v < 0 ? 0 : v;
+        }
+      }
+      for (let x = 0; x < N; x++) smoke[(N - 1) * N + x] = 0;
+    }
+    for (let i = 0; i < N * N; i++) {
+      const h = heat[i];
+      if (h > 20 && h < 60 && !open[i] && (this.next() & 15) === 0) {
+        const v = smoke[i] + 70;
+        smoke[i] = v > 120 ? 120 : v;
+      }
+    }
+  };
+  Flames.prototype.composite = function (t, y, row) {
+    const N = OUT, base = y * N;
+    for (let x = 0; x < N; x++) {
+      const i = base + x;
+      if (this.open[i]) continue;
+      const fc = t.palette[this.heat[i]];
+      const g = this.smoke[i] >> 1;
+      let r5 = (fc >> 11) + (g >> 3), g6 = ((fc >> 5) & 63) + (g >> 2), b5 = (fc & 31) + (g >> 3);
+      if (r5 > 31) r5 = 31;
+      if (g6 > 63) g6 = 63;
+      if (b5 > 31) b5 = 31;
+      row[x] = (r5 << 11) | (g6 << 5) | b5;
+    }
+  };
+
   // --- controller: port of eyeTask() in src/eyes.cpp ---
   const MOOD = {
     idle: { lid: 0.72, pupil: 0.45 },
@@ -162,7 +307,7 @@
     };
   };
 
-  const api = { OUT, compute, row, Controller, MOOD };
+  const api = { OUT, compute, row, Controller, MOOD, FireState, fireCompute, fireRow, MOOD_INDEX, Flames };
   if (typeof module !== 'undefined') module.exports = api;
   else root.EyeCore = api;
 })(this);

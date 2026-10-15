@@ -28,10 +28,14 @@ with tempfile.TemporaryDirectory() as tmp:
     for m in meta:
         m["data"] = base64.b64encode((tmp / f"{m['name']}.bin").read_bytes()).decode()
         del m["checksums"]
+    fire = json.loads((tmp / "fire.json").read_text())
+    fire = {k: fire[k] for k in ("quad", "noiseW", "noiseH")}
+    fire["data"] = base64.b64encode((tmp / "fire.bin").read_bytes()).decode()
 
 html = (here / "sim.template.html").read_text()
 html = html.replace("/*EYE_CORE*/", (here / "eye_core.js").read_text())
 html = html.replace("/*ART_DATA*/[]", json.dumps(meta))
+html = html.replace("/*FIRE_DATA*/{}", json.dumps(fire))
 out = here / "eye_sim.html"
 out.write_text(html)
 print(f"wrote {out} ({out.stat().st_size // 1024} KiB)")

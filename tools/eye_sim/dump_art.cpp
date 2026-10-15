@@ -4,7 +4,10 @@
 #include <stdio.h>
 #include <string>
 
-#include "eye_render.h"
+#include <stdlib.h>
+
+#include "fire_render.h"
+#include "flame_overlay.h"
 
 static void put(FILE* f, const void* p, size_t n) { fwrite(p, 1, n, f); }  // host is little endian
 
@@ -45,4 +48,60 @@ int main(int argc, char** argv) {
     printf("]}");
   }
   printf("]\n");
+
+  // Fire tables, then checksums for a sequence of fire frames (stderr-free:
+  // written to fire.json).
+  using namespace fire_tables;
+  FILE* f = fopen((dir + "/fire.bin").c_str(), "wb");
+  put(f, kRadius, sizeof(kRadius));
+  put(f, kAngle, sizeof(kAngle));
+  put(f, kUpBias, sizeof(kUpBias));
+  put(f, kNoise, sizeof(kNoise));
+  put(f, kPalette, sizeof(kPalette));
+  fclose(f);
+  FILE* j = fopen((dir + "/fire.json").c_str(), "w");
+  fprintf(j, "{\"quad\":%d,\"noiseW\":%d,\"noiseH\":%d,\"checksums\":[", kQuad, kNoiseW, kNoiseH);
+  for (size_t k = 0; k < sizeof(kPoses) / sizeof(kPoses[0]); k++) {
+    const float* q = kPoses[k];
+    fire_render::State st;
+    int track = 128;
+    fire_render::Params p{};
+    // Varying frame times, mood = pose index, ending well past the start.
+    for (uint32_t n = 0, t = 1000; n < 40; n++, t += 17 + (n * 7) % 23)
+      p = fire_render::compute(kDefaultEye, q[0], q[1], q[2], q[3], q[4] != 0, track, (int)k, t, st);
+    uint32_t h = 2166136261u;
+    uint16_t row[eye_render::kOut];
+    for (int y = 0; y < eye_render::kOut; y++) {
+      fire_render::row(kDefaultEye, p, y, row);
+      for (int x = 0; x < eye_render::kOut; x++) h = (h ^ row[x]) * 16777619u;
+    }
+    fprintf(j, "%s%u", k ? "," : "", h);
+  }
+  // Overlay: 50 frames of flames over each art (default art, pose k).
+  fprintf(j, "],\"flameChecksums\":[");
+  for (size_t k = 0; k < sizeof(kPoses) / sizeof(kPoses[0]); k++) {
+    const float* q = kPoses[k];
+    const EyeArt& a = k & 1 ? kDragonEye : kDefaultEye;
+    flame_overlay::Buffers b{(uint8_t*)malloc(160 * 160), (uint8_t*)malloc(160 * 160), (uint8_t*)malloc(160 * 160), 0, 0};
+    flame_overlay::reset(b, 12345 + (uint32_t)k);
+    int track = 128;
+    eye_render::Params p{};
+    for (int n = 0; n < 50; n++) {
+      p = eye_render::compute(a, q[0], q[1], q[2], q[3], q[4] != 0, track);
+      flame_overlay::step(b, a, p, (int)k);
+    }
+    uint32_t h = 2166136261u;
+    uint16_t row[eye_render::kOut];
+    for (int y = 0; y < eye_render::kOut; y++) {
+      eye_render::row(a, p, y, row);
+      flame_overlay::composite(b, y, row);
+      for (int x = 0; x < eye_render::kOut; x++) h = (h ^ row[x]) * 16777619u;
+    }
+    fprintf(j, "%s%u", k ? "," : "", h);
+    free(b.heat);
+    free(b.smoke);
+    free(b.open);
+  }
+  fprintf(j, "]}\n");
+  fclose(j);
 }

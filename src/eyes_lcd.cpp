@@ -10,6 +10,8 @@
 #include "eye_art/eye_art.h"
 #include "eye_render.h"
 #include "eyes.h"
+#include "fire_render.h"
+#include "flame_overlay.h"
 #include "gc9d01.h"
 
 namespace {
@@ -17,8 +19,12 @@ namespace {
 constexpr int N = Gc9d01Bus::kSize;
 constexpr int kChunkRows = 8;
 
-const EyeArt* const kArts[] = {&kDefaultEye, &kDragonEye};
-const EyeArt* volatile currentArt = &kDragonEye;
+// Styles: the two Uncanny Eyes artworks, plus "fire" (procedural burning
+// iris, using the default eye's lid shapes).
+const char* const kStyles[] = {"default", "dragon", "fire"};
+constexpr int kFireStyle = 2;
+volatile int currentStyle = 1;
+volatile bool flamesOn = EYE_FLAMES_DEFAULT;  // flames + smoke around the eye
 
 uint16_t be(uint16_t c) { return (c >> 8) | (c << 8); }
 uint16_t rgb(uint8_t r, uint8_t g, uint8_t b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -101,10 +107,23 @@ class LcdEyes : public EyeBackend {
 
  private:
   void drawEye(int e, const EyeState& st) {
-    const EyeArt& a = *currentArt;
-    eye_render::Params p =
-        eye_render::compute(a, EYE_GAZE_X_INVERT ? -st.gazeX : st.gazeX, st.gazeY, st.lid, st.pupil,
-                            e == 0 ? EYE_L_LID_FLIP : EYE_R_LID_FLIP, uTrack_[e]);
+    const int style = currentStyle;
+    const bool fire = style == kFireStyle;
+    const EyeArt& a = style == 1 ? kDragonEye : kDefaultEye;  // fire uses the default lids
+    const float gx = EYE_GAZE_X_INVERT ? -st.gazeX : st.gazeX;
+    const bool flip = e == 0 ? EYE_L_LID_FLIP : EYE_R_LID_FLIP;
+    const int mood = (int)st.mood;
+
+    eye_render::Params p;
+    fire_render::Params fp;
+    if (fire) {
+      fp = fire_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e], mood, millis(), fire_[e]);
+      p = fp.lids;
+    } else {
+      p = eye_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e]);
+    }
+    const bool flames = flamesOn && ensureFlames();
+    if (flames) flame_overlay::step(flame_[e], a, p, mood);
 
     bus_.beginFrame(e, 0, 0, N - 1, N - 1);
     int chunk = 0;
@@ -116,10 +135,12 @@ class LcdEyes : public EyeBackend {
         b = buf_[chunk++ & 1];
       }
       uint16_t* row = b + (oy % kChunkRows) * N;
-      if (prev && eye_render::repeatsPrevious(a.lidSize, oy)) {
+      if (!fire && !flames && prev && eye_render::repeatsPrevious(a.lidSize, oy)) {
         memcpy(row, prev, N * 2);  // upscaling repeats every 5th row
       } else {
-        eye_render::row(a, p, oy, row);
+        if (fire) fire_render::row(a, fp, oy, row);
+        else eye_render::row(a, p, oy, row);
+        if (flames) flame_overlay::composite(flame_[e], oy, row);
         for (int x = 0; x < N; x++) row[x] = be(row[x]);
       }
       prev = row;
@@ -128,23 +149,45 @@ class LcdEyes : public EyeBackend {
     bus_.endFrame();
   }
 
+  // Flame buffers (3 x 25.6 KB per eye) live in PSRAM, allocated on first use.
+  bool ensureFlames() {
+    if (flame_[0].heat) return true;
+    for (int e = 0; e < 2; e++) {
+      uint8_t* m = (uint8_t*)heap_caps_malloc(3 * N * N, MALLOC_CAP_SPIRAM);
+      if (!m) m = (uint8_t*)heap_caps_malloc(3 * N * N, MALLOC_CAP_8BIT);
+      if (!m) {
+        Serial.println("flames: out of memory");
+        flamesOn = false;
+        return false;
+      }
+      flame_[e] = {m, m + N * N, m + 2 * N * N, 0, 0};
+      flame_overlay::reset(flame_[e], 0x9E3779B9u + e);
+    }
+    return true;
+  }
+
   Gc9d01Bus bus_;
   bool started_ = false;
   uint16_t* buf_[2] = {nullptr, nullptr};
   uint8_t brightness_ = BL_DEFAULT;
   int uTrack_[2] = {128, 128};
+  fire_render::State fire_[2];
+  flame_overlay::Buffers flame_[2] = {};
 };
 
 void cmdArt(int argc, char** argv) {
-  for (const EyeArt* a : kArts) {
-    if (argc > 1 && strcmp(argv[1], a->name) == 0) {
-      currentArt = a;
+  for (int i = 0; i < 3; i++) {
+    if (argc > 1 && strcmp(argv[1], kStyles[i]) == 0) {
+      currentStyle = i;
       return;
     }
   }
-  Serial.printf("art: %s (options:", currentArt->name);
-  for (const EyeArt* a : kArts) Serial.printf(" %s", a->name);
-  Serial.println(")");
+  Serial.printf("art: %s (options: default dragon fire)\n", kStyles[currentStyle]);
+}
+
+void cmdFlames(int argc, char** argv) {
+  if (argc > 1) flamesOn = strcmp(argv[1], "on") == 0;
+  Serial.printf("flames: %s\n", flamesOn ? "on" : "off");
 }
 
 }  // namespace
@@ -152,9 +195,10 @@ void cmdArt(int argc, char** argv) {
 EyeBackend* makeLcdEyes() {
   static bool registered = false;
   if (!registered) {
-    for (const EyeArt* a : kArts)
-      if (strcmp(a->name, EYE_ART_DEFAULT) == 0) currentArt = a;
-    console::add("art", "LCD eye artwork: art [default|dragon]", cmdArt);
+    for (int i = 0; i < 3; i++)
+      if (strcmp(kStyles[i], EYE_ART_DEFAULT) == 0) currentStyle = i;
+    console::add("art", "LCD eye style: art [default|dragon|fire]", cmdArt);
+    console::add("flames", "flames + smoke around the eyes: flames [on|off]", cmdFlames);
     registered = true;
   }
   static LcdEyes* instance = new LcdEyes();  // owns the SPI bus; reused across backend switches

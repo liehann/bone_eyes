@@ -118,12 +118,17 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
       <div class="seg">
         <button type="button" id="blink">Blink</button>
       </div>
-      <p class="hint">Moods set the lid opening and pupil size the controller eases toward. Blinks also fire on their own every 2–6 s.</p>
+      <p class="hint">Moods set the lid opening, pupil size and how hard the fire burns. Blinks also fire on their own every 2–6 s.</p>
     </fieldset>
 
     <fieldset>
-      <legend>Artwork</legend>
-      <div class="seg" id="art" role="group" aria-label="Artwork"></div>
+      <legend>Look</legend>
+      <div class="seg" id="art" role="group" aria-label="Eye style">
+        <button type="button" data-v="default" aria-pressed="false">Hazel</button>
+        <button type="button" data-v="dragon" aria-pressed="true">Dragon</button>
+        <button type="button" data-v="fire" aria-pressed="false">Fire iris</button>
+      </div>
+      <label class="check" for="flames"><input id="flames" type="checkbox" checked> Flames and smoke rising from the eyes</label>
       <label class="row" for="bl">Backlight <input id="bl" type="range" min="0" max="255" value="200"><output id="blOut">200</output></label>
       <div class="seg" id="zoom" role="group" aria-label="Display size">
         <button type="button" data-v="real" aria-pressed="false">Actual size</button>
@@ -154,7 +159,7 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   </div>
 
   <div class="notes">
-    <p>The renderer here is checked against the C++ one when the page is built, using pixel checksums over several poses for both artworks. The browser shows RGB565 expanded to 8 bits, so expect the real IPS panel's gamma and brightness to differ.</p>
+    <p>The renderer, fire iris and flame overlay here are checked against the C++ ones when the page is built, using pixel checksums over several poses and frame sequences. The browser shows RGB565 expanded to 8 bits, so expect the real IPS panel's gamma and brightness to differ.</p>
     <p>Built by <code>tools/eye_sim/build.py</code>. Edit <code>src/eye_render.h</code> or <code>src/eyes.cpp</code>, then mirror the change in <code>eye_core.js</code> and rebuild.</p>
   </div>
 </div>
@@ -163,7 +168,8 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
 <script>
 (function () {
   const ARTS = /*ART_DATA*/[];
-  const { compute, row, Controller, OUT } = EyeCore;
+  const FIRE = /*FIRE_DATA*/{};
+  const { compute, row, Controller, OUT, FireState, fireCompute, fireRow, MOOD_INDEX, Flames } = EyeCore;
 
   function decode(m) {
     const bin = atob(m.data);
@@ -181,7 +187,20 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   }
   const arts = {};
   ARTS.forEach(m => { arts[m.name] = decode(m); });
-  let art = arts.dragon || Object.values(arts)[0];
+  const fireT = (function () {
+    const bin = atob(FIRE.data), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    let o = 0;
+    const take = (Type, n) => { const v = new Type(u8.buffer, o, n); o += n * Type.BYTES_PER_ELEMENT; return v; };
+    const q2 = FIRE.quad * FIRE.quad;
+    return Object.assign({}, FIRE, {
+      radius: take(Uint8Array, q2), angle: take(Uint8Array, q2), upBias: take(Int8Array, 256),
+      noise: take(Uint8Array, FIRE.noiseW * FIRE.noiseH), palette: take(Uint16Array, 256),
+    });
+  })();
+  // Styles as in the firmware's `art` command; fire uses the default lids.
+  let style = 'dragon';
+  let flamesOn = true;
 
   // RGB565 -> RGBA (little-endian ImageData word), same expansion as eye_preview.
   const lut = new Uint32Array(65536);
@@ -193,8 +212,8 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   // Firmware config.h defaults.
   const EYE_L_LID_FLIP = false, EYE_R_LID_FLIP = true;
   const eyes = [
-    { cv: document.getElementById('cvL'), flip: EYE_L_LID_FLIP, track: { u: 128 } },
-    { cv: document.getElementById('cvR'), flip: EYE_R_LID_FLIP, track: { u: 128 } },
+    { cv: document.getElementById('cvL'), flip: EYE_L_LID_FLIP, track: { u: 128 }, fire: new FireState(), flames: new Flames(0x9E3779B9) },
+    { cv: document.getElementById('cvR'), flip: EYE_R_LID_FLIP, track: { u: 128 }, fire: new FireState(), flames: new Flames(0x9E3779BA) },
   ];
   eyes.forEach(e => {
     e.ctx = e.cv.getContext('2d');
@@ -203,10 +222,22 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   });
   const rowBuf = new Uint16Array(OUT);
 
-  function draw(e, st) {
-    const p = compute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track);
+  function draw(e, st, now) {
+    const fire = style === 'fire';
+    const art = style === 'dragon' ? arts.dragon : arts.default;
+    const mood = MOOD_INDEX[st.mood];
+    let p, fp;
+    if (fire) {
+      fp = fireCompute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track, mood, Math.floor(now) >>> 0, e.fire);
+      p = fp.lids;
+    } else {
+      p = compute(art, st.gazeX, st.gazeY, st.lid, st.pupil, e.flip, e.track);
+    }
+    if (flamesOn) e.flames.step(art, p, mood, fireT);
     for (let y = 0; y < OUT; y++) {
-      row(art, p, y, rowBuf);
+      if (fire) fireRow(art, fireT, fp, y, rowBuf);
+      else row(art, p, y, rowBuf);
+      if (flamesOn) e.flames.composite(fireT, y, rowBuf);
       const base = y * OUT;
       for (let x = 0; x < OUT; x++) e.px[base + x] = lut[rowBuf[x]];
     }
@@ -231,14 +262,14 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
       ctl.lookAt(-(+side.value) / 100, -0.15, cm, now);
     }
     const s = ctl.step(now);
-    draw(eyes[0], s.left);
-    draw(eyes[1], s.right);
+    draw(eyes[0], s.left, now);
+    draw(eyes[1], s.right, now);
     frames++;
     if (now - fpsT0 > 500) { fps = frames * 1000 / (now - fpsT0); frames = 0; fpsT0 = now; }
     const state = ctl.held ? 'held' : s.tracking ? 'tracking' : 'saccades';
     readout.innerHTML =
       `<span class="state">${state}</span> · gaze ${s.left.gazeX.toFixed(2).padStart(5)} ${s.left.gazeY.toFixed(2).padStart(5)}` +
-      ` · lid ${s.left.lid.toFixed(2)} · pupil ${s.left.pupil.toFixed(2)} · ${art.name} · ${fps.toFixed(0)} fps`;
+      ` · lid ${s.left.lid.toFixed(2)} · pupil ${s.left.pupil.toFixed(2)} · ${style}${flamesOn ? ' + flames' : ''} · ${fps.toFixed(0)} fps`;
   }
   requestAnimationFrame(loop);
 
@@ -255,15 +286,12 @@ code { font: 400 12px var(--font-mono); color: var(--bone); }
   segmented('mood', v => { ctl.mood = v; });
   document.getElementById('blink').addEventListener('click', () => { ctl.blinkReq = true; });
 
-  const artSeg = document.getElementById('art');
-  Object.keys(arts).forEach(name => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.dataset.v = name;
-    b.textContent = name === 'default' ? 'Hazel (default)' : name[0].toUpperCase() + name.slice(1);
-    b.setAttribute('aria-pressed', String(arts[name] === art));
-    artSeg.appendChild(b);
+  segmented('art', v => { style = v; });
+  const flamesBox = document.getElementById('flames');
+  flamesBox.addEventListener('change', () => {
+    flamesOn = flamesBox.checked;
+    if (flamesOn) eyes.forEach((e, i) => { e.flames = new Flames(0x9E3779B9 + i); });
   });
-  segmented('art', v => { art = arts[v]; });
 
   const bl = document.getElementById('bl'), blOut = document.getElementById('blOut');
   function setBl() {
