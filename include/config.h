@@ -46,10 +46,17 @@ constexpr int EYE_SIZE = 160;                  // 160x160 GC9D01
 constexpr uint32_t TFT_SPI_HZ = 40000000;      // drop to 27 MHz if long Dupont leads glitch
 constexpr uint8_t BL_LEDC_CHANNEL = 7;         // high channel, servo lib takes the low ones
 constexpr uint8_t BL_DEFAULT = 200;            // 0..255
-// Mirror one eye so the irises point the same way when both modules are
-// mounted the same way up. Set per mounting.
-constexpr bool EYE_L_MIRROR = false;
-constexpr bool EYE_R_MIRROR = true;
+// Per-mounting fixes, checked on the bench with `eyes test` / `eyes look`:
+constexpr bool TFT_SWAP_RB = false;        // red and blue swapped in `eyes test`
+constexpr bool EYE_L_ROT180 = false;       // panel mounted upside down
+constexpr bool EYE_R_ROT180 = false;
+constexpr bool EYE_GAZE_X_INVERT = false;  // `eyes look 1 0` should look toward the skull's right
+// "L"/"R" are the skull's own left/right (L = viewer's right). The lid art
+// has a tear duct on one side; these put both at the nose (checked with
+// tools/eye_preview.cpp).
+constexpr bool EYE_L_LID_FLIP = false;
+constexpr bool EYE_R_LID_FLIP = true;
+constexpr const char* EYE_ART_DEFAULT = "dragon";  // "default" (hazel) or "dragon"
 
 // ---------------------------------------------------------------------------
 // Jaw (calibrate after mounting; `jaw closed <deg>` / `jaw open <deg>` then

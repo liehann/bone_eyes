@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "console.h"
+#include "eyes.h"
 
 namespace {
 
@@ -37,6 +38,10 @@ void setup() {
   console::add("heap", "show free heap", cmdHeap);
   console::add("info", "chip / flash / build info", cmdInfo);
   console::add("reboot", "restart the ESP32", cmdReboot);
+
+  eyes::registerCommands();
+  eyes::begin(eyes::Backend::Lcd);
+  delay(500);  // let the eye task init the panels before reporting heap
 
   printHeap();
   Serial.println("ready, type 'help'");
