@@ -70,7 +70,7 @@ void eyeTask(void*) {
     shared.backendReq = false;
     portEXIT_CRITICAL(&mux);
 
-    if (s.backendReq && s.pendingBackend != activeKind) {
+    if (s.backendReq && (!active || s.pendingBackend != activeKind)) {
       if (active) active->end();  // backends are singletons, never deleted
       activeKind = s.pendingBackend;
       active = create(activeKind);
