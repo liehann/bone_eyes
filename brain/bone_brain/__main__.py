@@ -8,7 +8,7 @@ from aiohttp import web
 from . import secrets
 from .config import cfg
 from .convo import Brain
-from .server import Server
+from .server import Server, ensure_eye_art
 
 
 async def main():
@@ -30,6 +30,7 @@ async def main():
 
     keys = secrets.load(["ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY"], args.env)
     print(f"keys: {', '.join(sorted(keys)) or 'none'}")
+    ensure_eye_art()
     server = Server()
     brain = Brain(cfg, keys, server.emit)
     server.brain = brain

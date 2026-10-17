@@ -203,7 +203,8 @@ class Brain:
     def _set_persona(self, persona: Persona):
         if persona.id != self.persona.id:
             self.persona = persona
-            self.emit({"type": "persona", "id": persona.id, "name": persona.name})
+            self.skull.art(persona.eyes)
+            self.emit({"type": "persona", "id": persona.id, "name": persona.name, "eyes": persona.eyes})
 
     def _voice_key(self, pid: str):
         return (pid,) + PERSONAS[pid].voice_key()

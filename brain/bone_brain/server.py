@@ -13,6 +13,26 @@ from .convo import Brain
 from .personas import PERSONAS
 
 STATIC = Path(__file__).resolve().parent / "static"
+EYE_SIM = Path(__file__).resolve().parents[2] / "tools" / "eye_sim"  # firmware renderer, JS port
+
+
+def ensure_eye_art():
+    """(Re)build tools/eye_sim/eye_art.json if it's missing or older than the eye
+    renderer/art sources. Needs a C++ compiler and node; failures are non-fatal
+    (the page then shows the skull without rendered eyes)."""
+    import subprocess
+    import sys
+    out = EYE_SIM / "eye_art.json"
+    repo = EYE_SIM.parents[1]
+    sources = [*repo.glob("src/eye_art/*"), *repo.glob("src/*render*.h"), repo / "src/fire_eye.h",
+               repo / "src/flame_overlay.h", EYE_SIM / "eye_core.js", EYE_SIM / "dump_art.cpp"]
+    newest = max(f.stat().st_mtime for f in sources if f.exists())
+    if out.exists() and out.stat().st_mtime >= newest:
+        return
+    print("building eye art for the control page (tools/eye_sim/build.py)...")
+    r = subprocess.run([sys.executable, str(EYE_SIM / "build.py")], capture_output=True, text=True)
+    if r.returncode:
+        print(f"eye art build failed; the page will show eyes unrendered:\n{r.stdout[-500:]}{r.stderr[-500:]}")
 
 
 class Server:
@@ -106,4 +126,11 @@ class Server:
         app = web.Application()
         app.router.add_get("/", self.index)
         app.router.add_get("/ws", self.ws)
+        app.router.add_get("/eye_core.js", lambda r: web.FileResponse(EYE_SIM / "eye_core.js"))
+        app.router.add_get("/eye_art.json", self.eye_art)
+        app.router.add_static("/static", STATIC)
         return app
+
+    async def eye_art(self, request):
+        f = EYE_SIM / "eye_art.json"
+        return web.FileResponse(f) if f.exists() else web.Response(status=404, text="run tools/eye_sim/build.py")

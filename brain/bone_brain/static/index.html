@@ -16,7 +16,8 @@
   .pill { padding: 3px 10px; border-radius: 999px; background: var(--line); font-size: 13px; }
   .pill.state { background: #3a2410; color: var(--accent2); font-weight: 600; }
   .pill.bad { background: #3a1414; color: var(--err); }
-  main { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px 20px; max-width: 1200px; }
+  main { display: grid; grid-template-columns: 320px minmax(300px, 460px) minmax(320px, 1fr); gap: 16px; padding: 16px 20px; align-items: start; }
+  @media (max-width: 1100px) { main { grid-template-columns: 320px 1fr; } }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
   section + section { margin-top: 16px; }
@@ -36,7 +37,11 @@
   .meter > div { height: 100%; width: 0; background: var(--accent); transition: width 60ms linear; }
   .meter.mic > div { background: var(--visitor); }
   .meter.speech > div { background: var(--ok); }
-  #log { height: 52vh; min-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .skull-wrap { position: relative; width: min(100%, 420px); margin: 0 auto; }
+  .skull-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .eye-cv { position: absolute; aspect-ratio: 1; border-radius: 50%; image-rendering: auto; }
+  .skull-note { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; color: var(--muted); font-size: 12px; }
+  #log { height: calc(100vh - 140px); min-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
   .msg { padding: 8px 11px; border-radius: 9px; max-width: 85%; }
   .msg .who { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
   .msg.skull { background: #2a1a0c; align-self: flex-start; }
@@ -74,18 +79,7 @@
     </section>
 
     <section>
-      <h2>Jaw &amp; mic</h2>
-      <div class="skull">
-        <svg width="150" height="150" viewBox="0 0 120 120" aria-label="jaw preview">
-          <defs><radialGradient id="eye"><stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#ff7a1a"/><stop offset="1" stop-color="#5a1a00"/></radialGradient></defs>
-          <path d="M60 8c-27 0-44 18-44 42 0 12 5 21 12 27v10h64V77c7-6 12-15 12-27C104 26 87 8 60 8z" fill="#d9d0c1"/>
-          <circle cx="42" cy="50" r="12" fill="url(#eye)"/><circle cx="78" cy="50" r="12" fill="url(#eye)"/>
-          <path d="M60 60l-6 12h12z" fill="#2a2420"/>
-          <g id="jaw"><path d="M30 86h60v10c0 10-12 16-30 16S30 106 30 96z" fill="#cfc5b4"/>
-            <path d="M40 86v8M48 86v9M56 86v9M64 86v9M72 86v9M80 86v8" stroke="#8a7f70" stroke-width="2"/></g>
-          <path d="M40 80v7M48 80v7M56 80v7M64 80v7M72 80v7M80 80v7" stroke="#8a7f70" stroke-width="2"/>
-        </svg>
-      </div>
+      <h2>Levels</h2>
       <div class="row"><label>jaw</label><div class="meter"><div id="jawBar"></div></div></div>
       <div class="row"><label>mic</label><div class="meter mic"><div id="micBar"></div></div></div>
       <div class="row"><label>speech</label><div class="meter speech"><div id="speechBar"></div></div></div>
@@ -104,6 +98,7 @@
       <div class="row"><label>engine</label><select id="pEngine"></select></div>
       <div class="row"><label>voice</label><select id="pVoice"></select><input type="text" id="pVoiceText" placeholder="voice id" style="flex:1;display:none"></div>
       <div class="row" id="pModelRow" style="display:none"><label>model</label><input type="text" id="pModel" placeholder="eleven_flash_v2_5" style="flex:1"></div>
+      <div class="row"><label>eyes</label><select id="pEyes"></select></div>
       <div class="row"><label>speed</label><input type="range" id="pSpeed" min="0.6" max="1.4" step="0.02" style="flex:1"><span class="small val" data-for="pSpeed"></span></div>
       <div class="row"><label>effects</label><input type="checkbox" id="pEffects"><span class="small">pitch, chorus, reverb</span></div>
       <div class="row"><label>pitch</label><input type="range" id="pSemitones" min="-12" max="12" step="0.5" style="flex:1"><span class="small val" data-for="pSemitones"></span></div>
@@ -125,15 +120,23 @@
 
   <div>
     <section>
-      <h2>Conversation</h2>
-      <div id="log"></div>
+      <h2>Skull</h2>
+      <div class="skull-wrap" id="skullView"></div>
     </section>
     <section>
       <h2>Last turn timing (from end of question)</h2>
       <table id="timings"><tr><td class="small">No turns yet</td></tr></table>
     </section>
   </div>
+  <div>
+    <section>
+      <h2>Conversation</h2>
+      <div id="log"></div>
+    </section>
+  </div>
 </main>
+<script src="/eye_core.js"></script>
+<script src="/static/skull.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let ws, settings = {};
@@ -151,7 +154,7 @@ function add(cls, who, text) {
 }
 function setJaw(v) {
   $('jawBar').style.width = (v * 100) + '%';
-  $('jaw').setAttribute('transform', `translate(0 ${v * 14})`);
+  if (window.Skull) Skull.setJaw(v);
 }
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
@@ -171,20 +174,26 @@ function connect() {
       showPersona();
       const pname = m.personas[m.persona].name;
       $('personaPill').textContent = pname + (m.persona === 'skeleton' ? ` · possession chance ${Math.round(m.possess_chance * 100)}%` : ' (possessed!)');
+      if (window.Skull) { Skull.setState(m.state); Skull.setStyle(m.personas[m.persona].eyes); }
       $('linesInfo').textContent = 'Lines: ' + Object.entries(m.lines).map(([k, v]) => `${v} ${k}`).join(', ');
     } else if (m.type === 'persona_data') {
       settings.personas[m.id] = m.data;
       dirty[m.id] = m.dirty;
       if ($('pSel').value === m.id) showPersona(true);
+      if (m.id === settings.persona && window.Skull) Skull.setStyle(m.data.eyes);
       if (m.saved) $('pStatus').textContent = `saved personas/${m.id}.json`;
     } else if (m.type === 'persona') {
+      settings.persona = m.id;
+      if (window.Skull) Skull.setStyle(m.eyes);
       $('personaPill').textContent = m.id === 'skeleton' ? 'Skeleton' : m.name + ' (possessed!)';
       $('personaPill').style.color = m.id === 'skeleton' ? '' : '#d58bff';
     } else if (m.type === 'presence') {
       $('presence').textContent = m.present ? 'visitor present' : 'nobody here';
       $('presence').style.color = m.present ? 'var(--ok)' : '';
+      if (window.Skull) Skull.setPresent(m.present);
     } else if (m.type === 'state') {
       $('state').textContent = m.state;
+      if (window.Skull) Skull.setState(m.state);
     } else if (m.type === 'line') {
       const pname = m.persona && m.persona !== 'skeleton' && settings.personas ? settings.personas[m.persona].name : 'skull';
       const who = m.who === 'skull' ? pname + (m.backend ? ` · ${m.backend}` : '') + (m.filler ? ' · thinking' : '') + (m.event ? ` · ${m.event}` : '') : m.who;
@@ -206,7 +215,7 @@ function connect() {
 }
 const dirty = {};
 const P_FIELDS = { pEngine: 'engine', pVoice: 'voice', pVoiceText: 'voice', pModel: 'model', pSpeed: 'speed',
-  pEffects: 'effects', pSemitones: 'semitones', pReverb: 'reverb', pChorus: 'chorus', pWeight: 'weight',
+  pEffects: 'effects', pSemitones: 'semitones', pReverb: 'reverb', pChorus: 'chorus', pWeight: 'weight', pEyes: 'eyes',
   pCharacter: 'character' };
 function showPersona(keepFocus) {
   const p = settings.personas[$('pSel').value];
@@ -219,6 +228,7 @@ function showPersona(keepFocus) {
   $('pVoiceText').style.display = freeText ? '' : 'none';
   $('pModelRow').style.display = p.engine === 'elevenlabs' ? '' : 'none';
   fill($('pVoice'), voices.includes(p.voice) ? voices : [p.voice, ...voices], p.voice);
+  fill($('pEyes'), ['fire', 'default', 'dragon'], p.eyes);
   for (const [id, key] of Object.entries(P_FIELDS)) {
     const el = $(id);
     if (keepFocus && document.activeElement === el) continue;

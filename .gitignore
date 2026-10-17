@@ -9,3 +9,4 @@ data/clips/*.png
 recordings/
 tools/eye_sim/eye_sim.html
 include/secrets.h
+tools/eye_sim/eye_art.json

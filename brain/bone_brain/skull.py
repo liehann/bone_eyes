@@ -6,6 +6,7 @@ Transport: USB serial (cfg.skull = "/dev/cu.usbserial-...") or UDP
   laptop -> skull:  !j <0-1000>     jaw opening
                     !m <idle|alert|talking|goodbye>
                     !l <x> <y>       gaze, -1..1 (+x skull's right, +y up); "!l" alone releases
+                    !a <fire|default|dragon>   eye style (follows the speaking persona)
   skull -> laptop:  !p <cm>          someone is present at this distance
                     !g               they're gone
 """
@@ -66,6 +67,10 @@ class Skull:
     def mood(self, mood: str):
         if mood in MOODS:
             self._send(f"!m {mood}")
+
+    def art(self, style: str):
+        if style in ("fire", "default", "dragon"):
+            self._send(f"!a {style}")
 
     def look(self, x: float | None = None, y: float = 0.0):
         self._send("!l" if x is None else f"!l {x:.2f} {y:.2f}")

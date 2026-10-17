@@ -59,5 +59,6 @@ Lines starting with `!` share the ESP32's serial console:
 | laptop → skull | `!j <0-1000>` | jaw opening |
 | | `!m idle\|alert\|talking\|goodbye` | mood |
 | | `!l <x> <y>` / `!l` | look at (-1..1) / release gaze |
+| | `!a fire\|default\|dragon` | eye style (follows the speaking persona) |
 | skull → laptop | `!p <cm>` | someone present at this distance |
 | | `!g` | they left |

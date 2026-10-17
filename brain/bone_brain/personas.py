@@ -37,6 +37,7 @@ class Persona:
     semitones: float = 0.0   # pitch shift
     reverb: float = 0.25
     chorus: float = 0.2
+    eyes: str = "fire"       # LCD eye style: fire | default (hazel) | dragon (slit pupil)
     character: str = ""      # the character part of Claude's system prompt
 
     def system_prompt(self) -> str:

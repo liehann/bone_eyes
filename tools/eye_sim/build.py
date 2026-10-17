@@ -3,7 +3,8 @@
 
 Compiles dump_art.cpp against the firmware's eye art + renderer, verifies the
 JS port (eye_core.js) renders identical pixels, then inlines the art tables
-and scripts into sim.template.html.
+and scripts into sim.template.html. Also writes eye_art.json, which the
+brain's control page loads.
 """
 import base64
 import json
@@ -31,6 +32,9 @@ with tempfile.TemporaryDirectory() as tmp:
     fire = json.loads((tmp / "fire.json").read_text())
     fire = {k: fire[k] for k in ("quad", "noiseW", "noiseH")}
     fire["data"] = base64.b64encode((tmp / "fire.bin").read_bytes()).decode()
+
+# Art + fire tables as JSON too, for the brain's control page (brain/).
+(here / "eye_art.json").write_text(json.dumps({"arts": meta, "fire": fire}))
 
 html = (here / "sim.template.html").read_text()
 html = html.replace("/*EYE_CORE*/", (here / "eye_core.js").read_text())
