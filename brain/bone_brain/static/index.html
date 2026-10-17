@@ -54,6 +54,7 @@
   <h1>💀 Skull Brain</h1>
   <span class="pill state" id="state">connecting…</span>
   <span class="pill" id="presence">nobody here</span>
+  <span class="pill" id="personaPill">Skeleton</span>
   <span class="pill" id="llmPill"></span>
   <span class="pill" id="skullPill"></span>
 </header>
@@ -94,12 +95,31 @@
       <h2>Settings</h2>
       <div class="row"><label>speaker</label><select id="out"></select></div>
       <div class="row"><label>replies</label><select id="llm"></select></div>
-      <div class="row"><label>voice via</label><select id="tts"></select></div>
-      <div class="row"><label>voice</label><select id="voice"></select></div>
-      <div class="row"><label>pitch</label><input type="range" id="semitones" min="-9" max="3" step="1" style="flex:1"><span id="semiVal" class="small"></span></div>
-      <div class="row"><label>effects</label><input type="checkbox" id="fx"><span class="small">pitch, reverb, grit</span></div>
-      <div class="row" style="margin-top:12px"><input type="text" id="sayText" placeholder="Test the voice…" style="flex:1"><button id="sayBtn">Say</button></div>
       <p class="small" id="linesInfo"></p>
+    </section>
+
+    <section>
+      <h2>Voices</h2>
+      <div class="row"><label>persona</label><select id="pSel"></select></div>
+      <div class="row"><label>engine</label><select id="pEngine"></select></div>
+      <div class="row"><label>voice</label><select id="pVoice"></select><input type="text" id="pVoiceText" placeholder="voice id" style="flex:1;display:none"></div>
+      <div class="row" id="pModelRow" style="display:none"><label>model</label><input type="text" id="pModel" placeholder="eleven_flash_v2_5" style="flex:1"></div>
+      <div class="row"><label>speed</label><input type="range" id="pSpeed" min="0.6" max="1.4" step="0.02" style="flex:1"><span class="small val" data-for="pSpeed"></span></div>
+      <div class="row"><label>effects</label><input type="checkbox" id="pEffects"><span class="small">pitch, chorus, reverb</span></div>
+      <div class="row"><label>pitch</label><input type="range" id="pSemitones" min="-12" max="12" step="0.5" style="flex:1"><span class="small val" data-for="pSemitones"></span></div>
+      <div class="row"><label>reverb</label><input type="range" id="pReverb" min="0" max="0.8" step="0.05" style="flex:1"><span class="small val" data-for="pReverb"></span></div>
+      <div class="row"><label>chorus</label><input type="range" id="pChorus" min="0" max="0.8" step="0.05" style="flex:1"><span class="small val" data-for="pChorus"></span></div>
+      <div class="row" id="pWeightRow"><label>possess</label><input type="range" id="pWeight" min="0" max="50" step="1" style="flex:1"><span class="small val" data-for="pWeight"></span></div>
+      <div class="row"><label>character</label></div>
+      <div class="row"><textarea id="pCharacter" style="min-height:110px"></textarea></div>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="sayText" placeholder="Preview this voice…" style="flex:1"><button id="sayBtn">Preview</button>
+      </div>
+      <div class="row">
+        <button class="primary" id="pSave">Save to repo</button>
+        <button id="possessBtn" title="This persona answers the next question">Possess next reply</button>
+        <span class="small" id="pStatus"></span>
+      </div>
     </section>
   </div>
 
@@ -140,20 +160,34 @@ function connect() {
     const m = JSON.parse(ev.data);
     if (m.type === 'settings') {
       settings = m;
-      fill($('llm'), m.llm_options, m.llm); fill($('tts'), m.tts_options, m.tts); fill($('voice'), m.voice_options, m.voice); fill($('out'), m.out_options, m.out);
-      $('fx').checked = m.fx; $('semitones').value = m.semitones; $('semiVal').textContent = m.semitones;
+      fill($('llm'), m.llm_options, m.llm); fill($('out'), m.out_options, m.out);
       $('state').textContent = m.state;
       $('llmPill').textContent = m.llm === 'claude' ? m.model : 'canned replies (no API cost)';
       $('skullPill').textContent = 'skull: ' + m.skull;
       $('skullPill').className = 'pill' + (m.skull.startsWith('error') ? ' bad' : '');
+      const cur = $('pSel').value || 'skeleton';
+      $('pSel').innerHTML = Object.values(m.personas).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      $('pSel').value = cur in m.personas ? cur : 'skeleton';
+      showPersona();
+      const pname = m.personas[m.persona].name;
+      $('personaPill').textContent = pname + (m.persona === 'skeleton' ? ` · possession chance ${Math.round(m.possess_chance * 100)}%` : ' (possessed!)');
       $('linesInfo').textContent = 'Lines: ' + Object.entries(m.lines).map(([k, v]) => `${v} ${k}`).join(', ');
+    } else if (m.type === 'persona_data') {
+      settings.personas[m.id] = m.data;
+      dirty[m.id] = m.dirty;
+      if ($('pSel').value === m.id) showPersona(true);
+      if (m.saved) $('pStatus').textContent = `saved personas/${m.id}.json`;
+    } else if (m.type === 'persona') {
+      $('personaPill').textContent = m.id === 'skeleton' ? 'Skeleton' : m.name + ' (possessed!)';
+      $('personaPill').style.color = m.id === 'skeleton' ? '' : '#d58bff';
     } else if (m.type === 'presence') {
       $('presence').textContent = m.present ? 'visitor present' : 'nobody here';
       $('presence').style.color = m.present ? 'var(--ok)' : '';
     } else if (m.type === 'state') {
       $('state').textContent = m.state;
     } else if (m.type === 'line') {
-      const who = m.who === 'skull' ? 'skull' + (m.backend ? ` · ${m.backend}` : '') + (m.filler ? ' · thinking' : '') : m.who;
+      const pname = m.persona && m.persona !== 'skeleton' && settings.personas ? settings.personas[m.persona].name : 'skull';
+      const who = m.who === 'skull' ? pname + (m.backend ? ` · ${m.backend}` : '') + (m.filler ? ' · thinking' : '') + (m.event ? ` · ${m.event}` : '') : m.who;
       add(m.who, who === 'error' ? '' : who, m.text);
     } else if (m.type === 'jaw') {
       setJaw(m.v);
@@ -170,19 +204,51 @@ function connect() {
     }
   };
 }
+const dirty = {};
+const P_FIELDS = { pEngine: 'engine', pVoice: 'voice', pVoiceText: 'voice', pModel: 'model', pSpeed: 'speed',
+  pEffects: 'effects', pSemitones: 'semitones', pReverb: 'reverb', pChorus: 'chorus', pWeight: 'weight',
+  pCharacter: 'character' };
+function showPersona(keepFocus) {
+  const p = settings.personas[$('pSel').value];
+  if (!p) return;
+  const eng = settings.engines;
+  fill($('pEngine'), Object.keys(eng), p.engine);
+  const voices = eng[p.engine] || [];
+  const freeText = voices.length === 0;
+  $('pVoice').style.display = freeText ? 'none' : '';
+  $('pVoiceText').style.display = freeText ? '' : 'none';
+  $('pModelRow').style.display = p.engine === 'elevenlabs' ? '' : 'none';
+  fill($('pVoice'), voices.includes(p.voice) ? voices : [p.voice, ...voices], p.voice);
+  for (const [id, key] of Object.entries(P_FIELDS)) {
+    const el = $(id);
+    if (keepFocus && document.activeElement === el) continue;
+    if (el.type === 'checkbox') el.checked = !!p[key];
+    else if (el.tagName !== 'SELECT') el.value = p[key] ?? '';
+  }
+  document.querySelectorAll('.val').forEach(v => { v.textContent = $(v.dataset.for).value; });
+  $('pWeightRow').style.display = p.id === 'skeleton' ? 'none' : '';
+  $('pStatus').textContent = dirty[p.id] ? 'unsaved changes' : '';
+}
+for (const [id, key] of Object.entries(P_FIELDS)) {
+  const el = $(id);
+  const commit = () => send({ cmd: 'persona_set', id: $('pSel').value, key,
+    value: el.type === 'checkbox' ? el.checked : el.value });
+  el.addEventListener('change', commit);
+  if (el.type === 'range') el.addEventListener('input', () => {
+    document.querySelector(`.val[data-for="${id}"]`).textContent = el.value; });
+}
+$('pSel').onchange = () => showPersona();
+$('pSave').onclick = () => send({ cmd: 'persona_save', id: $('pSel').value });
+$('possessBtn').onclick = () => send({ cmd: 'set', key: 'possess', value: $('pSel').value });
+$('sayBtn').onclick = () => send({ cmd: 'preview', id: $('pSel').value,
+  text: $('sayText').value || 'Come closer, little mortal, and ask me anything.' });
+$('sayText').onkeydown = e => { if (e.key === 'Enter') $('sayBtn').click(); };
 $('visitor').onclick = () => send({ cmd: 'visitor' });
 $('leave').onclick = () => send({ cmd: 'leave' });
 $('stop').onclick = () => send({ cmd: 'stop' });
 $('askBtn').onclick = () => send({ cmd: 'ask', text: $('ask').value });
-$('sayBtn').onclick = () => send({ cmd: 'say', text: $('sayText').value });
-$('sayText').onkeydown = e => { if (e.key === 'Enter') $('sayBtn').click(); };
 $('llm').onchange = e => send({ cmd: 'set', key: 'llm', value: e.target.value });
 $('out').onchange = e => send({ cmd: 'set', key: 'out', value: e.target.value });
-$('tts').onchange = e => send({ cmd: 'set', key: 'tts', value: e.target.value });
-$('voice').onchange = e => send({ cmd: 'set', key: 'voice', value: e.target.value });
-$('fx').onchange = e => send({ cmd: 'set', key: 'fx', value: e.target.checked });
-$('semitones').oninput = e => { $('semiVal').textContent = e.target.value; };
-$('semitones').onchange = e => send({ cmd: 'set', key: 'semitones', value: e.target.value });
 connect();
 </script>
 </body>

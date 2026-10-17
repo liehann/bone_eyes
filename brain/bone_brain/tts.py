@@ -32,10 +32,9 @@ class Kokoro:
     def voices(self) -> list[str]:
         return sorted(self.k.get_voices())
 
-    def synth(self, text: str) -> tuple[np.ndarray, int]:
-        lang = "en-gb" if self.cfg.kokoro_voice.startswith("b") else "en-us"
-        audio, sr = self.k.create(text, voice=self.cfg.kokoro_voice, speed=self.cfg.kokoro_speed, lang=lang)
-        return audio, sr
+    def synth(self, text: str, voice: str, speed: float, model: str) -> tuple[np.ndarray, int]:
+        lang = "en-gb" if voice.startswith("b") else "en-us"
+        return self.k.create(text, voice=voice, speed=speed, lang=lang)
 
 
 class Piper:
@@ -50,11 +49,11 @@ class Piper:
     def voices(self) -> list[str]:
         return sorted(p.stem for p in MODELS.glob("*.onnx") if Path(str(p) + ".json").exists())
 
-    def synth(self, text: str) -> tuple[np.ndarray, int]:
-        name = self.cfg.piper_voice
-        if name not in self.loaded:
-            self.loaded[name] = self._PiperVoice.load(str(MODELS / f"{name}.onnx"))
-        chunks = list(self.loaded[name].synthesize(text))
+    def synth(self, text: str, voice: str, speed: float, model: str) -> tuple[np.ndarray, int]:
+        from piper import SynthesisConfig
+        if voice not in self.loaded:
+            self.loaded[voice] = self._PiperVoice.load(str(MODELS / f"{voice}.onnx"))
+        chunks = list(self.loaded[voice].synthesize(text, SynthesisConfig(length_scale=1 / max(speed, 0.3))))
         return np.concatenate([c.audio_float_array for c in chunks]), chunks[0].sample_rate
 
 
@@ -69,10 +68,10 @@ class Say:
         out = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
         return sorted({l.split()[0] for l in out.splitlines() if "en_" in l})
 
-    def synth(self, text: str) -> tuple[np.ndarray, int]:
+    def synth(self, text: str, voice: str, speed: float, model: str) -> tuple[np.ndarray, int]:
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "say.wav"
-            subprocess.run(["say", "-v", self.cfg.say_voice, "-o", str(p), "--file-format=WAVE",
+            subprocess.run(["say", "-v", voice, "-r", str(int(175 * speed)), "-o", str(p), "--file-format=WAVE",
                             "--data-format=LEF32@22050", text], check=True)
             audio, sr = sf.read(p, dtype="float32")
         return audio, sr
@@ -86,15 +85,14 @@ class ElevenLabs:
         self.key = api_key
 
     def voices(self) -> list[str]:
-        return [self.cfg.elevenlabs_voice_id] if self.cfg.elevenlabs_voice_id else []
+        return []  # free-form voice id
 
-    def synth(self, text: str) -> tuple[np.ndarray, int]:
-        if not self.key or not self.cfg.elevenlabs_voice_id:
-            raise RuntimeError("ElevenLabs needs ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID")
+    def synth(self, text: str, voice: str, speed: float, model: str) -> tuple[np.ndarray, int]:
+        if not self.key or not voice:
+            raise RuntimeError("ElevenLabs needs ELEVENLABS_API_KEY and a voice id")
         req = urllib.request.Request(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{self.cfg.elevenlabs_voice_id}/stream"
-            "?output_format=pcm_24000",
-            data=json.dumps({"text": text, "model_id": self.cfg.elevenlabs_model}).encode(),
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice}/stream?output_format=pcm_24000",
+            data=json.dumps({"text": text, "model_id": model or "eleven_flash_v2_5"}).encode(),
             headers={"xi-api-key": self.key, "Content-Type": "application/json"})
         pcm = urllib.request.urlopen(req, timeout=20).read()
         return np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768, 24000
@@ -110,9 +108,13 @@ class Tts:
             except Exception as e:
                 print(f"tts: {cls.name} unavailable: {e}")
 
-    def synth(self, text: str) -> np.ndarray:
-        """Sentence -> float32 at cfg.out_rate, peak-normalised so the jaw scale is consistent."""
-        audio, sr = self.backends[self.cfg.tts].synth(text)
+    def synth(self, text: str, persona) -> np.ndarray:
+        """Sentence in a persona's voice -> float32 at cfg.out_rate, peak-normalised so
+        the jaw scale is consistent."""
+        b = self.backends.get(persona.engine)
+        if b is None:
+            raise RuntimeError(f"TTS engine {persona.engine!r} unavailable")
+        audio, sr = b.synth(text, persona.voice, persona.speed, persona.model)
         audio = resample(np.asarray(audio, dtype=np.float32), sr, self.cfg.out_rate)
         peak = float(np.max(np.abs(audio))) if len(audio) else 0
         return audio * (0.7 / peak) if peak > 1e-4 else audio

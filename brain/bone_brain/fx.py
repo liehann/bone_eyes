@@ -1,14 +1,14 @@
 """The skull's voice treatment: pitch down, a little grit, a crypt-ish reverb."""
 import numpy as np
-from pedalboard import Chorus, Compressor, Limiter, Pedalboard, PitchShift, Reverb
+from pedalboard import Chorus, Compressor, Gain, Limiter, Pedalboard, PitchShift, Reverb
 
 
 class Fx:
-    def __init__(self, rate: int, semitones: float, reverb: float):
+    def __init__(self, rate: int, semitones: float, reverb: float, chorus: float = 0.2):
         self.rate = rate
         self.board = Pedalboard([
-            PitchShift(semitones=semitones),
-            Chorus(rate_hz=0.6, depth=0.15, mix=0.2),
+            PitchShift(semitones=semitones) if semitones else Gain(0),
+            Chorus(rate_hz=0.6, depth=0.15, mix=chorus),
             Compressor(threshold_db=-20, ratio=3),
             Reverb(room_size=0.55, damping=0.6, wet_level=reverb, dry_level=0.85, width=0.6),
             Limiter(threshold_db=-1.0),

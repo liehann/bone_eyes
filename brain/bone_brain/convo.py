@@ -12,6 +12,7 @@ from .fx import Fx
 from .jaw import JawFollower
 from .lines import Lines
 from .llm import Llm, split_sentences
+from .personas import PERSONAS, SKELETON, Persona, Possession
 from .skull import Skull
 from .stt import Stt
 from .tts import Tts
@@ -27,7 +28,7 @@ class Brain:
         self.llm = Llm(cfg.llm_model, cfg.llm_max_tokens, self.lines, keys.get("ANTHROPIC_API_KEY"))
         self.llm_backend = "claude" if self.llm.available else "canned"
         self.tts = Tts(cfg, keys.get("ELEVENLABS_API_KEY"))
-        self.fx = Fx(cfg.out_rate, cfg.fx_semitones, cfg.fx_reverb)
+        self.fx_cache: dict[tuple, Fx] = {}
         self.jaw = JawFollower(cfg, cfg.out_rate)
         self.skull = Skull(cfg.skull, on_event=self._skull_event)
         self.player = Player(cfg, on_jaw=self._on_jaw)
@@ -36,8 +37,10 @@ class Brain:
         self.stt = Stt(cfg.whisper_model)
         self.tts_pool = ThreadPoolExecutor(1, thread_name_prefix="tts")
         self.work_pool = ThreadPoolExecutor(2, thread_name_prefix="work")
-        self.fillers: list[tuple] = []  # pre-rendered "hmmm" lines, cleared on voice changes
-        self.filler_key = None
+        self.fillers: dict[str, list] = {}   # persona -> pre-rendered "hmmm" lines
+        self.filler_key: dict[str, tuple] = {}
+        self.possession = Possession()
+        self.persona: Persona = PERSONAS[SKELETON]
         self.state = "starting"
         self.session: asyncio.Task | None = None
         self.present = False
@@ -49,11 +52,12 @@ class Brain:
         self.loop = asyncio.get_running_loop()
         self.set_state("warming up")
         await self.loop.run_in_executor(self.work_pool, self.stt.warmup)
-        await self.loop.run_in_executor(self.tts_pool, self.tts.synth, "Ready.")
+        await self.loop.run_in_executor(self.tts_pool, self.tts.synth, "Ready.", PERSONAS[SKELETON])
         self.player.start()
         self.mic.start()
-        await self._refill_fillers()
+        await self._refill_fillers(SKELETON)
         self.set_state("idle")
+        asyncio.ensure_future(self._prerender_personas())
 
     def set_state(self, state: str, **extra):
         self.state = state
@@ -111,13 +115,25 @@ class Brain:
         self.set_state("idle")
 
     async def say(self, text: str, who: str = "skull"):
-        """Speak a fixed line (greeting, test text, ...)."""
-        self.log(who, text)
+        """Speak a fixed line (greeting, test text, ...) in the current persona's voice."""
+        self.log(who, text, persona=self.persona.id)
         q: asyncio.Queue = asyncio.Queue()
         for s in split_sentences(text):
             q.put_nowait(s)
         q.put_nowait(None)
         await self._speak_queue(q, time.monotonic())
+        await self._wait_quiet()
+
+    def busy(self) -> bool:
+        return bool(self.session and not self.session.done())
+
+    async def preview(self, pid: str, text: str):
+        """Speak a line in any persona's voice (voice editor), outside a visit."""
+        persona = PERSONAS[pid]
+        audio = await self.loop.run_in_executor(self.tts_pool, self._render, text, persona)
+        self.log("test", text, persona=pid)
+        self.player.started_at = None
+        self.player.play(*audio)
         await self._wait_quiet()
 
     # ---- session ---------------------------------------------------------
@@ -147,14 +163,14 @@ class Brain:
                         # they speak or leave.
                         if not prompted_silence:
                             prompted_silence = True
-                            await self.say(self.lines.pick("silence"))
+                            await self.say(self.lines.pick("silence", self.persona.id))
                         continue
                     self.set_state("thinking")
                     question = await self.loop.run_in_executor(self.work_pool, self.stt.transcribe, audio)
                     timings["stt"] = time.monotonic() - t_eos
                     if not question:
                         self.log("visitor", "(unintelligible)")
-                        await self.say(self.lines.pick("unheard"))
+                        await self.say(self.lines.pick("unheard", self.persona.id))
                         continue
                     self.log("visitor", question)
                 prompted_silence = False
@@ -166,7 +182,7 @@ class Brain:
                 self.emit({"type": "timings", **{k: round(v * 1000) for k, v in timings.items()}})
             await self._wait_quiet()
             self.set_state("goodbye")
-            await self.say(self.lines.pick("goodbye"))
+            await self.say(self.lines.pick("goodbye", self.persona.id))
         except asyncio.CancelledError:
             self.player.flush()
             raise
@@ -178,46 +194,75 @@ class Brain:
             except Exception:
                 pass
         finally:
+            self.possession.end_visit()
+            self._set_persona(PERSONAS[SKELETON])
             self.present = False
             self.emit({"type": "presence", "present": False})
             self.set_state("idle")
 
-    def _voice_key(self):
-        c = self.cfg
-        return (c.tts, c.kokoro_voice, c.piper_voice, c.say_voice, c.elevenlabs_voice_id,
-                c.fx, c.fx_semitones, c.kokoro_speed)
+    def _set_persona(self, persona: Persona):
+        if persona.id != self.persona.id:
+            self.persona = persona
+            self.emit({"type": "persona", "id": persona.id, "name": persona.name})
 
-    async def _refill_fillers(self, n: int = 8):
+    def _voice_key(self, pid: str):
+        return (pid,) + PERSONAS[pid].voice_key()
+
+    async def _refill_fillers(self, pid: str | None = None, n: int | None = None):
         """Render a few thinking fillers ahead of time so they play instantly."""
-        key = self._voice_key()
-        if key != self.filler_key:
-            self.fillers, self.filler_key = [], key
-        while len(self.fillers) < n:
-            text = self.lines.pick("thinking")
-            audio = await self.loop.run_in_executor(self.tts_pool, self._render, text)
-            if self._voice_key() != key:
+        pid = pid or SKELETON
+        n = n or (8 if pid == SKELETON else 2)
+        key = self._voice_key(pid)
+        if key != self.filler_key.get(pid):
+            self.fillers[pid], self.filler_key[pid] = [], key
+        persona = PERSONAS[pid]
+        while len(self.fillers[pid]) < n:
+            text = self.lines.pick("thinking", pid)
+            audio = await self.loop.run_in_executor(self.tts_pool, self._render, text, persona)
+            if self._voice_key(pid) != key:
                 return
-            self.fillers.append((text, audio))
+            self.fillers[pid].append((text, audio))
 
-    def _play_filler(self) -> bool:
-        if not self.cfg.thinking_filler or self._voice_key() != self.filler_key or not self.fillers:
-            return False
-        text, audio = self.fillers.pop(0)
-        self.log("skull", text, filler=True)
-        self.player.started_at = None
+    async def _prerender_personas(self):
+        for pid in PERSONAS:
+            if pid != SKELETON:
+                await self._refill_fillers(pid)
+
+    def _play_now(self, text: str, audio, **extra):
+        self.log("skull", text, persona=self.persona.id, **extra)
+        if not self.player.busy():
+            self.player.started_at = None
         self.player.play(*audio)
         self.set_state("speaking")
+
+    async def _lead_in(self, event: str | None):
+        """What the skull says the instant a question arrives: a thinking filler,
+        or the possessing spirit's intro, or the skeleton grumbling it's back."""
+        pid = self.persona.id
+        if event in ("possessed", "released"):
+            text = self.lines.pick("intro", pid) if event == "possessed" else self.lines.pick("unpossessed")
+            audio = await self.loop.run_in_executor(self.tts_pool, self._render, text, self.persona)
+            self._play_now(text, audio, event=event)
+            return True
+        if not self.cfg.thinking_filler:
+            return False
+        if self._voice_key(pid) != self.filler_key.get(pid) or not self.fillers.get(pid):
+            return False
+        text, audio = self.fillers[pid].pop(0)
+        self._play_now(text, audio, filler=True)
         return True
 
     async def _answer(self, history: list[dict], t_eos: float, timings: dict) -> str:
         q: asyncio.Queue = asyncio.Queue()
         sentences: list[str] = []
-        if self._play_filler():
+        persona, event = self.possession.before_reply()
+        self._set_persona(persona)
+        if await self._lead_in(event):
             timings["filler"] = time.monotonic() - t_eos
 
         async def produce():
             try:
-                async for s in self.llm.reply(history, self.llm_backend):
+                async for s in self.llm.reply(history, self.llm_backend, persona):
                     if not sentences:
                         timings["first_sentence"] = time.monotonic() - t_eos
                     sentences.append(s)
@@ -236,19 +281,20 @@ class Brain:
                 return ""
         await speak
         reply = " ".join(sentences)
-        self.log("skull", reply, backend=self.llm_backend)
+        self.log("skull", reply, backend=self.llm_backend, persona=persona.id)
         await self._wait_quiet()
-        asyncio.ensure_future(self._refill_fillers())
+        asyncio.ensure_future(self._refill_fillers(persona.id))
         return reply
 
     async def _speak_queue(self, q: asyncio.Queue, t0: float, timings: dict | None = None):
         """Synthesize sentences as they arrive and queue them on the speaker."""
+        persona = self.persona
         if not self.player.busy():
             self.player.started_at = None
             self.jaw.reset()
         first = True
         while (s := await q.get()) is not None:
-            audio = await self.loop.run_in_executor(self.tts_pool, self._render, s)
+            audio = await self.loop.run_in_executor(self.tts_pool, self._render, s, persona)
             if first:
                 self.set_state("speaking")
                 if timings is not None:
@@ -256,11 +302,18 @@ class Brain:
                 first = False
             self.player.play(*audio)
 
-    def _render(self, sentence: str):
-        dry = self.tts.synth(sentence)
+    def _fx(self, persona: Persona) -> Fx:
+        key = (persona.semitones, persona.reverb, persona.chorus)
+        if key not in self.fx_cache:
+            self.fx_cache[key] = Fx(self.cfg.out_rate, *key)
+        return self.fx_cache[key]
+
+    def _render(self, sentence: str, persona: Persona | None = None):
+        persona = persona or PERSONAS[SKELETON]
+        dry = self.tts.synth(sentence, persona)
         tail = np.zeros(int(self.cfg.out_rate * 0.25), dtype=np.float32)
         jaw = self.jaw.levels(np.concatenate([dry, tail]))  # jaw follows the dry voice
-        wet = self.fx(dry) if self.cfg.fx else np.concatenate([dry, tail])
+        wet = self._fx(persona)(dry) if persona.effects else np.concatenate([dry, tail])
         return wet, jaw
 
     async def _wait_quiet(self):

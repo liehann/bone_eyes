@@ -29,17 +29,7 @@ class Config:
     llm_model: str = "claude-haiku-5-5"
     llm_max_tokens: int = 80   # ~2 short sentences; a hard stop if it rambles
 
-    # Voice
-    tts: str = "kokoro"                   # kokoro | piper | say | elevenlabs
-    kokoro_voice: str = "bm_fable"
-    kokoro_speed: float = 0.92
-    piper_voice: str = "en_GB-alan-medium"
-    say_voice: str = "Daniel"
-    elevenlabs_voice_id: str = os.environ.get("ELEVENLABS_VOICE_ID", "")
-    elevenlabs_model: str = "eleven_flash_v2_5"
-    fx: bool = True
-    fx_semitones: float = -6.0
-    fx_reverb: float = 0.25
+    # Voice: per persona, see brain/personas/*.json
 
     # Jaw: RMS (dBFS) -> 0..1, same shape as tools/make_envelopes.py
     jaw_top_db: float = -12.0

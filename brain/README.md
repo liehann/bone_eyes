@@ -33,8 +33,17 @@ audio reaches the speaker, minus a small lead for the servo.
 
 - **Keys:** `ANTHROPIC_API_KEY` (and optional `ELEVENLABS_API_KEY`) from the
   environment, else the `bone_eyes` Infisical project (`--env prod`). Memory only.
-- **TTS backends** (`--tts`): `kokoro` (default, best local voice), `piper`
-  (fastest), `say` (macOS voices), `elevenlabs` (needs a voice id).
+- **Personas** (`personas/<id>.json`): each voice is a JSON file with its TTS
+  engine (`kokoro` best local voice, `piper` fastest, `say` macOS voices,
+  `elevenlabs` needs a voice id), voice, speed, effects (pitch, reverb,
+  chorus), possession weight, and its character prompt for Claude. Edit them
+  live in the page's Voices panel, preview, and "Save to repo" writes the file.
+- **Possession:** now and then another spirit (vampire, valley girl, grumpy
+  cat, pirate, fairy) takes over the skull for 1-3 replies, then the skeleton
+  grumbles that it's back. Irregular on purpose: no repeat within 2 replies,
+  then a rising chance per reply (6% steps, capped at 35%) plus a 3% wildcard;
+  the same spirit never possesses twice in a row. Per-persona lines live in
+  `bone_brain/lines/personas/<id>/`.
 - **Lines** (`bone_brain/lines/*.txt`, one per line): greetings, goodbyes,
   silence / unheard prompts, thinking fillers, and 500 fake replies for
   canned mode (the default; switch to Claude on the page or with `--claude`). Greetings and goodbyes are used in both modes.
