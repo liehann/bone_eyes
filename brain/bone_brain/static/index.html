@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skull Brain</title>
+<style>
+  :root {
+    --bg: #0e0d0c; --panel: #181614; --line: #2a2622; --text: #ece6dc; --muted: #9a9086;
+    --accent: #ff7a1a; --accent2: #ffb347; --ok: #6fcf7a; --err: #ff5d5d; --visitor: #8fb8ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+  .pill { padding: 3px 10px; border-radius: 999px; background: var(--line); font-size: 13px; }
+  .pill.state { background: #3a2410; color: var(--accent2); font-weight: 600; }
+  .pill.bad { background: #3a1414; color: var(--err); }
+  main { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px 20px; max-width: 1200px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  section + section { margin-top: 16px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  button { background: var(--line); color: var(--text); border: 1px solid #3a352f; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a0e02; font-weight: 600; }
+  button.stop { color: var(--err); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: 8px; }
+  textarea, select, input[type=text] { background: #100f0e; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; }
+  textarea { width: 100%; min-height: 58px; resize: vertical; }
+  label { color: var(--muted); font-size: 13px; min-width: 64px; }
+  select { flex: 1; min-width: 0; }
+  .skull { display: flex; justify-content: center; padding: 6px 0 2px; }
+  .meter { height: 8px; background: #100f0e; border-radius: 4px; overflow: hidden; flex: 1; }
+  .meter > div { height: 100%; width: 0; background: var(--accent); transition: width 60ms linear; }
+  .meter.mic > div { background: var(--visitor); }
+  .meter.speech > div { background: var(--ok); }
+  #log { height: 52vh; min-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 11px; border-radius: 9px; max-width: 85%; }
+  .msg .who { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .msg.skull { background: #2a1a0c; align-self: flex-start; }
+  .msg.visitor { background: #14223a; align-self: flex-end; }
+  .msg.test { background: #222; align-self: flex-start; }
+  .msg.error { background: #3a1414; color: #ffb4b4; align-self: center; font-size: 13px; }
+  .msg.timing { align-self: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .small { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  td { padding: 2px 0; } td:last-child { text-align: right; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💀 Skull Brain</h1>
+  <span class="pill state" id="state">connecting…</span>
+  <span class="pill" id="llmPill"></span>
+  <span class="pill" id="skullPill"></span>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Visitor</h2>
+      <div class="row">
+        <button class="primary" id="visitor">Visitor arrives (use mic)</button>
+        <button class="stop" id="stop">Stop</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <textarea id="ask" placeholder="Typed questions, one per line, instead of speaking"></textarea>
+      </div>
+      <div class="row"><button id="askBtn">Visitor asks these</button></div>
+    </section>
+
+    <section>
+      <h2>Jaw &amp; mic</h2>
+      <div class="skull">
+        <svg width="150" height="150" viewBox="0 0 120 120" aria-label="jaw preview">
+          <defs><radialGradient id="eye"><stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#ff7a1a"/><stop offset="1" stop-color="#5a1a00"/></radialGradient></defs>
+          <path d="M60 8c-27 0-44 18-44 42 0 12 5 21 12 27v10h64V77c7-6 12-15 12-27C104 26 87 8 60 8z" fill="#d9d0c1"/>
+          <circle cx="42" cy="50" r="12" fill="url(#eye)"/><circle cx="78" cy="50" r="12" fill="url(#eye)"/>
+          <path d="M60 60l-6 12h12z" fill="#2a2420"/>
+          <g id="jaw"><path d="M30 86h60v10c0 10-12 16-30 16S30 106 30 96z" fill="#cfc5b4"/>
+            <path d="M40 86v8M48 86v9M56 86v9M64 86v9M72 86v9M80 86v8" stroke="#8a7f70" stroke-width="2"/></g>
+          <path d="M40 80v7M48 80v7M56 80v7M64 80v7M72 80v7M80 80v7" stroke="#8a7f70" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="row"><label>jaw</label><div class="meter"><div id="jawBar"></div></div></div>
+      <div class="row"><label>mic</label><div class="meter mic"><div id="micBar"></div></div></div>
+      <div class="row"><label>speech</label><div class="meter speech"><div id="speechBar"></div></div></div>
+    </section>
+
+    <section>
+      <h2>Settings</h2>
+      <div class="row"><label>speaker</label><select id="out"></select></div>
+      <div class="row"><label>replies</label><select id="llm"></select></div>
+      <div class="row"><label>voice via</label><select id="tts"></select></div>
+      <div class="row"><label>voice</label><select id="voice"></select></div>
+      <div class="row"><label>pitch</label><input type="range" id="semitones" min="-9" max="3" step="1" style="flex:1"><span id="semiVal" class="small"></span></div>
+      <div class="row"><label>effects</label><input type="checkbox" id="fx"><span class="small">pitch, reverb, grit</span></div>
+      <div class="row" style="margin-top:12px"><input type="text" id="sayText" placeholder="Test the voice…" style="flex:1"><button id="sayBtn">Say</button></div>
+      <p class="small" id="linesInfo"></p>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Conversation</h2>
+      <div id="log"></div>
+    </section>
+    <section>
+      <h2>Last turn timing (from end of question)</h2>
+      <table id="timings"><tr><td class="small">No turns yet</td></tr></table>
+    </section>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let ws, settings = {};
+function send(m) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); }
+function fill(sel, opts, val) {
+  sel.innerHTML = opts.map(o => `<option${o === val ? ' selected' : ''}>${o}</option>`).join('');
+}
+function add(cls, who, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + cls;
+  d.innerHTML = who ? `<div class="who"></div><div class="t"></div>` : `<div class="t"></div>`;
+  if (who) d.querySelector('.who').textContent = who;
+  d.querySelector('.t').textContent = text;
+  const log = $('log'); log.appendChild(d); log.scrollTop = log.scrollHeight;
+}
+function setJaw(v) {
+  $('jawBar').style.width = (v * 100) + '%';
+  $('jaw').setAttribute('transform', `translate(0 ${v * 14})`);
+}
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onclose = () => { $('state').textContent = 'disconnected'; setTimeout(connect, 1500); };
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'settings') {
+      settings = m;
+      fill($('llm'), m.llm_options, m.llm); fill($('tts'), m.tts_options, m.tts); fill($('voice'), m.voice_options, m.voice); fill($('out'), m.out_options, m.out);
+      $('fx').checked = m.fx; $('semitones').value = m.semitones; $('semiVal').textContent = m.semitones;
+      $('state').textContent = m.state;
+      $('llmPill').textContent = m.llm === 'claude' ? m.model : 'canned replies (no API cost)';
+      $('skullPill').textContent = 'skull: ' + m.skull;
+      $('skullPill').className = 'pill' + (m.skull.startsWith('error') ? ' bad' : '');
+      $('linesInfo').textContent = 'Lines: ' + Object.entries(m.lines).map(([k, v]) => `${v} ${k}`).join(', ');
+    } else if (m.type === 'state') {
+      $('state').textContent = m.state;
+    } else if (m.type === 'line') {
+      const who = m.who === 'skull' ? 'skull' + (m.backend ? ` · ${m.backend}` : '') : m.who;
+      add(m.who, who === 'error' ? '' : who, m.text);
+    } else if (m.type === 'jaw') {
+      setJaw(m.v);
+    } else if (m.type === 'mic') {
+      $('micBar').style.width = Math.max(0, Math.min(100, (m.db + 70) * 1.6)) + '%';
+      $('speechBar').style.width = (m.speech * 100) + '%';
+    } else if (m.type === 'radar') {
+      add('timing', '', m.cm == null ? 'radar: visitor left' : `radar: visitor at ${m.cm} cm`);
+    } else if (m.type === 'timings') {
+      const names = { stt: 'speech → text', first_sentence: 'first sentence of reply', first_audio: 'skull starts speaking' };
+      const rows = Object.entries(names).filter(([k]) => k in m).map(([k, n]) => `<tr><td>${n}</td><td>${m[k]} ms</td></tr>`);
+      $('timings').innerHTML = rows.join('') || '<tr><td class="small">—</td></tr>';
+      if ('first_audio' in m) add('timing', '', `answer started ${(m.first_audio / 1000).toFixed(2)} s after the question`);
+    }
+  };
+}
+$('visitor').onclick = () => send({ cmd: 'visitor' });
+$('stop').onclick = () => send({ cmd: 'stop' });
+$('askBtn').onclick = () => send({ cmd: 'ask', text: $('ask').value });
+$('sayBtn').onclick = () => send({ cmd: 'say', text: $('sayText').value });
+$('sayText').onkeydown = e => { if (e.key === 'Enter') $('sayBtn').click(); };
+$('llm').onchange = e => send({ cmd: 'set', key: 'llm', value: e.target.value });
+$('out').onchange = e => send({ cmd: 'set', key: 'out', value: e.target.value });
+$('tts').onchange = e => send({ cmd: 'set', key: 'tts', value: e.target.value });
+$('voice').onchange = e => send({ cmd: 'set', key: 'voice', value: e.target.value });
+$('fx').onchange = e => send({ cmd: 'set', key: 'fx', value: e.target.checked });
+$('semitones').oninput = e => { $('semiVal').textContent = e.target.value; };
+$('semitones').onchange = e => send({ cmd: 'set', key: 'semitones', value: e.target.value });
+connect();
+</script>
+</body>
+</html>

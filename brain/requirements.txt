@@ -1,0 +1,11 @@
+numpy
+sounddevice
+soundfile
+onnxruntime
+mlx-whisper
+anthropic
+aiohttp
+pedalboard
+kokoro-onnx
+piper-tts
+pyserial
