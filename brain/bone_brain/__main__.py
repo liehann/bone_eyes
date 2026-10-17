@@ -1,4 +1,4 @@
-"""python -m bone_brain [--canned] [--out DELL] [--mic Logitech] [--skull /dev/cu.usbserial-110 | udp://host:port] [--tts kokoro]"""
+"""python -m bone_brain [--claude] [--out DELL] [--mic Logitech] [--skull /dev/cu.usbserial-110 | udp://host:port] [--tts kokoro]"""
 import argparse
 import asyncio
 import webbrowser
@@ -13,7 +13,8 @@ from .server import Server
 
 async def main():
     ap = argparse.ArgumentParser(prog="bone_brain")
-    ap.add_argument("--canned", action="store_true", help="test mode: canned replies, no API calls")
+    ap.add_argument("--claude", action="store_true",
+                    help="start with real Claude replies (default: canned, no API cost; switchable on the page)")
     ap.add_argument("--skull", default=cfg.skull, help="serial port or udp://host:port of the ESP32")
     ap.add_argument("--tts", default=cfg.tts, choices=["kokoro", "piper", "say", "elevenlabs"])
     ap.add_argument("--env", default="prod", help="Infisical environment for API keys")
@@ -28,13 +29,12 @@ async def main():
     cfg.out_device = sd.query_devices(args.out, "output")["name"] if args.out else None
     cfg.mic_device = sd.query_devices(args.mic, "input")["name"] if args.mic else None
 
-    keys = {} if args.canned else secrets.load(["ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY"], args.env)
+    keys = secrets.load(["ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY"], args.env)
     print(f"keys: {', '.join(sorted(keys)) or 'none'}")
     server = Server()
     brain = Brain(cfg, keys, server.emit)
     server.brain = brain
-    if args.canned:
-        brain.llm_backend = "canned"
+    brain.llm_backend = "claude" if args.claude and brain.llm.available else "canned"
 
     runner = web.AppRunner(server.app())
     await runner.setup()

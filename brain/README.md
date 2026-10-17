@@ -14,8 +14,8 @@ curl -LO https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/s
 ../.venv/bin/python -m piper.download_voices --data-dir . en_GB-alan-medium en_US-ryan-high
 cd ..
 
-.venv/bin/python -m bone_brain --out DELL               # real Claude replies
-.venv/bin/python -m bone_brain --canned --out DELL      # test mode: canned replies, no API cost
+.venv/bin/python -m bone_brain --out DELL               # canned replies (default, no API cost)
+.venv/bin/python -m bone_brain --claude --out DELL      # real Claude replies
 .venv/bin/python -m bone_brain --skull /dev/cu.usbserial-110   # drive the real skull
 ```
 
@@ -37,7 +37,7 @@ audio reaches the speaker, minus a small lead for the servo.
   (fastest), `say` (macOS voices), `elevenlabs` (needs a voice id).
 - **Lines** (`bone_brain/lines/*.txt`, one per line): greetings, goodbyes,
   silence / unheard prompts, thinking fillers, and 500 fake replies for
-  `--canned` mode. Greetings and goodbyes are used in both modes.
+  canned mode (the default; switch to Claude on the page or with `--claude`). Greetings and goodbyes are used in both modes.
 - **No recordings** of visitors are kept.
 - If Claude fails or there's no internet, the skull says an "offline" line.
 
