@@ -83,11 +83,14 @@ class Server:
             elif cmd == "say" and m.get("text"):
                 if not (b.session and not b.session.done()):
                     b.session = asyncio.ensure_future(b.say(m["text"], who="test"))
+            elif cmd == "leave":
+                b.leave()
             elif cmd == "stop":
                 b.stop()
             elif cmd == "set":
                 self.set(m.get("key"), m.get("value"))
                 self.emit(self.settings())
+                asyncio.ensure_future(b._refill_fillers())  # re-render "hmmm"s in the new voice
         return ws
 
     async def index(self, request):

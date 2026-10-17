@@ -1,5 +1,6 @@
 """The conversation loop: greet, listen, think, speak, repeat, say goodbye."""
 import asyncio
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -35,9 +36,13 @@ class Brain:
         self.stt = Stt(cfg.whisper_model)
         self.tts_pool = ThreadPoolExecutor(1, thread_name_prefix="tts")
         self.work_pool = ThreadPoolExecutor(2, thread_name_prefix="work")
+        self.fillers: list[tuple] = []  # pre-rendered "hmmm" lines, cleared on voice changes
+        self.filler_key = None
         self.state = "starting"
         self.session: asyncio.Task | None = None
         self.present = False
+        self.gone = threading.Event()
+        self.typed_q: list[str] = []
 
     # ---- lifecycle -------------------------------------------------------
     async def start(self):
@@ -47,6 +52,7 @@ class Brain:
         await self.loop.run_in_executor(self.tts_pool, self.tts.synth, "Ready.")
         self.player.start()
         self.mic.start()
+        await self._refill_fillers()
         self.set_state("idle")
 
     def set_state(self, state: str, **extra):
@@ -56,6 +62,7 @@ class Brain:
         self.emit({"type": "state", "state": state, **extra})
 
     def log(self, who: str, text: str, **extra):
+        print(f"{who:>8}: {text}", flush=True)
         self.emit({"type": "line", "who": who, "text": text, **extra})
 
     def _on_jaw(self, level: float):
@@ -67,21 +74,37 @@ class Brain:
         if not self.loop:
             return
         if kind == "present":
-            self.present = True
             self.loop.call_soon_threadsafe(self.emit, {"type": "radar", "cm": value})
-            self.loop.call_soon_threadsafe(self.visitor)
+            if not self.present:
+                self.loop.call_soon_threadsafe(self.visitor)
         else:
-            self.present = False
             self.loop.call_soon_threadsafe(self.emit, {"type": "radar", "cm": None})
+            self.loop.call_soon_threadsafe(self.leave)
 
     # ---- commands --------------------------------------------------------
     def visitor(self, typed_questions: list[str] | None = None):
+        """Someone arrived (radar or the page). Typed questions join a visit in progress."""
+        self.present = True
+        self.gone.clear()
+        self.emit({"type": "presence", "present": True})
         if self.session and not self.session.done():
+            if typed_questions:
+                self.typed_q.extend(typed_questions)  # the listener picks these up
             return False
-        self.session = asyncio.ensure_future(self._session(typed_questions))
+        self.typed_q = list(typed_questions or [])
+        self.session = asyncio.ensure_future(self._session(self.typed_q))
         return True
 
+    def leave(self):
+        """Presence cleared: finish the current sentence/reply, then say goodbye."""
+        self.present = False
+        self.gone.set()
+        self.emit({"type": "presence", "present": False})
+
     def stop(self):
+        """Hard stop, no goodbye."""
+        self.present = False
+        self.gone.set()
         if self.session and not self.session.done():
             self.session.cancel()
         self.player.flush()
@@ -99,24 +122,33 @@ class Brain:
 
     # ---- session ---------------------------------------------------------
     async def _session(self, typed: list[str] | None):
+        """One visit: greet, then answer questions for as long as someone is there.
+        The goodbye comes only when presence clears (radar, or the page's Leave button)."""
+        typed = self.typed_q
         try:
             self.set_state("greeting")
             await self.say(self.lines.pick("greet"))
             history: list[dict] = []
-            for turn in range(self.cfg.max_turns):
+            prompted_silence = False
+            turns = 0
+            while self.present and turns < self.cfg.max_turns:
                 timings: dict[str, float] = {}
-                if typed is not None:
-                    if turn >= len(typed):
-                        break
-                    question = typed[turn]
+                if typed:
+                    question = typed.pop(0)
                     t_eos = time.monotonic()
                     self.log("visitor", question, typed=True)
                 else:
                     self.set_state("listening")
                     audio, t_eos = await self.loop.run_in_executor(self.work_pool, self._listen)
-                    if audio is None:
-                        await self.say(self.lines.pick("silence"))
+                    if not self.present:
                         break
+                    if audio is None:
+                        # Nobody's talking. Tease them once, then wait quietly until
+                        # they speak or leave.
+                        if not prompted_silence:
+                            prompted_silence = True
+                            await self.say(self.lines.pick("silence"))
+                        continue
                     self.set_state("thinking")
                     question = await self.loop.run_in_executor(self.work_pool, self.stt.transcribe, audio)
                     timings["stt"] = time.monotonic() - t_eos
@@ -125,11 +157,14 @@ class Brain:
                         await self.say(self.lines.pick("unheard"))
                         continue
                     self.log("visitor", question)
+                prompted_silence = False
+                turns += 1
                 self.set_state("thinking")
                 history.append({"role": "user", "content": question})
                 reply = await self._answer(history, t_eos, timings)
                 history.append({"role": "assistant", "content": reply or "..."})
                 self.emit({"type": "timings", **{k: round(v * 1000) for k, v in timings.items()}})
+            await self._wait_quiet()
             self.set_state("goodbye")
             await self.say(self.lines.pick("goodbye"))
         except asyncio.CancelledError:
@@ -143,11 +178,42 @@ class Brain:
             except Exception:
                 pass
         finally:
+            self.present = False
+            self.emit({"type": "presence", "present": False})
             self.set_state("idle")
+
+    def _voice_key(self):
+        c = self.cfg
+        return (c.tts, c.kokoro_voice, c.piper_voice, c.say_voice, c.elevenlabs_voice_id,
+                c.fx, c.fx_semitones, c.kokoro_speed)
+
+    async def _refill_fillers(self, n: int = 8):
+        """Render a few thinking fillers ahead of time so they play instantly."""
+        key = self._voice_key()
+        if key != self.filler_key:
+            self.fillers, self.filler_key = [], key
+        while len(self.fillers) < n:
+            text = self.lines.pick("thinking")
+            audio = await self.loop.run_in_executor(self.tts_pool, self._render, text)
+            if self._voice_key() != key:
+                return
+            self.fillers.append((text, audio))
+
+    def _play_filler(self) -> bool:
+        if not self.cfg.thinking_filler or self._voice_key() != self.filler_key or not self.fillers:
+            return False
+        text, audio = self.fillers.pop(0)
+        self.log("skull", text, filler=True)
+        self.player.started_at = None
+        self.player.play(*audio)
+        self.set_state("speaking")
+        return True
 
     async def _answer(self, history: list[dict], t_eos: float, timings: dict) -> str:
         q: asyncio.Queue = asyncio.Queue()
         sentences: list[str] = []
+        if self._play_filler():
+            timings["filler"] = time.monotonic() - t_eos
 
         async def produce():
             try:
@@ -172,19 +238,21 @@ class Brain:
         reply = " ".join(sentences)
         self.log("skull", reply, backend=self.llm_backend)
         await self._wait_quiet()
+        asyncio.ensure_future(self._refill_fillers())
         return reply
 
     async def _speak_queue(self, q: asyncio.Queue, t0: float, timings: dict | None = None):
         """Synthesize sentences as they arrive and queue them on the speaker."""
-        self.player.started_at = None
-        self.jaw.reset()
+        if not self.player.busy():
+            self.player.started_at = None
+            self.jaw.reset()
         first = True
         while (s := await q.get()) is not None:
             audio = await self.loop.run_in_executor(self.tts_pool, self._render, s)
             if first:
                 self.set_state("speaking")
                 if timings is not None:
-                    timings["first_audio"] = time.monotonic() - t0
+                    timings["first_audio"] = time.monotonic() - t0  # answer queued (after any filler)
                 first = False
             self.player.play(*audio)
 
@@ -216,7 +284,9 @@ class Brain:
         t_start = time.monotonic()
         last_emit = 0.0
         while True:
-            f = self.mic.read()
+            if self.gone.is_set() or (not started and self.typed_q):
+                return None, time.monotonic()
+            f = self.mic.read(timeout=0.1)
             if f is None:
                 continue
             p = self.vad.prob(f)

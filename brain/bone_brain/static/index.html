@@ -53,6 +53,7 @@
 <header>
   <h1>💀 Skull Brain</h1>
   <span class="pill state" id="state">connecting…</span>
+  <span class="pill" id="presence">nobody here</span>
   <span class="pill" id="llmPill"></span>
   <span class="pill" id="skullPill"></span>
 </header>
@@ -62,12 +63,13 @@
       <h2>Visitor</h2>
       <div class="row">
         <button class="primary" id="visitor">Visitor arrives (use mic)</button>
-        <button class="stop" id="stop">Stop</button>
+        <button id="leave">Visitor leaves</button>
+        <button class="stop" id="stop" title="Stop immediately, no goodbye">Stop</button>
       </div>
       <div class="row" style="margin-top:12px">
         <textarea id="ask" placeholder="Typed questions, one per line, instead of speaking"></textarea>
       </div>
-      <div class="row"><button id="askBtn">Visitor asks these</button></div>
+      <div class="row"><button id="askBtn">Visitor asks these</button><span class="small">The visit continues until "Visitor leaves"</span></div>
     </section>
 
     <section>
@@ -145,10 +147,13 @@ function connect() {
       $('skullPill').textContent = 'skull: ' + m.skull;
       $('skullPill').className = 'pill' + (m.skull.startsWith('error') ? ' bad' : '');
       $('linesInfo').textContent = 'Lines: ' + Object.entries(m.lines).map(([k, v]) => `${v} ${k}`).join(', ');
+    } else if (m.type === 'presence') {
+      $('presence').textContent = m.present ? 'visitor present' : 'nobody here';
+      $('presence').style.color = m.present ? 'var(--ok)' : '';
     } else if (m.type === 'state') {
       $('state').textContent = m.state;
     } else if (m.type === 'line') {
-      const who = m.who === 'skull' ? 'skull' + (m.backend ? ` · ${m.backend}` : '') : m.who;
+      const who = m.who === 'skull' ? 'skull' + (m.backend ? ` · ${m.backend}` : '') + (m.filler ? ' · thinking' : '') : m.who;
       add(m.who, who === 'error' ? '' : who, m.text);
     } else if (m.type === 'jaw') {
       setJaw(m.v);
@@ -158,14 +163,15 @@ function connect() {
     } else if (m.type === 'radar') {
       add('timing', '', m.cm == null ? 'radar: visitor left' : `radar: visitor at ${m.cm} cm`);
     } else if (m.type === 'timings') {
-      const names = { stt: 'speech → text', first_sentence: 'first sentence of reply', first_audio: 'skull starts speaking' };
+      const names = { stt: 'speech → text', filler: 'thinking filler starts', first_sentence: 'first sentence of reply', first_audio: 'answer ready to speak' };
       const rows = Object.entries(names).filter(([k]) => k in m).map(([k, n]) => `<tr><td>${n}</td><td>${m[k]} ms</td></tr>`);
       $('timings').innerHTML = rows.join('') || '<tr><td class="small">—</td></tr>';
-      if ('first_audio' in m) add('timing', '', `answer started ${(m.first_audio / 1000).toFixed(2)} s after the question`);
+      if ('first_audio' in m) add('timing', '', `answer ready ${(m.first_audio / 1000).toFixed(2)} s after the question` + ('filler' in m ? ` (filler at ${(m.filler / 1000).toFixed(2)} s)` : ''));
     }
   };
 }
 $('visitor').onclick = () => send({ cmd: 'visitor' });
+$('leave').onclick = () => send({ cmd: 'leave' });
 $('stop').onclick = () => send({ cmd: 'stop' });
 $('askBtn').onclick = () => send({ cmd: 'ask', text: $('ask').value });
 $('sayBtn').onclick = () => send({ cmd: 'say', text: $('sayText').value });
