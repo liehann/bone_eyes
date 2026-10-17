@@ -8,3 +8,11 @@
 
 Wiring is in [../README.md#wiring](../README.md#wiring). The single source of
 truth for pins is `include/config.h`.
+
+## fetch_secrets.py
+
+Writes the gitignored `include/secrets.h` with `WIFI_SSID` / `WIFI_PASSWORD`
+from the `phloots` Infisical project (default env `prod`; `--env dev` etc.).
+Needs `infisical login --domain https://infisical.app.phloots.com` and the
+LAN/VPN. Values are never printed. Rebuild and flash afterwards; without the
+file the skull runs its own access point (see `include/config.h`).
