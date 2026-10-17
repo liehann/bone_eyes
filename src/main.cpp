@@ -4,6 +4,7 @@
 #include "config.h"
 #include "console.h"
 #include "eyes.h"
+#include "net.h"
 
 namespace {
 
@@ -41,6 +42,8 @@ void setup() {
 
   eyes::registerCommands();
   eyes::begin(eyes::Backend::Lcd);
+  net::registerCommands();
+  net::begin();
   delay(500);  // let the eye task init the panels before reporting heap
 
   printHeap();

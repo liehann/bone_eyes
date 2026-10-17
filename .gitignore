@@ -8,3 +8,4 @@ __pycache__/
 data/clips/*.png
 recordings/
 tools/eye_sim/eye_sim.html
+include/secrets.h

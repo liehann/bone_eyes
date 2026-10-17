@@ -91,3 +91,25 @@ constexpr uint32_t CLIP_COOLDOWN_MS = 15000;
 // Console
 // ---------------------------------------------------------------------------
 constexpr uint32_t CONSOLE_BAUD = 115200;
+
+// ---------------------------------------------------------------------------
+// Network. With WIFI_SSID set in include/secrets.h (gitignored; copy
+// secrets.example.h) the skull joins that network as http://bone-eyes.local.
+// Otherwise, or if joining fails, it opens its own access point and serves
+// http://192.168.4.1.
+// ---------------------------------------------------------------------------
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+#ifndef WIFI_SSID
+#define WIFI_SSID ""
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD ""
+#endif
+#ifndef AP_PASSWORD
+#define AP_PASSWORD "bonejaw1031"  // WPA2 needs >= 8 chars; override in secrets.h
+#endif
+constexpr const char* NET_HOSTNAME = "bone-eyes";
+constexpr const char* AP_SSID = "bone-eyes";
+constexpr uint32_t WIFI_JOIN_TIMEOUT_MS = 10000;
