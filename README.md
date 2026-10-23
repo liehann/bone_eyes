@@ -17,7 +17,7 @@ every LCD wire goes to its own ESP32 pin (16 wires for both eyes). "Left" and
 
 | LCD wire | Left eye | Right eye | Notes |
 |---|---|---|---|
-| VCC | 5V | 3V3 | RT9193 LDO on the module, takes 3.3–5 V |
+| VCC | 3V3 | 3V3 | sets the header logic level (see below); not 5 V |
 | GND | GND | GND (a different GND pin) | |
 | DIN | 23 | 13 | right = copy of VSPI MOSI via the GPIO matrix |
 | CLK | 18 | 14 | right = copy of VSPI SCLK via the GPIO matrix |
@@ -25,6 +25,14 @@ every LCD wire goes to its own ESP32 pin (16 wires for both eyes). "Left" and
 | DC | **19** | 22 | driven together |
 | RST | 4 | 25 | pulsed together |
 | BL | 21 | 26 | same LEDC PWM channel, active high |
+
+Both VCC wires go to 3V3, not 5 V. On the module the header feeds the B side
+of a TXB0108 level shifter whose VCCB is VCC, so VCC sets the logic level the
+header expects. On 5 V the ESP32's 3.3 V outputs sit right at the TXB0108's
+V_IH (0.65 × 5 V = 3.25 V) and the panel stays black with the backlight on.
+The DevKitC has a single 3V3 pin, so share it through a breadboard row or a
+Y-splitter. Two modules draw roughly 40–80 mA. See
+[`docs/gc9d01.md`](docs/gc9d01.md).
 
 Both eyes run off one SPI bus. Only the panel whose CS is low latches data, so
 both seeing the same clock, data and DC is fine. To go back to shared wires
