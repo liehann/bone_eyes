@@ -45,6 +45,7 @@ const uint8_t kInit[] = {
     0x36, 1, 0x00,  // MADCTL (per panel later)
     0x11, 0xFF, 20, // SLPOUT, 200 ms
     0x29, 0xFF, 2,  // DISPON
+    0x20, 0,        // INVOFF (reset default; both reference drivers send it)
     0x00,
 };
 
@@ -53,6 +54,8 @@ constexpr uint8_t MADCTL_MY = 0x80, MADCTL_MX = 0x40, MADCTL_RGB = 0x08;  // BGR
 }  // namespace
 
 bool Gc9d01Bus::begin(int mosi, int sclk, int dc, int rst, uint32_t hz) {
+  mosi_ = mosi;
+  sclk_ = sclk;
   dc_ = dc;
   rst_ = rst;
   pinMode(dc_, OUTPUT);
@@ -69,20 +72,53 @@ bool Gc9d01Bus::begin(int mosi, int sclk, int dc, int rst, uint32_t hz) {
   bus.quadhd_io_num = -1;
   bus.max_transfer_sz = kMaxTransfer;
   if (spi_bus_initialize(SPI3_HOST, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return false;
+  return addDevice(hz);
+}
 
+bool Gc9d01Bus::addDevice(uint32_t hz) {
   spi_device_interface_config_t devcfg = {};
   devcfg.clock_speed_hz = hz;
   devcfg.mode = 0;
   devcfg.spics_io_num = -1;  // CS is per panel, driven by hand
   devcfg.queue_size = 2;
   devcfg.flags = SPI_DEVICE_NO_DUMMY;
-  return spi_bus_add_device(SPI3_HOST, &devcfg, &dev_) == ESP_OK;
+  if (spi_bus_add_device(SPI3_HOST, &devcfg, &dev_) != ESP_OK) {
+    dev_ = nullptr;
+    return false;
+  }
+  hz_ = hz;
+  return true;
 }
 
-void Gc9d01Bus::mirror(int mosi2, int sclk2, int dc2, int rst2) {
+bool Gc9d01Bus::setClock(uint32_t hz) {
+  endFrame();
+  if (dev_ && spi_bus_remove_device(dev_) != ESP_OK) return false;
+  dev_ = nullptr;
+  return addDevice(hz);
+}
+
+uint32_t Gc9d01Bus::actualClockHz() const { return spi_get_actual_clock(APB_CLK_FREQ, hz_, 128); }
+
+void Gc9d01Bus::restorePins() {
+  // Bus pins go back on the IO_MUX, as spi_bus_initialize() set them.
+  if (sclk_ >= 0) gpio_iomux_out(sclk_, spi_periph_signal[SPI3_HOST].func, false);
+  if (mosi_ >= 0) gpio_iomux_out(mosi_, spi_periph_signal[SPI3_HOST].func, false);
+  routeMirror();
+  for (int pin : {dc_, dc2_, rst_, rst2_}) {
+    if (pin < 0) continue;
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, HIGH);
+  }
+  for (int i = 0; i < numPanels_; i++) {
+    pinMode(cs_[i], OUTPUT);
+    digitalWrite(cs_[i], HIGH);
+  }
+}
+
+void Gc9d01Bus::routeMirror() {
   // The bus pins use the IO_MUX; the same output signals can also be routed
   // through the GPIO matrix to any number of extra pins.
-  const int pins[2] = {sclk2, mosi2};
+  const int pins[2] = {sclk2_, mosi2_};
   const uint32_t sigs[2] = {spi_periph_signal[SPI3_HOST].spiclk_out, spi_periph_signal[SPI3_HOST].spid_out};
   for (int i = 0; i < 2; i++) {
     if (pins[i] < 0) continue;
@@ -90,6 +126,12 @@ void Gc9d01Bus::mirror(int mosi2, int sclk2, int dc2, int rst2) {
     gpio_set_direction((gpio_num_t)pins[i], GPIO_MODE_OUTPUT);
     esp_rom_gpio_connect_out_signal(pins[i], sigs[i], false, false);
   }
+}
+
+void Gc9d01Bus::mirror(int mosi2, int sclk2, int dc2, int rst2) {
+  sclk2_ = sclk2;
+  mosi2_ = mosi2;
+  routeMirror();
   dc2_ = dc2;
   if (dc2_ >= 0) {
     pinMode(dc2_, OUTPUT);

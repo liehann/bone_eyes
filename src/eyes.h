@@ -46,6 +46,11 @@ void blink();
 void hold(float x, float y);
 void release();
 
+// Stop animating (as `eyes test` does) and wait until the eye task has let go
+// of the backend, so the caller can drive the hardware directly. Stays paused
+// until `eyes anim`. Returns false if the task didn't park within timeoutMs.
+bool pause(uint32_t timeoutMs = 1000);
+
 // Stats for the console.
 float fps();
 

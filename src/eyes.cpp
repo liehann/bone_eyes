@@ -27,6 +27,9 @@ struct Shared {
   bool backendReq = false;
 };
 Shared shared;
+// True while the eye task is idling with no requests pending: it won't touch
+// the backend until it next reads `shared`. Written under `mux`.
+bool parked = false;
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 EyeBackend* active = nullptr;
@@ -64,6 +67,7 @@ void eyeTask(void*) {
     Shared s;
     portENTER_CRITICAL(&mux);
     s = shared;
+    parked = !s.animate && s.testReq < 0 && s.brightness < 0 && !s.backendReq;
     shared.blinkReq = false;
     shared.testReq = -1;
     shared.brightness = -1;
@@ -246,6 +250,22 @@ void hold(float x, float y) {
 
 void release() {
   withShared([](Shared& sh) { sh.hold = false; });
+}
+
+bool pause(uint32_t timeoutMs) {
+  // Clear `parked` with the request so a stale value from an earlier pause
+  // can't be read before the task has seen animate == false.
+  withShared([](Shared& sh) { sh.animate = false; parked = false; });
+  uint32_t t0 = millis();
+  for (;;) {
+    bool p;
+    portENTER_CRITICAL(&mux);
+    p = parked;
+    portEXIT_CRITICAL(&mux);
+    if (p) return true;
+    if (millis() - t0 > timeoutMs) return false;
+    delay(5);
+  }
 }
 
 float fps() { return measuredFps; }

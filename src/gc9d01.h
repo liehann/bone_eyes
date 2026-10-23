@@ -37,15 +37,27 @@ class Gc9d01Bus {
 
   void fill(int panel, uint16_t rgb565);  // blocking helper
 
+  // Diagnostics. setClock() removes and re-adds the SPI device at a new clock
+  // (panels keep their state). restorePins() hands CLK/DIN back to the SPI
+  // peripheral and re-drives CS/DC/RST after a pin was bit-banged.
+  bool setClock(uint32_t hz);
+  uint32_t clockHz() const { return hz_; }
+  uint32_t actualClockHz() const;
+  void restorePins();
+
  private:
   void select(int panel);  // -1 = none, -2 = all
   void command(uint8_t cmd, const uint8_t* data = nullptr, size_t len = 0);
   void window(int x0, int y0, int x1, int y1);
   void setDc(int level);
   void setRst(int level);
+  bool addDevice(uint32_t hz);
+  void routeMirror();
 
   spi_device_handle_t dev_ = nullptr;
+  int mosi_ = -1, sclk_ = -1, mosi2_ = -1, sclk2_ = -1;
   int dc_ = -1, rst_ = -1, dc2_ = -1, rst2_ = -1;
+  uint32_t hz_ = 0;
   int cs_[kMaxPanels];
   int numPanels_ = 0;
   spi_transaction_t trans_[2];
