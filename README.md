@@ -94,6 +94,7 @@ Type `help` in the monitor.
 | `eyes lcd` / `eyes pixel` | switch eye backend |
 | `art default\|dragon\|fire` | LCD eye style. `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids |
 | `flames on\|off` | flames and smoke rising from hazel/dragon eyes |
+| `lcd prof` | frame-time breakdown since the last call: simulation, row rendering on each core, SPI waits |
 
 ### Display bring-up checklist (milestone 2)
 
@@ -102,8 +103,9 @@ Type `help` in the monitor.
    top-left square and one dot.
    - Red and blue swapped: set `TFT_SWAP_RB`.
    - Upside down: set `EYE_L_ROT180`.
-   - Garbage or nothing: lower `TFT_SPI_HZ` to 27 MHz (Waveshare's demo
-     speed) and check DC/RST.
+   - Garbage or nothing: check that VCC is on 3V3 (on 5 V the panel stays
+     black), then DC/RST. 40 MHz SPI works on both eyes; `lcd spi 27` (Waveshare's
+     demo speed) is only worth trying with long leads.
 2. Add the second panel, then run `eyes test` and check for two dots on the
    right eye.
 3. Run `eyes anim`, then `eyes` to see the frame rate. Run `eyes look 1 0`:

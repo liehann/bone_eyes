@@ -1,9 +1,13 @@
 // LCD eye backend: Uncanny Eyes renderer (after Bodmer's TFT_eSPI
 // Animated_Eyes_2 / Phil Burgess' Adafruit Uncanny Eyes, MIT) on two GC9D01
 // panels. The 128x128 artwork is upscaled to 160x160 with a nearest-neighbour
-// lookup; rows are rendered into small internal-RAM buffers and DMA'd while the
-// next chunk renders, so no full framebuffers are needed.
+// lookup; rows are rendered on both cores into a ring of small internal-RAM
+// chunk buffers and DMA'd while the next chunks render, so no full
+// framebuffers are needed. `lcd prof` prints where the frame time goes.
+// Per-pixel renderer code: -O2 is ~20% faster here than the default -Os.
+#pragma GCC optimize("O2")
 #include <esp_heap_caps.h>
+#include <esp_timer.h>
 
 #include "config.h"
 #include "console.h"
@@ -19,6 +23,8 @@ namespace {
 
 constexpr int N = Gc9d01Bus::kSize;
 constexpr int kChunkRows = 8;
+constexpr int kChunks = Gc9d01Bus::kSize / kChunkRows;
+constexpr int kRing = 4;  // DMA chunk buffers
 
 // Styles: the two Uncanny Eyes artworks, plus "fire" (procedural burning
 // iris whose flame tips smoke and drift up over the lids; default eye's lid
@@ -27,6 +33,24 @@ const char* const kStyles[] = {"default", "dragon", "fire"};
 constexpr int kFireStyle = 2;
 volatile int currentStyle = 1;
 volatile bool flamesOn = EYE_FLAMES_DEFAULT;  // flames + smoke around hazel/dragon eyes
+
+// Frame-time breakdown for `lcd prof` (microseconds, summed since the last
+// print). Per eye: simulation step, row rendering, time blocked on SPI.
+struct Prof {
+  int64_t sim, render, wait, total;
+};
+Prof prof[2];
+// Per frame: whole draw() and core 1 waiting for the worker's simulation.
+// The worker's row rendering is summed separately.
+struct FrameProf {
+  int64_t total, workerWait;
+  uint32_t frames;
+};
+FrameProf frameProf;
+struct WorkerProf {
+  int64_t render;
+};
+WorkerProf workerProf;
 
 uint16_t be(uint16_t c) { return (c >> 8) | (c << 8); }
 uint16_t rgb(uint8_t r, uint8_t g, uint8_t b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -47,10 +71,12 @@ class LcdEyes : public EyeBackend {
       ledcSetup(BL_LEDC_CHANNEL, 5000, 8);
       ledcAttachPin(PIN_TFT_BL, BL_LEDC_CHANNEL);
       if (PIN_TFT_BL_R >= 0) ledcAttachPin(PIN_TFT_BL_R, BL_LEDC_CHANNEL);
-      for (int i = 0; i < 2; i++) {
+      for (int i = 0; i < kRing; i++) {
         buf_[i] = (uint16_t*)heap_caps_malloc(N * kChunkRows * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
         if (!buf_[i]) return false;
       }
+      eye_render::srcMap(kDefaultEye.lidSize);  // build the shared map before two cores read it
+      startWorker();
       started_ = true;
     }
     ledcWrite(BL_LEDC_CHANNEL, 0);
@@ -97,9 +123,30 @@ class LcdEyes : public EyeBackend {
     ledcWrite(BL_LEDC_CHANNEL, level);
   }
 
+  // Both cores render every frame: each simulates one eye, then for each eye
+  // in turn core 1 renders the even chunks of rows and a worker on core 0 the
+  // odd ones, while core 1 queues them all to the SPI DMA in order. Both
+  // panels share one SPI bus, so the transfers themselves are serial.
   void draw(const EyeState& l, const EyeState& r) override {
-    drawEye(0, l);
-    drawEye(1, r);
+    const int64_t t0 = esp_timer_get_time();
+    Frame f;
+    prepare(f);
+    if (worker_) {
+      job_ = r;
+      jobFrame_ = f;
+      command(kSimRight);
+      timedSimulate(0, l, f);
+      const int64_t t1 = esp_timer_get_time();
+      xSemaphoreTake(done_, portMAX_DELAY);
+      frameProf.workerWait += esp_timer_get_time() - t1;
+    } else {
+      timedSimulate(0, l, f);
+      timedSimulate(1, r, f);
+    }
+    streamEye(0, f);
+    streamEye(1, f);
+    frameProf.total += esp_timer_get_time() - t0;
+    frameProf.frames++;
   }
 
   // Colour bars + orientation markers. Left eye shows one white dot, right
@@ -131,63 +178,166 @@ class LcdEyes : public EyeBackend {
   }
 
  private:
-  void drawEye(int e, const EyeState& st) {
-    const int style = currentStyle;
-    const bool fire = style == kFireStyle;
-    const EyeArt& a = style == 1 ? kDragonEye : kDefaultEye;  // fire uses the default lids
+  // Per-frame choices, made once on core 1 so both eyes agree.
+  struct Frame {
+    int style;
+    int effect;  // 0 none, 1 flame overlay, 2 fire eye
+  };
+
+  void prepare(Frame& f) {
+    f.style = currentStyle;
+    f.effect = f.style == kFireStyle ? 2 : (flamesOn ? 1 : 0);
+    if (f.effect && !ensureBuffers()) {
+      f.style = currentStyle;
+      f.effect = 0;
+    }
+    // Fire and the flame overlay share one set of per-eye buffers; reset them
+    // when switching between the two so stale heat doesn't flash up.
+    for (int e = 0; e < 2; e++) {
+      if (f.effect == effect_[e]) continue;
+      if (f.effect == 2) fire_eye::reset(fireEye_[e], 0x9E3779B9u + e);
+      if (f.effect == 1) flame_overlay::reset(flame_[e], 0x9E3779B9u + e);
+      effect_[e] = f.effect;
+    }
+  }
+
+  static const EyeArt& art(const Frame& f) { return f.style == 1 ? kDragonEye : kDefaultEye; }  // fire: default lids
+
+  // Advance eye e's animation/simulation for this frame.
+  void simulate(int e, const EyeState& st, const Frame& f) {
+    const EyeArt& a = art(f);
     const float gx = EYE_GAZE_X_INVERT ? -st.gazeX : st.gazeX;
     const bool flip = e == 0 ? EYE_L_LID_FLIP : EYE_R_LID_FLIP;
     const int mood = (int)st.mood;
-
-    // Fire and the flame overlay share one set of per-eye buffers; reset them
-    // when switching between the two so stale heat doesn't flash up.
-    const int effect = fire ? 2 : (flamesOn ? 1 : 0);
-    if (effect && !ensureBuffers()) return;
-    if (effect != effect_[e]) {
-      if (effect == 2) fire_eye::reset(fireEye_[e], 0x9E3779B9u + e);
-      if (effect == 1) flame_overlay::reset(flame_[e], 0x9E3779B9u + e);
-      effect_[e] = effect;
-    }
-    const bool flames = effect == 1;
-
-    eye_render::Params p;
-    if (fire) {
+    if (f.effect == 2) {
       fire_render::Params fp =
           fire_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e], mood, millis(), fireState_[e]);
       fire_eye::step(fireEye_[e], a, fp, mood);
     } else {
-      p = eye_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e]);
-      if (flames) flame_overlay::step(flame_[e], a, p, mood);
+      p_[e] = eye_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e]);
+      if (f.effect == 1) flame_overlay::step(flame_[e], a, p_[e], mood);
     }
-
-    bus_.beginFrame(e, 0, 0, N - 1, N - 1);
-    int chunk = 0;
-    uint16_t* b = nullptr;
-    uint16_t* prev = nullptr;
-    for (int oy = 0; oy < N; oy++) {
-      if (oy % kChunkRows == 0) {
-        if (bus_.inFlight() == 2) bus_.waitOne();
-        b = buf_[chunk++ & 1];
-      }
-      uint16_t* row = b + (oy % kChunkRows) * N;
-      if (!fire && !flames && prev && eye_render::repeatsPrevious(a.lidSize, oy)) {
-        memcpy(row, prev, N * 2);  // upscaling repeats every 5th row
-      } else {
-        if (fire) {
-          fire_eye::row(fireEye_[e], oy, row);
-        } else {
-          eye_render::row(a, p, oy, row);
-          if (flames) flame_overlay::composite(flame_[e], oy, row);
-        }
-        for (int x = 0; x < N; x++) row[x] = be(row[x]);
-      }
-      prev = row;
-      if (oy % kChunkRows == kChunkRows - 1) bus_.queuePixels(b, N * kChunkRows);
-    }
-    bus_.endFrame();
   }
 
-  // Effect buffers (3 x 25.6 KB per eye) live in PSRAM, allocated on first use.
+  // Output row oy of eye e as big-endian RGB565. prev: the previous row's
+  // output (or nullptr), reused when the plain eye's upscale repeats a row.
+  void renderRow(int e, const Frame& f, int oy, uint16_t* row, const uint16_t* prev) {
+    const EyeArt& a = art(f);
+    if (f.effect == 0 && prev && eye_render::repeatsPrevious(a.lidSize, oy)) {
+      memcpy(row, prev, N * 2);  // upscaling repeats every 5th row
+      return;
+    }
+    if (f.effect == 2) {
+      fire_eye::row(fireEye_[e], oy, row);
+    } else {
+      eye_render::row(a, p_[e], oy, row);
+      if (f.effect == 1) flame_overlay::composite(flame_[e], oy, row);
+    }
+    for (int x = 0; x < N; x++) row[x] = be(row[x]);
+  }
+
+  void timedSimulate(int e, const EyeState& st, const Frame& f) {
+    const int64_t t0 = esp_timer_get_time();
+    simulate(e, st, f);
+    prof[e].sim += esp_timer_get_time() - t0;
+  }
+
+  // Render chunk k (rows k*kChunkRows..) of eye e into its ring slot.
+  uint16_t* renderChunk(int e, const Frame& f, int k) {
+    uint16_t* b = buf_[k % kRing];
+    for (int i = 0; i < kChunkRows; i++)
+      renderRow(e, f, k * kChunkRows + i, b + i * N, i ? b + (i - 1) * N : nullptr);
+    return b;
+  }
+
+  // Render and stream eye e. Core 1 renders even chunks (all of them without
+  // the worker), the worker odd ones; chunk k may be rendered once chunk
+  // k - kRing has left its slot, i.e. its DMA is done.
+  void streamEye(int e, const Frame& f) {
+    const int64_t t0 = esp_timer_get_time();
+    int64_t waitUs = 0, renderUs = 0;
+    rendered_ = -1;
+    dmaDone_ = -1;
+    if (worker_) {
+      eye_ = e;
+      command(kRenderOdd);
+    }
+    bus_.beginFrame(e, 0, 0, N - 1, N - 1);
+    for (int k = 0; k < kChunks; k++) {
+      uint16_t* b;
+      if (!worker_ || !(k & 1)) {
+        // Slot is free: at most two chunks are in flight, so k - 3 is done.
+        const int64_t r = esp_timer_get_time();
+        b = renderChunk(e, f, k);
+        renderUs += esp_timer_get_time() - r;
+      } else {
+        const int64_t w = esp_timer_get_time();
+        while (rendered_ < k) {
+        }
+        waitUs += esp_timer_get_time() - w;
+        b = buf_[k % kRing];
+      }
+      if (bus_.inFlight() == 2) {
+        const int64_t w = esp_timer_get_time();
+        bus_.waitOne();
+        waitUs += esp_timer_get_time() - w;
+        dmaDone_ = k - 2;
+      }
+      bus_.queuePixels(b, N * kChunkRows);
+    }
+    const int64_t w = esp_timer_get_time();
+    bus_.endFrame();
+    waitUs += esp_timer_get_time() - w;
+    Prof& pr = prof[e];
+    pr.render += renderUs;
+    pr.wait += waitUs;
+    pr.total += esp_timer_get_time() - t0;
+  }
+
+  enum Cmd { kSimRight, kRenderOdd };
+  void command(Cmd c) {
+    cmd_ = c;
+    xTaskNotifyGive(worker_);
+  }
+
+  static void workerTask(void* arg) {
+    LcdEyes* self = (LcdEyes*)arg;
+    for (;;) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      if (self->cmd_ == kSimRight) {
+        self->timedSimulate(1, self->job_, self->jobFrame_);
+        xSemaphoreGive(self->done_);
+        continue;
+      }
+      const int e = self->eye_;
+      int64_t renderUs = 0;
+      for (int k = 1; k < kChunks; k += 2) {
+        while (self->dmaDone_ < k - kRing) {
+        }
+        const int64_t r = esp_timer_get_time();
+        self->renderChunk(e, self->jobFrame_, k);
+        renderUs += esp_timer_get_time() - r;
+        __sync_synchronize();  // pixels before the flag
+        self->rendered_ = k;
+      }
+      workerProf.render += renderUs;
+    }
+  }
+
+  // Render worker on core 0 (WiFi and the web server live there too, at the
+  // same or higher priority). Without it everything draws on core 1.
+  void startWorker() {
+    done_ = xSemaphoreCreateBinary();
+    if (!done_ || xTaskCreatePinnedToCore(workerTask, "eyes0", 4096, this, 1, &worker_, 0) != pdPASS) {
+      Serial.println("lcd: no core-0 render worker, drawing on one core");
+      worker_ = nullptr;
+    }
+  }
+
+  // Effect buffers (3 x 25.6 KB per eye) live in PSRAM, allocated on first
+  // use. Fire uses one of the three (its smoke); the flame overlay all three.
+  // Internal RAM would make fire ~2 fps faster; it is kept free for WiFi and
+  // Bluetooth instead.
   bool ensureBuffers() {
     if (fx_[0]) return true;
     for (int e = 0; e < 2; e++) {
@@ -201,7 +351,8 @@ class LcdEyes : public EyeBackend {
       }
       fx_[e] = m;
       flame_[e] = {m, m + N * N, m + 2 * N * N, 0, 0};
-      fireEye_[e] = {m, m + N * N, m + 2 * N * N, 0, 0, 0, 0, 0};
+      fireEye_[e] = {};
+      fireEye_[e].smoke = m;
       effect_[e] = 0;
     }
     return true;
@@ -209,10 +360,19 @@ class LcdEyes : public EyeBackend {
 
   Gc9d01Bus bus_;
   bool started_ = false;
-  uint16_t* buf_[2] = {nullptr, nullptr};
+  uint16_t* buf_[kRing] = {};
   uint8_t brightness_ = BL_DEFAULT;
   int uTrack_[2] = {128, 128};
   fire_render::State fireState_[2];
+  eye_render::Params p_[2] = {};
+  TaskHandle_t worker_ = nullptr;
+  SemaphoreHandle_t done_ = nullptr;
+  volatile Cmd cmd_ = kSimRight;
+  EyeState job_;  // right eye's state, for kSimRight
+  Frame jobFrame_ = {};
+  volatile int eye_ = 0;          // eye being streamed, for kRenderOdd
+  volatile int rendered_ = -1;    // last odd chunk the worker finished
+  volatile int dmaDone_ = -1;     // last chunk whose DMA has completed
   uint8_t* fx_[2] = {nullptr, nullptr};
   int effect_[2] = {0, 0};  // 0 none, 1 flame overlay, 2 fire eye
   flame_overlay::Buffers flame_[2] = {};
@@ -266,15 +426,41 @@ void toggleTask(void* arg) {
   vTaskDelete(nullptr);
 }
 
+// `lcd prof`: average frame-time breakdown since the last call.
+void printProf() {
+  FrameProf f = frameProf;
+  WorkerProf w = workerProf;
+  Prof p[2] = {prof[0], prof[1]};
+  frameProf = {};
+  workerProf = {};
+  prof[0] = prof[1] = {};
+  if (!f.frames) {
+    Serial.println("lcd prof: no frames yet");
+    return;
+  }
+  const float n = f.frames * 1000.0f;  // -> ms per frame
+  Serial.printf("lcd prof: %u frames, %.2f ms/frame (%.1f fps drawing)\n", f.frames, f.total / n,
+                f.frames * 1e6f / f.total);
+  for (int e = 0; e < 2; e++)
+    Serial.printf("lcd prof: eye %d: sim %.2f ms (core %d), stream %.2f ms = core-1 render %.2f + waiting %.2f\n", e,
+                  p[e].sim / n, e ? 0 : 1, p[e].total / n, p[e].render / n, p[e].wait / n);
+  Serial.printf("lcd prof: core 0 renders %.2f ms/frame (odd chunks, both eyes); core 1 waits %.2f ms for its sim\n",
+                w.render / n, f.workerWait / n);
+}
+
 void cmdLcd(int argc, char** argv) {
   const char* usage =
-      "usage: lcd spi <MHz> | init | fill <r> <g> <b> | pins | toggle <gpio>  (then 'eyes anim' to resume)";
+      "usage: lcd spi <MHz> | init | fill <r> <g> <b> | pins | toggle <gpio> | prof  (then 'eyes anim' to resume)";
   if (argc < 2) {
     Serial.println(usage);
     if (lcd && lcd->started()) printClock();
     return;
   }
   String sub = argv[1];
+  if (sub == "prof") {
+    printProf();
+    return;
+  }
   if (sub == "pins") {
     Serial.println("lcd pins (GPIO; '=L' means the right eye shares the left eye's wire):");
     Serial.println("        L     R");
@@ -374,7 +560,7 @@ EyeBackend* makeLcdEyes() {
       if (strcmp(kStyles[i], EYE_ART_DEFAULT) == 0) currentStyle = i;
     console::add("art", "LCD eye style: art [default|dragon|fire]", cmdArt);
     console::add("flames", "flames + smoke around hazel/dragon eyes: flames [on|off]", cmdFlames);
-    console::add("lcd", "LCD bench diagnostics: lcd spi <MHz> | init | fill r g b | pins | toggle <gpio>", cmdLcd);
+    console::add("lcd", "LCD bench diagnostics: lcd spi <MHz> | init | fill r g b | pins | toggle <gpio> | prof", cmdLcd);
     registered = true;
   }
   static LcdEyes* instance = new LcdEyes();  // owns the SPI bus; reused across backend switches

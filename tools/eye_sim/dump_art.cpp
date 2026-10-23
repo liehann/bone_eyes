@@ -107,8 +107,9 @@ int main(int argc, char** argv) {
   fprintf(j, "],\"fireEyeChecksums\":[");
   for (size_t k = 0; k < sizeof(kPoses) / sizeof(kPoses[0]); k++) {
     const float* q = kPoses[k];
-    uint8_t* m = (uint8_t*)malloc(3 * 160 * 160);
-    fire_eye::Buffers b{m, m + 160 * 160, m + 2 * 160 * 160};
+    uint8_t* m = (uint8_t*)malloc(160 * 160);
+    fire_eye::Buffers b{};
+    b.smoke = m;
     fire_eye::reset(b, 777 + (uint32_t)k);
     fire_render::State st;
     int track = 128;

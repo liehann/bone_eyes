@@ -88,7 +88,7 @@ void begin() {
   server.on("/", handleRoot);
   server.on("/status", handleStatus);
   server.begin();
-  // Core 0 with the WiFi stack; the eyes own core 1.
+  // Core 0 with the WiFi stack and the LCD render worker; the eye task owns core 1.
   xTaskCreatePinnedToCore(serverTask, "http", 4096, nullptr, 1, nullptr, 0);
   cmdWifi(0, nullptr);
 }

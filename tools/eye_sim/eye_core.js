@@ -262,74 +262,100 @@
     return h < 0 ? 0 : h > 255 ? 255 : h;
   }
 
-  function lidCovered(lidArt, L, ox, oy) {
-    const S = lidArt.lidSize, src = srcMap(S);
-    const ly = src[oy], lx = L.lidFlip ? S - 1 - src[ox] : src[ox];
-    return lidArt.lower[ly * S + lx] <= L.lThr || lidArt.upper[ly * S + lx] <= L.uThr;
-  }
-
+  // Only the smoke is a buffer; the fire is evaluated per pixel (row() for
+  // the opening, step() for the emitting pixels).
   function FireEye(seed) {
-    Flames.call(this, seed);
-    this.cx = this.cy = OUT >> 1;
-    this.coreR = 0;
+    this.smoke = new Uint8Array(OUT * OUT);
+    this.rng = (seed >>> 0) || 1;
+    this.frame = 0;
+    this.fp = null;
+    this.lidArt = null;
   }
   FireEye.prototype.next = function () { return Flames.prototype.next.call(this); };
-  FireEye.prototype.step = function (lidArt, fp, mood, t) {
-    const N = OUT, heat = this.heat, smoke = this.smoke, open = this.open;
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        heat[y * N + x] = fireHeat(t, fp, x, y);
-        open[y * N + x] = lidCovered(lidArt, fp.lids, x, y) ? 0 : 1;
-      }
+  // Geometric gaps between emitting pixels, per mood (fire_eye::gapTable).
+  const GAP = [0, 1, 2, 3].map(m => {
+    const keep = 64 - FIRE_EMIT[m][0], g = new Uint8Array(256);
+    for (let u = 0; u < 256; u++) {
+      const uf = (2 * u + 1) * 32768;
+      let surv = Math.trunc(keep * 16777216 / 64), k = 0;
+      while (k < 255 && surv >= uf) { surv = Math.trunc(surv * keep / 64); k++; }
+      g[u] = k;
     }
+    return g;
+  });
+  // Half-width of the core disc (radius < R) on row ady: covers |dx| < w.
+  function coreHalfWidth(t, ady, R) {
+    const Q = t.quad;
+    if (ady >= Q) return 0;
+    const b = ady * Q;
+    let w = 0;
+    while (w < Q && t.radius[b + w] < R) w++;
+    return w;
+  }
+  FireEye.prototype.step = function (lidArt, fp, mood, t) {
+    const N = OUT, smoke = this.smoke, Q = t.quad;
+    this.fp = fp;
+    this.lidArt = lidArt;
     this.frame = (this.frame + 1) >>> 0;
-    this.cx = fp.cx; this.cy = fp.cy;
-    this.coreR = fp.pupilR + Math.trunc(fp.len / 2);
-    const R = this.coreR;
-    if (this.frame & 1) {
-      for (let y = 0; y < N - 1; y++) {
-        const sb = y * N, bb = sb + N, dy = y - fp.cy;
-        const swayB = ((y + (this.frame >>> 1)) & 63) * t.noiseW;
-        for (let x = 0; x < N; x++) {
-          const r = this.next();
-          const dx = x - fp.cx, adx = dx < 0 ? -dx : dx, side = dx < 0 ? -1 : 1;
-          const w = t.noise[swayB + ((x >> 3) & 255)];
-          let sx = x + (w > 150 ? 1 : w < 106 ? -1 : 0);
-          if (adx < R + 8 && dy > Math.trunc(-R / 2)) {
+    const R = fp.pupilR + Math.trunc(fp.len / 2);
+    // Top half of the rows on odd frames, bottom half on even ones.
+    const cycle = (this.frame - 1) >>> 1;
+    const top = (this.frame & 1) === 1;
+    const yEnd = top ? N >> 1 : N - 1;
+    const blur = new Uint8Array(N);
+    for (let y = top ? 0 : N >> 1; y < yEnd; y++) {
+      const sb = y * N, bb = sb + N, dy = y - fp.cy;
+      for (let x = 1; x < N - 1; x++) blur[x] = (smoke[bb + x - 1] + 2 * smoke[bb + x] + smoke[bb + x + 1]) >> 2;
+      const beside = dy > Math.trunc(-R / 2), band = beside ? R + 8 : R + 12;
+      const swayB = ((y + cycle) & 63) * t.noiseW;
+      let r2 = 0;
+      for (let x = 0; x < N; x++) {
+        if (!(x & 1)) r2 = this.next();
+        const r = (x & 1) ? r2 >>> 16 : r2;
+        const dx = x - fp.cx, adx = dx < 0 ? -dx : dx, side = dx < 0 ? -1 : 1;
+        const w = t.noise[swayB + (x >> 3)];
+        let sx = x + (w > 150 ? 1 : w < 106 ? -1 : 0);
+        if (adx < band) {
+          if (beside) {
             sx = x - side;
             if (adx < Math.trunc(R / 2) && (r & 8)) sx -= side;
-          } else if (adx < R + 12 && dy <= Math.trunc(-R / 2) && (r & 3) === 0) {
+          } else if ((r & 3) === 0) {
             sx = x + side;
           }
-          if (sx < 1 || sx >= N - 1) { smoke[sb + x] = 0; continue; }
-          const v = ((smoke[bb + sx - 1] + 2 * smoke[bb + sx] + smoke[bb + sx + 1]) >> 2) - (((r >>> 9) & 3) === 0 ? 1 : 0);
-          smoke[sb + x] = v < 0 ? 0 : v;
         }
+        if (sx < 1 || sx >= N - 1) { smoke[sb + x] = 0; continue; }
+        const v = blur[sx] - (((r >>> 9) & 3) === 0 ? 1 : 0);
+        smoke[sb + x] = v < 0 ? 0 : v;
       }
-      for (let x = 0; x < N; x++) smoke[(N - 1) * N + x] = 0;
     }
-    const e = FIRE_EMIT[mood & 3], Q = t.quad;
+    if (!top) for (let x = 0; x < N; x++) smoke[(N - 1) * N + x] = 0;
     for (let y = 0; y < N; y++) {
-      const dy = y - fp.cy, ady = dy < 0 ? -dy : dy;
-      for (let x = 0; x < N; x++) {
-        const i = y * N + x;
-        const dx = x - fp.cx, adx = dx < 0 ? -dx : dx;
-        if (adx < Q && ady < Q && t.radius[ady * Q + adx] < R) { smoke[i] = 0; continue; }
-        const h = heat[i];
-        if (h > 25 && h < 60 && (this.next() & 63) < e[0]) {
-          const v = smoke[i] + e[1];
-          smoke[i] = v > 160 ? 160 : v;
-        }
+      const dy = y - fp.cy;
+      const w = coreHalfWidth(t, dy < 0 ? -dy : dy, R);
+      const x0 = Math.max(0, fp.cx - w + 1), x1 = Math.min(N, fp.cx + w);
+      for (let x = x0; x < x1; x++) smoke[y * N + x] = 0;
+    }
+    const gap = GAP[mood & 3], e1 = FIRE_EMIT[mood & 3][1];
+    for (let i = gap[this.next() & 255]; i < N * N; i += 1 + gap[this.next() & 255]) {
+      const y = Math.trunc(i / N), x = i - y * N;
+      const dx = x - fp.cx, dy = y - fp.cy, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
+      if (adx < Q && ady < Q && t.radius[ady * Q + adx] < R) continue;
+      const h = fireHeat(t, fp, x, y);
+      if (h > 25 && h < 60) {
+        const v = smoke[i] + e1;
+        smoke[i] = v > 160 ? 160 : v;
       }
     }
   };
   FireEye.prototype.row = function (t, y, out) {
-    const N = OUT;
+    const N = OUT, fp = this.fp, a = this.lidArt, L = fp.lids, S = a.lidSize, src = srcMap(S);
+    const lb = src[y] * S, sb = y * N;
     for (let x = 0; x < N; x++) {
-      const i = y * N + x;
-      const h = this.open[i] ? this.heat[i] : 0;
+      const lx = L.lidFlip ? S - 1 - src[x] : src[x];
+      const open = !(a.lower[lb + lx] <= L.lThr || a.upper[lb + lx] <= L.uThr);
+      const h = open ? fireHeat(t, fp, x, y) : 0;
       const f = t.palette[h];
-      let g = h < 40 ? Math.trunc(this.smoke[i] * 3 / 4) : 0;
+      let g = h < 40 ? Math.trunc(this.smoke[sb + x] * 3 / 4) : 0;
       if (h) g = Math.trunc(g * (40 - h) / 40);
       const r5 = (f >> 11) + (g >> 3), g6 = ((f >> 5) & 63) + (Math.trunc(g * 7 / 8) >> 2),
             b5 = (f & 31) + (Math.trunc(g * 3 / 4) >> 3);

@@ -59,7 +59,7 @@ constexpr int PIN_NEOPIXEL = 2;
 // Displays
 // ---------------------------------------------------------------------------
 constexpr int EYE_SIZE = 160;                  // 160x160 GC9D01
-constexpr uint32_t TFT_SPI_HZ = 40000000;      // drop to 27 MHz if long Dupont leads (or the GPIO-matrix right eye) glitch
+constexpr uint32_t TFT_SPI_HZ = 40000000;      // both eyes verified at 40 MHz; drop to 27 MHz only if long leads glitch
 constexpr uint8_t BL_LEDC_CHANNEL = 7;         // high channel, servo lib takes the low ones
 constexpr uint8_t BL_DEFAULT = 200;            // 0..255
 // Per-mounting fixes, checked on the bench with `eyes test` / `eyes look`:

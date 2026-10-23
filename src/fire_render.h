@@ -32,6 +32,10 @@ struct Params {
   int s1, s2;     // radial scroll for the two noise octaves
   int rot;        // slow angular drift
   eye_render::Params lids;
+  // Per angle: ceil(255 * 65536 / len), len that angle's flame length, so
+  // (d * fall[ang]) >> 16 == d * 255 / len exactly for d < 256, 4 <= len < 256
+  // (exhaustively checked); a multiply instead of a divide per pixel.
+  uint32_t fall[256];
 };
 
 inline Params compute(const EyeArt& lidArt, float gazeX, float gazeY, float lid, float pupil, bool lidFlip,
@@ -61,7 +65,23 @@ inline Params compute(const EyeArt& lidArt, float gazeX, float gazeY, float lid,
   p.s1 = (int)(s.flowMilli / 1000);
   p.s2 = (int)(s.flowMilli * 3 / 2000);
   p.rot = (int)(s.flowMilli / 8000);
+  for (int a = 0; a < 256; a++) {
+    int len = p.len + fire_tables::kUpBias[a];
+    if (len < 4) len = 4;
+    p.fall[a] = (255u * 65536u + (uint32_t)len - 1) / (uint32_t)len;
+  }
   return p;
+}
+
+// Heat 0..255 of a fire pixel d px out from the pupil edge at angle ang.
+inline int shade(const Params& p, int d, int ang) {
+  using namespace fire_tables;
+  const int n1 = kNoise[((d - p.s1) & 63) * kNoiseW + ((ang + p.rot) & 255)];
+  const int n2 = kNoise[((d * 2 - p.s2) & 63) * kNoiseW + ((ang * 2 + 97 - p.rot) & 255)];
+  const int n = (n1 * 5 + n2 * 3) >> 3;
+  int h = p.base + ((n - 128) * 3) / 2 - (int)(((uint32_t)d * p.fall[ang]) >> 16);
+  if (d < 4) h += (4 - d) * 20;  // white-hot rim on the pupil
+  return h < 0 ? 0 : h > 255 ? 255 : h;
 }
 
 // Heat 0..255 at a panel pixel, ignoring the lids. 0 in the pupil.
@@ -78,16 +98,37 @@ inline int heat(const Params& p, int ox, int oy) {
   int ang;  // 0..255 counter-clockwise from +x, 64 = straight up
   if (dx >= 0) ang = uy >= 0 ? a : (256 - a) & 255;
   else ang = uy >= 0 ? 128 - a : 128 + a;
+  return shade(p, r - p.pupilR, ang);
+}
 
-  const int d = r - p.pupilR;
-  const int n1 = kNoise[((d - p.s1) & 63) * kNoiseW + ((ang + p.rot) & 255)];
-  const int n2 = kNoise[((d * 2 - p.s2) & 63) * kNoiseW + ((ang * 2 + 97 - p.rot) & 255)];
-  const int n = (n1 * 5 + n2 * 3) >> 3;
-  int len = p.len + kUpBias[ang];
-  if (len < 4) len = 4;
-  int h = p.base + ((n - 128) * 3) / 2 - (d * 255) / len;
-  if (d < 4) h += (4 - d) * 20;  // white-hot rim on the pupil
-  return h < 0 ? 0 : h > 255 ? 255 : h;
+// heat() for out[x], x in [x0, x1) on row oy, with the per-pixel quadrant
+// logic hoisted out of the loop.
+inline void heatSpan(const Params& p, int oy, int x0, int x1, uint8_t* out) {
+  using namespace fire_tables;
+  const int uy = p.cy - oy;
+  const int ay = uy < 0 ? -uy : uy;
+  if (ay >= kQuad) {
+    for (int x = x0; x < x1; x++) out[x] = 0;
+    return;
+  }
+  const uint8_t* rr = kRadius + ay * kQuad;
+  const uint8_t* ra = kAngle + ay * kQuad;
+  // Angle = (off + sgn * quadrant angle) & 255 on each side of the centre.
+  for (int side = 0; side < 2; side++) {
+    const int lo = side ? (x0 > p.cx ? x0 : p.cx) : x0;  // right: dx >= 0
+    const int hi = side ? x1 : (x1 < p.cx ? x1 : p.cx);  // left: dx < 0
+    const int off = side ? 0 : 128;
+    const int sgn = (side ? 1 : -1) * (uy >= 0 ? 1 : -1);
+    for (int x = lo; x < hi; x++) {
+      const int ax = side ? x - p.cx : p.cx - x;
+      if (ax >= kQuad) {
+        out[x] = 0;
+        continue;
+      }
+      const int r = rr[ax];
+      out[x] = r < p.pupilR ? 0 : (uint8_t)shade(p, r - p.pupilR, (off + sgn * ra[ax]) & 255);
+    }
+  }
 }
 
 inline bool lidCovered(const EyeArt& lidArt, const eye_render::Params& lids, int ox, int oy) {

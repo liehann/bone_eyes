@@ -49,7 +49,13 @@ inline void reset(Buffers& b, uint32_t seed) {
 // fire_render compute()), lidArt: the art whose lid maps define the opening.
 inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lids, int mood) {
   const MoodFlame& m = kMoods[mood & 3];
+  const int coolQ4 = m.coolQ4, source = m.source;
   const int S = lidArt.lidSize;
+  // Local copies: the byte stores below may alias b.rng / lids, which would
+  // force a reload and store per pixel.
+  uint32_t rng = b.rng;
+  const bool lidFlip = lids.lidFlip;
+  const uint32_t uThr = lids.uThr, lThr = lids.lThr;
   const uint8_t* src = eye_render::srcMap(S);
 
   // 1. Opening mask for this frame.
@@ -58,8 +64,8 @@ inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lid
     const uint8_t* lo = lidArt.lower + src[y] * S;
     uint8_t* o = b.open + y * N;
     for (int x = 0; x < N; x++) {
-      const int lx = lids.lidFlip ? S - 1 - src[x] : src[x];
-      o[x] = !(lo[lx] <= lids.lThr || up[lx] <= lids.uThr);
+      const int lx = lidFlip ? S - 1 - src[x] : src[x];
+      o[x] = !(lo[lx] <= lThr || up[lx] <= uThr);
     }
   }
 
@@ -73,11 +79,11 @@ inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lid
     const uint8_t* below = h + N;
     const uint8_t* cool = fire_tables::kNoise + ((y + b.frame) & 63) * fire_tables::kNoiseW;
     for (int x = 0; x < N; x++) {
-      const uint32_t r = next(b.rng);
+      const uint32_t r = next(rng);
       int sx = x + (int)(r % 3) - 1;
       sx = sx < 0 ? 0 : sx >= N ? N - 1 : sx;
       // Mean cooling coolQ4/4 per pixel; noise spans ~0..2x that.
-      const int c = (int)((cool[x] * cool[x] * (uint32_t)m.coolQ4) >> 15) + (int)((r >> 8) & 1);
+      const int c = (int)((cool[x] * cool[x] * (uint32_t)coolQ4) >> 15) + (int)((r >> 8) & 1);
       int v = below[sx] - c;
       h[x] = v < 0 ? 0 : (uint8_t)v;
     }
@@ -86,10 +92,13 @@ inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lid
 
   // 3. The opening is the fuel: re-ignite it every frame. Flicker the source
   //    so the flame base isn't a solid band.
+  uint8_t* const heat = b.heat;
+  uint8_t* const smoke = b.smoke;
+  const uint8_t* const open = b.open;
   for (int i = 0; i < N * N; i++) {
-    if (b.open[i]) {
-      const int v = m.source - (int)(next(b.rng) & 31);
-      b.heat[i] = v < 0 ? 0 : (uint8_t)v;
+    if (open[i]) {
+      const int v = source - (int)(next(rng) & 31);
+      heat[i] = v < 0 ? 0 : (uint8_t)v;
     }
   }
 
@@ -102,19 +111,20 @@ inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lid
       for (int x = 0; x < N; x++) {
         int sx = x + sway;
         sx = sx < 0 ? 0 : sx >= N ? N - 1 : sx;
-        int v = below[sx] - (int)(next(b.rng) % 5);
+        int v = below[sx] - (int)(next(rng) % 5);
         s[x] = v < 0 ? 0 : (uint8_t)v;
       }
     }
     for (int x = 0; x < N; x++) b.smoke[(N - 1) * N + x] = 0;
   }
   for (int i = 0; i < N * N; i++) {
-    const int h = b.heat[i];
-    if (h > 20 && h < 60 && !b.open[i] && (next(b.rng) & 15) == 0) {
-      const int v = b.smoke[i] + 70;
-      b.smoke[i] = v > 120 ? 120 : (uint8_t)v;
+    const int h = heat[i];
+    if (h > 20 && h < 60 && !open[i] && (next(rng) & 15) == 0) {
+      const int v = smoke[i] + 70;
+      smoke[i] = v > 120 ? 120 : (uint8_t)v;
     }
   }
+  b.rng = rng;
 }
 
 // Composite over a rendered eye row (native-endian RGB565, in place).
