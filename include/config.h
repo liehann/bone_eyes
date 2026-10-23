@@ -14,14 +14,29 @@
 // pull high. GPIO19 is the unused VSPI MISO, so it costs nothing.
 // ---------------------------------------------------------------------------
 
-// Displays: VSPI, shared bus, one CS per eye.
-constexpr int PIN_TFT_MOSI = 23;
+// Displays: one VSPI bus, but every wire on its own pin, because each module
+// comes with an 8-wire Dupont lead. "L"/"R" are the skull's own left/right.
+// Left eye: the bus pins (CLK/DIN on the VSPI IO_MUX pins).
 constexpr int PIN_TFT_SCLK = 18;
-constexpr int PIN_TFT_DC = 19;
+constexpr int PIN_TFT_MOSI = 23;
 constexpr int PIN_TFT_CS_L = 5;
+constexpr int PIN_TFT_DC = 19;
+constexpr int PIN_TFT_RST = 4;
+constexpr int PIN_TFT_BL = 21;  // LEDC PWM
+// Right eye: CLK/DIN are copies of the bus signals through the GPIO matrix,
+// DC/RST are driven in step with the left pins, BL shares the LEDC channel.
+// Only the panel whose CS is low latches data, so both seeing the same
+// signals is fine. Set any of these to -1 to drop it and share the left
+// eye's wire instead (the old shared-bus wiring: all -1).
+// GPIO13/14/15 are the JTAG pins, unused here. GPIO15 is a strap (it idles
+// high, matching its pull-up); GPIO14 may toggle briefly at boot, which the
+// panel ignores while CS is high.
+constexpr int PIN_TFT_SCLK_R = 14;
+constexpr int PIN_TFT_MOSI_R = 13;
 constexpr int PIN_TFT_CS_R = 15;
-constexpr int PIN_TFT_RST = 4;  // shared by both modules
-constexpr int PIN_TFT_BL = 21;  // shared, LEDC PWM
+constexpr int PIN_TFT_DC_R = 22;
+constexpr int PIN_TFT_RST_R = 25;
+constexpr int PIN_TFT_BL_R = 26;
 
 // HLK-LD2410C radar (UART2).
 constexpr int PIN_RADAR_RX = 33;   // ESP32 RX  <- radar TX
@@ -31,19 +46,20 @@ constexpr int PIN_RADAR_OUT = 34;  // input-only pin, fine for OUT
 // Jaw servo.
 constexpr int PIN_SERVO = 27;
 
-// PCM5102 I2S DAC (fallback audio output).
-constexpr int PIN_I2S_BCK = 26;
-constexpr int PIN_I2S_LRCK = 25;
-constexpr int PIN_I2S_DOUT = 22;
+// PCM5102 I2S DAC: retired. Audio plays from the laptop brain, and the
+// skull_i2s build isn't implemented in src. Its old pins (26/25/22) now belong
+// to the right eye, so reviving it means picking new pins first.
 
-// Backup NeoPixel eyes (Adafruit 4917 fixed-address fairy lights).
-constexpr int PIN_NEOPIXEL = 13;
+// Backup NeoPixel eyes (Adafruit 4917 fixed-address fairy lights). GPIO2 is a
+// strap (must be low/floating to enter the flasher), but a NeoPixel data
+// input is high impedance, so it doesn't disturb that.
+constexpr int PIN_NEOPIXEL = 2;
 
 // ---------------------------------------------------------------------------
 // Displays
 // ---------------------------------------------------------------------------
 constexpr int EYE_SIZE = 160;                  // 160x160 GC9D01
-constexpr uint32_t TFT_SPI_HZ = 40000000;      // drop to 27 MHz if long Dupont leads glitch
+constexpr uint32_t TFT_SPI_HZ = 40000000;      // drop to 27 MHz if long Dupont leads (or the GPIO-matrix right eye) glitch
 constexpr uint8_t BL_LEDC_CHANNEL = 7;         // high channel, servo lib takes the low ones
 constexpr uint8_t BL_DEFAULT = 200;            // 0..255
 // Per-mounting fixes, checked on the bench with `eyes test` / `eyes look`:

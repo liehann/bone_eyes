@@ -41,10 +41,12 @@ class LcdEyes : public EyeBackend {
         Serial.println("lcd: SPI init failed");
         return false;
       }
+      bus_.mirror(PIN_TFT_MOSI_R, PIN_TFT_SCLK_R, PIN_TFT_DC_R, PIN_TFT_RST_R);
       bus_.addPanel(PIN_TFT_CS_L);
       bus_.addPanel(PIN_TFT_CS_R);
       ledcSetup(BL_LEDC_CHANNEL, 5000, 8);
       ledcAttachPin(PIN_TFT_BL, BL_LEDC_CHANNEL);
+      if (PIN_TFT_BL_R >= 0) ledcAttachPin(PIN_TFT_BL_R, BL_LEDC_CHANNEL);
       for (int i = 0; i < 2; i++) {
         buf_[i] = (uint16_t*)heap_caps_malloc(N * kChunkRows * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
         if (!buf_[i]) return false;

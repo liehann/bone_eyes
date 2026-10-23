@@ -11,23 +11,37 @@ DAC, Adafruit 4917 NeoPixel fairy lights as backup eyes. 5 V 4 A supply.
 
 All pins live in [`include/config.h`](include/config.h).
 
+Each GC9D01 module comes with an 8-wire lead with separate Dupont ends, so
+every LCD wire goes to its own ESP32 pin (16 wires for both eyes). "Left" and
+"right" are the skull's own (the left eye is on the viewer's right).
+
+| LCD wire | Left eye | Right eye | Notes |
+|---|---|---|---|
+| VCC | 5V | 3V3 | RT9193 LDO on the module, takes 3.3–5 V |
+| GND | GND | GND (a different GND pin) | |
+| DIN | 23 | 13 | right = copy of VSPI MOSI via the GPIO matrix |
+| CLK | 18 | 14 | right = copy of VSPI SCLK via the GPIO matrix |
+| CS | 5 | 15 | the only per-eye signal the firmware tells apart |
+| DC | **19** | 22 | driven together |
+| RST | 4 | 25 | pulsed together |
+| BL | 21 | 26 | same LEDC PWM channel, active high |
+
+Both eyes run off one SPI bus. Only the panel whose CS is low latches data, so
+both seeing the same clock, data and DC is fine. To go back to shared wires
+(one lead split to both panels), set the `*_R` pins in `config.h` to -1.
+
 | Signal | ESP32 GPIO | Notes |
 |---|---|---|
-| LCD DIN (both) | 23 | VSPI MOSI |
-| LCD CLK (both) | 18 | VSPI SCLK |
-| LCD DC (both) | **19** | moved off GPIO2 (boot strap) |
-| LCD CS left eye | 5 | skull's own left eye (viewer's right) |
-| LCD CS right eye | 15 | |
-| LCD RST (both) | 4 | |
-| LCD BL (both) | 21 | PWM, active high |
-| LCD VCC / GND | 5 V rail / GND | modules have their own 3.3 V LDO |
 | Radar TX → ESP32 RX | 33 | 256000 baud |
 | ESP32 TX → radar RX | 32 | |
 | Radar OUT | 34 | input-only pin |
 | Radar VCC | 5 V rail | |
 | Servo signal | 27 | servo power from the 5 V rail, not the DevKit |
-| PCM5102 BCK / LRCK / DIN | 26 / 25 / 22 | I2S build only |
-| NeoPixel data | 13 | backup eyes |
+| NeoPixel data | 2 | backup eyes; data input is high impedance, so the GPIO2 strap is unaffected |
+
+The PCM5102 I2S DAC is retired: audio plays from the laptop brain, and the
+`skull_i2s` build isn't implemented in `src/`. Its old pins (26/25/22) are now
+the right eye's BL/RST/DC, so it needs new pins if it's ever revived.
 
 Pin map changes from the original plan:
 
@@ -35,6 +49,8 @@ Pin map changes from the original plan:
   flasher. GPIO19 is the unused VSPI MISO.
 - GPIO5 and GPIO15 are strapping pins too. They're fine as CS lines because
   they idle high, which matches their default pull-ups.
+- **NeoPixel moved from GPIO13 to GPIO2** to free 13/14 for the right eye's
+  DIN/CLK.
 - Nothing uses GPIO12. If GPIO12 is high at boot, the WROVER selects 1.8 V
   flash and won't boot.
 - Nothing uses GPIO16/17, which the WROVER's PSRAM occupies.
@@ -43,7 +59,7 @@ Pin map changes from the original plan:
 
 ```sh
 pio run -t upload            # A2DP build (env "skull")
-pio run -e skull_i2s -t upload   # PCM5102 I2S fallback
+pio run -e skull_i2s -t upload   # PCM5102 I2S fallback (not implemented; needs re-pinning)
 pio run -t uploadfs          # flash data/ (clips) to LittleFS
 pio device monitor           # console, 115200
 ```

@@ -1,6 +1,9 @@
 #include "gc9d01.h"
 
+#include <driver/gpio.h>
 #include <esp_heap_caps.h>
+#include <esp_rom_gpio.h>
+#include <soc/spi_periph.h>
 
 namespace {
 
@@ -76,6 +79,39 @@ bool Gc9d01Bus::begin(int mosi, int sclk, int dc, int rst, uint32_t hz) {
   return spi_bus_add_device(SPI3_HOST, &devcfg, &dev_) == ESP_OK;
 }
 
+void Gc9d01Bus::mirror(int mosi2, int sclk2, int dc2, int rst2) {
+  // The bus pins use the IO_MUX; the same output signals can also be routed
+  // through the GPIO matrix to any number of extra pins.
+  const int pins[2] = {sclk2, mosi2};
+  const uint32_t sigs[2] = {spi_periph_signal[SPI3_HOST].spiclk_out, spi_periph_signal[SPI3_HOST].spid_out};
+  for (int i = 0; i < 2; i++) {
+    if (pins[i] < 0) continue;
+    esp_rom_gpio_pad_select_gpio(pins[i]);
+    gpio_set_direction((gpio_num_t)pins[i], GPIO_MODE_OUTPUT);
+    esp_rom_gpio_connect_out_signal(pins[i], sigs[i], false, false);
+  }
+  dc2_ = dc2;
+  if (dc2_ >= 0) {
+    pinMode(dc2_, OUTPUT);
+    digitalWrite(dc2_, digitalRead(dc_));
+  }
+  rst2_ = rst2;
+  if (rst2_ >= 0) {
+    pinMode(rst2_, OUTPUT);
+    digitalWrite(rst2_, HIGH);
+  }
+}
+
+void Gc9d01Bus::setDc(int level) {
+  digitalWrite(dc_, level);
+  if (dc2_ >= 0) digitalWrite(dc2_, level);
+}
+
+void Gc9d01Bus::setRst(int level) {
+  if (rst_ >= 0) digitalWrite(rst_, level);
+  if (rst2_ >= 0) digitalWrite(rst2_, level);
+}
+
 int Gc9d01Bus::addPanel(int csPin) {
   if (numPanels_ >= kMaxPanels) return -1;
   pinMode(csPin, OUTPUT);
@@ -90,12 +126,12 @@ void Gc9d01Bus::select(int panel) {
 
 void Gc9d01Bus::command(uint8_t cmd, const uint8_t* data, size_t len) {
   spi_transaction_t t = {};
-  digitalWrite(dc_, LOW);
+  setDc(LOW);
   t.length = 8;
   t.tx_buffer = &cmd;
   spi_device_polling_transmit(dev_, &t);
   if (len) {
-    digitalWrite(dc_, HIGH);
+    setDc(HIGH);
     t = {};
     t.length = len * 8;
     t.tx_buffer = data;
@@ -104,16 +140,17 @@ void Gc9d01Bus::command(uint8_t cmd, const uint8_t* data, size_t len) {
 }
 
 void Gc9d01Bus::initPanels() {
-  if (rst_ >= 0) {
-    digitalWrite(rst_, HIGH);
+  const bool hwReset = rst_ >= 0 || rst2_ >= 0;
+  if (hwReset) {
+    setRst(HIGH);
     delay(5);
-    digitalWrite(rst_, LOW);
+    setRst(LOW);
     delay(20);
-    digitalWrite(rst_, HIGH);
+    setRst(HIGH);
     delay(150);
   }
   select(-2);
-  if (rst_ < 0) {
+  if (!hwReset) {
     command(0x01);  // SWRESET
     delay(150);
   }
@@ -143,7 +180,7 @@ void Gc9d01Bus::window(int x0, int y0, int x1, int y1) {
   command(0x2A, c, 4);
   command(0x2B, r, 4);
   command(0x2C);
-  digitalWrite(dc_, HIGH);  // everything after RAMWR is pixel data
+  setDc(HIGH);  // everything after RAMWR is pixel data
 }
 
 void Gc9d01Bus::beginFrame(int panel, int x0, int y0, int x1, int y1) {

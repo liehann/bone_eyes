@@ -18,5 +18,6 @@ firmware (PlatformIO, Arduino core 2.0.17) + offline Python tooling.
 
 ## Build
 
-- `pio run` (A2DP, default env `skull`), `pio run -e skull_i2s` (PCM5102).
+- `pio run` (A2DP, default env `skull`), `pio run -e skull_i2s` (PCM5102;
+  retired, unimplemented, needs re-pinning).
 - Commit after each milestone (see README milestone list).
