@@ -1,0 +1,7 @@
+Source: https://www.printables.com/model/293680-human-skull-anatomically-correct-re-cut-snap-on-ja
+Title:  Human skull, anatomically correct - Re-Cut + snap-on jaw
+Author: Gage (Printables)
+License: Creative Commons - Public Domain (CC0), as listed on Printables.
+Remix of: https://www.printables.com/model/2770 (Peter from Belgium, Public Domain).
+The jaw files (jaw_top.stl, jaw_lower.stl, jaw_whole.stl) are Peter's originals, unchanged.
+Downloaded 2026-10-23 via the public Printables download link (no login).

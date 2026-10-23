@@ -1,8 +1,26 @@
 # Eye mount
 
 Flat bar holding both Waveshare 0.71" round LCD modules (GC9D01, 160×160),
-screens facing forward, with M3 heat-set insert bosses for attaching it to the
-skull internals.
+screens facing forward. The printed skull (`skull/`, see `skull/README.md`)
+bolts it onto three posts on the inside of the face.
+
+`mount_style` picks the variant:
+
+- **`"skull"` (default, exported)**: a 5.65 mm plate, 67 × 33.6 mm. The
+  modules are **turned 90°** so the pointed tip / FPC faces the nose
+  (`module_rot = 90`). The skull is too narrow behind the orbits for the
+  original layout, where the outer M2 screws sat at x = ±35.4. **Rotate the
+  picture 90° in firmware** (GC9D01 MADCTL). The module at +X (on your right
+  as you face the skull) is turned −90° (clockwise seen from the front), and the
+  other is turned +90°.
+  There are three oversized M3 slots (Ø3.6, 3 mm vertical travel) at (0, 0)
+  and (±27.5, 16). M3×12 bolts go in from the back into heat-set inserts in the
+  skull's posts. There are no bosses on the bar.
+- **`"inserts"`**: the original stand-alone bar (102 × 26.1 mm, tip down,
+  three M3 insert bosses).
+
+The PCB locating rims are **off** (`rim_enable = false`). In practice they
+were too tight, and the two M2 screws locate the module anyway.
 
 | File | What |
 |---|---|
@@ -10,14 +28,13 @@ skull internals.
 | `eye_mount.stl` | Export at default parameters |
 | `eye_mount_front.png`, `eye_mount_back.png`, `eye_mount_iso.png` | Previews |
 
-Overall size: **102 × 26.1 × 9.45 mm** (X × Y × Z). The bar is 5.65 mm thick.
-The locating rims rise to 9.45 mm and the insert bosses to 9.0 mm.
+Overall size (skull style): **67 × 33.6 × 5.65 mm** (X × Y × Z).
 
 Re-export after changing a parameter:
 
 ```sh
 OPENSCAD=/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD
-$OPENSCAD -o eye_mount.stl eye_mount.scad          # ~2.5 min CGAL render
+$OPENSCAD -o eye_mount.stl eye_mount.scad          # ~1 min CGAL render
 $OPENSCAD -o eye_mount_iso.png --imgsize=1600,900 \
   --camera=0,0,0,55,0,25,170 --viewall --autocenter --colorscheme=Tomorrow eye_mount.scad
 ```
@@ -85,7 +102,7 @@ z = 9.45   top of locating rim (5.65 + standoff_h + rim_engage 0.8)
 - Screw: 8.0 − 5.65 (material under the head) = **2.35 mm in the standoff**.
   This is the user's figure, so the screw just bottoms out with full thread
   engagement.
-- The PCB locating pocket is **not** cut into the bar. It is a raised rim
+- (Only with `rim_enable = true`.) The PCB locating pocket is **not** cut into the bar. It is a raised rim
   (1.6 mm wall, 0.3 mm clearance round the PCB outline) standing on the front
   face. The screw seats are therefore still the full 5.65 mm. The rim rises
   `standoff_h + 0.8` mm, so it overlaps the bottom 0.8 mm of the PCB edge,
@@ -101,6 +118,9 @@ z = 9.45   top of locating rim (5.65 + standoff_h + rim_engage 0.8)
   `plate_t = 5.65` there is no counterbore.
 
 ## Attachment points
+
+Skull style: three M3 slots, see above. The rest of this section is the
+`"inserts"` style.
 
 - Three **M3 heat-set insert bosses** (Ø9 mm, 9 mm tall) at X = −44, 0, +44.
   Each has a Ø4.1 × 5.7 mm insert hole from the front with a 0.5 mm lead-in
@@ -132,13 +152,14 @@ z = 9.45   top of locating rim (5.65 + standoff_h + rim_engage 0.8)
 
 ## Assembly
 
-1. Heat-set the three M3 inserts from the front (rim side), flush with the
-   boss tops.
-2. Drop each module into its rim with the screen facing out and the pointed
-   tip in the FPC notch. The standoffs land on the raised seats.
+1. (Inserts style only.) Heat-set the three M3 inserts from the front (rim
+   side), flush with the boss tops.
+2. Put each module on its two raised seats with the screen facing out and the
+   pointed tip toward the nose (skull style) or down (inserts style).
 3. Plug the SH1.0 cable through the window from the back into the connector.
    Do this before screwing down if the window is tight for your fingers.
 4. Fit the M2×8 screws from the back into the standoffs. Snug them only, as
    the brass standoffs strip easily.
-5. Bolt the bar to the skull internals with M3 bolts from behind into the
-   inserts, and use the slots for vertical adjustment.
+5. Skull style: bolt the bar onto the three face posts with M3×12 from behind
+   (inserts are in the posts), and centre the screens in the bezels using the
+   slots. Inserts style: bolt from behind into the bar's inserts.

@@ -1,0 +1,7 @@
+Source: https://www.printables.com/model/2770
+Title:  Human skull, anatomically correct
+Author: Peter from Belgium (Printables)
+License: Creative Commons - Public Domain (CC0), as listed on Printables.
+Files: skull_mesh.stl (cranium without mandible), skull_w_jaw.stl (cranium + jaw in one file).
+Jaw parts (jaw_top.stl, jaw_lower.stl) are in ../gage_recut_293680/ (identical files, same author).
+Downloaded 2026-10-23 via the public Printables download link (no login).

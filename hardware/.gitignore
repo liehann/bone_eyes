@@ -1,0 +1,5 @@
+# local venv, build cache, raw source meshes (65 MB; download links in skull_src/*/LICENSE.txt)
+.venv/
+skull/cache/
+skull_src/**/*.stl
+__pycache__/

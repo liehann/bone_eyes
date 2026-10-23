@@ -1,0 +1,355 @@
+{
+ "parts": {
+  "face": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 82.89,
+   "tris": 222160,
+   "size": [
+    109.2,
+    52.2,
+    151.1
+   ]
+  },
+  "back": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 192.45,
+   "tris": 370012,
+   "size": [
+    134.2,
+    131.7,
+    146.5
+   ]
+  },
+  "jaw": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 48.8,
+   "tris": 19858,
+   "size": [
+    99.2,
+    97.4,
+    69.3
+   ]
+  },
+  "servo_bracket": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 2.4,
+   "tris": 838,
+   "size": [
+    27.0,
+    18.0,
+    39.5
+   ]
+  },
+  "tray": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 21.71,
+   "tris": 1474,
+   "size": [
+    72.0,
+    23.6,
+    74.0
+   ]
+  },
+  "stand": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 86.6,
+   "tris": 960,
+   "size": [
+    110.0,
+    110.0,
+    78.0
+   ]
+  },
+  "dowel": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.16,
+   "tris": 572,
+   "size": [
+    4.0,
+    4.0,
+    13.0
+   ]
+  },
+  "joint_bracket_temple_L": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.26,
+   "tris": 2160,
+   "size": [
+    18.7,
+    18.7,
+    12.0
+   ]
+  },
+  "joint_bracket_temple_R": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.64,
+   "tris": 3482,
+   "size": [
+    20.0,
+    18.7,
+    12.0
+   ]
+  },
+  "joint_bracket_base_L": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 2.16,
+   "tris": 1334,
+   "size": [
+    12.0,
+    18.7,
+    20.0
+   ]
+  },
+  "joint_bracket_base_R": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 2.07,
+   "tris": 2748,
+   "size": [
+    12.0,
+    18.7,
+    20.0
+   ]
+  }
+ },
+ "collisions": [],
+ "jaw_sweep": [
+  [
+   -0.5,
+   0.0
+  ],
+  [
+   0.5,
+   0.0
+  ],
+  [
+   1.5,
+   0.0
+  ],
+  [
+   2.5,
+   0.0
+  ],
+  [
+   3.5,
+   0.0
+  ],
+  [
+   4.5,
+   0.0
+  ],
+  [
+   5.5,
+   0.0
+  ],
+  [
+   6.5,
+   0.0
+  ],
+  [
+   7.5,
+   0.0
+  ],
+  [
+   8.5,
+   0.0
+  ],
+  [
+   9.5,
+   0.0
+  ],
+  [
+   10.5,
+   0.0
+  ],
+  [
+   11.5,
+   0.0
+  ],
+  [
+   12.5,
+   0.0
+  ],
+  [
+   13.5,
+   0.0
+  ],
+  [
+   14.5,
+   0.0
+  ],
+  [
+   15.5,
+   0.0
+  ],
+  [
+   16.5,
+   0.0
+  ],
+  [
+   17.5,
+   0.0
+  ],
+  [
+   18.5,
+   0.0
+  ],
+  [
+   19.5,
+   0.0
+  ]
+ ],
+ "beyond_stops": [
+  [
+   -2.0,
+   0.008
+  ],
+  [
+   21.5,
+   0.009
+  ]
+ ],
+ "bracket_slide": [
+  [
+   "joint_bracket_temple_L",
+   0.0
+  ],
+  [
+   "joint_bracket_temple_R",
+   0.0
+  ],
+  [
+   "joint_bracket_base_L",
+   0.0
+  ],
+  [
+   "joint_bracket_base_R",
+   0.0
+  ]
+ ],
+ "info": {
+  "scale": 0.9322033898305084,
+  "src_orbit_spacing": 59.0,
+  "origin_src": [
+   -0.75,
+   -164.75,
+   1529.75
+  ],
+  "orbits_src": [
+   {
+    "x": -30.25,
+    "z": 1529.75,
+    "breadth": 34.5,
+    "height": 40.5,
+    "rim_y": -164.0,
+    "lateral_crest_y": -157.0
+   },
+   {
+    "x": 28.75,
+    "z": 1529.75,
+    "breadth": 34.5,
+    "height": 40.5,
+    "rim_y": -165.5,
+    "lateral_crest_y": -157.0
+   }
+  ],
+  "cranium_size": [
+   134.2233981116343,
+   183.87807033829768,
+   162.26859399827845
+  ],
+  "hinge": [
+   65.13116162694143,
+   -27.42857706332635
+  ],
+  "jaw_closed_from_source_deg": -9.0,
+  "eyes": {
+   "eyeL": {
+    "x": -27.0,
+    "z": 0.0,
+    "rim_y": 0.5,
+    "lateral_crest_y": 7.5,
+    "breadth": 31.0,
+    "height": 37.0,
+    "x_lat": -42.5,
+    "tilt_deg": 51.91122711902468
+   },
+   "eyeR": {
+    "x": 27.25,
+    "z": 0.0,
+    "rim_y": -1.0,
+    "lateral_crest_y": 7.5,
+    "breadth": 31.5,
+    "height": 37.0,
+    "x_lat": 43.0,
+    "tilt_deg": 47.41950921665633
+   }
+  },
+  "y_glass": 6.0,
+  "y_bar_back": 17.85,
+  "joints": [
+   {
+    "name": "temple_L",
+    "screw_point": [
+     -55.8,
+     36.0,
+     28.0
+    ],
+    "dir": [
+     -1.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "name": "temple_R",
+    "screw_point": [
+     55.8,
+     36.0,
+     28.0
+    ],
+    "dir": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "name": "base_L",
+    "screw_point": [
+     -17.0,
+     36.0,
+     -22.8
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "name": "base_R",
+    "screw_point": [
+     17.0,
+     36.0,
+     -33.8
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   }
+  ]
+ }
+}

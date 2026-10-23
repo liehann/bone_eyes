@@ -5,14 +5,24 @@
 // up. Everything rises from the bed or is a vertical through-cut, so no
 // supports are needed.
 //
-// Coordinates: X along the bar (eye to eye), Y up in the skull (module's
-// pointed tip / FPC points to -Y), Z out of the skull's face. Each eye's screen
-// centre is at (+/-eye_spacing/2, 0).
+// Coordinates: X along the bar (eye to eye), Y up in the skull, Z out of the
+// skull's face. Each eye's screen centre is at (+/-eye_spacing/2, 0).
+//
+// mount_style = "skull" (default) is the version the printed skull uses
+// (hardware/skull): a flat plate, modules turned 90 deg so the pointed tip / FPC
+// faces the nose (module_rot), three oversized M3 slots that bolt from behind
+// onto heat-set inserts in posts on the skull face. "inserts" is the original
+// stand-alone bar (tip down, three M3 insert bosses).
 //
 // See README.md for where each number came from.
 
 /* [Layout] */
 eye_spacing      = 55.0;   // screen centre to screen centre (user)
+mount_style      = "skull"; // "skull" or "inserts"
+// module rotation about its screen centre, deg: 0 = pointed tip down (-Y).
+// In "skull" style the tip points to the nose (+X eye turned -90, -X eye +90),
+// so the picture must be rotated 90 deg in firmware (MADCTL).
+module_rot       = (mount_style == "skull") ? 90 : 0;
 
 /* [Module: Waveshare 0.71inch LCD Module dimension drawing] */
 pcb_w            = 20.12;  // round PCB/glass diameter (drawing: 20.12 +/-0.15)
@@ -40,7 +50,9 @@ hole_comp        = 0.1;    // added to printed hole diameters (shrinkage)
 m2_head_d        = 4.2;    // counterbore diameter (M2 socket head 3.8)
 
 /* [Locating rim] */
-fit_clear        = 0.3;    // PCB outline clearance
+// The rim proved too tight in practice; the two M2 screws locate the module.
+rim_enable       = false;
+fit_clear        = 0.5;    // PCB outline clearance (only used if rim_enable)
 rim_wall         = 1.6;    // >= 1.2 min wall
 rim_engage       = 0.8;    // how far the rim rises past the PCB back face
 rim_h            = standoff_h + rim_engage; // rim height above bar front face
@@ -65,6 +77,16 @@ adjust_slots     = [[-9, 0], [9, 0]]; // M3 through-slots, long axis along Y
 slot_len         = 6.0;    // travel (centre-to-centre of slot ends)
 slot_w           = 3.2;    // + hole_comp
 
+/* [Skull plate (mount_style = "skull")] */
+skull_plate_half_h = 11.6; // plate half height round the eyes
+skull_plate_lat    = 4.0;  // plate edge outside the standoff line
+skull_plate_r      = 4.0;  // corner radius
+// M3 mounting slots: bolt from the back face into inserts on the skull posts
+skull_mount_holes  = [[0, 0], [-27.5, 16], [27.5, 16]];
+skull_mount_boss_d = 9.0;
+skull_slot_w       = 3.6;  // oversized for M3 (loose fit)
+skull_slot_len     = 3.0;  // vertical travel
+
 /* [Print] */
 chamfer          = 0.5;    // bottom-edge chamfer (elephant foot)
 chamfer_steps    = 5;
@@ -75,9 +97,11 @@ pcb_r      = pcb_w / 2;
 tip_y      = -(pcb_h - pcb_r);          // tip edge relative to screen centre (-12.24)
 hole_dy    = tip_y + hole_to_tip;       // standoff axis relative to screen centre (-0.14)
 eye_xs     = [-eye_spacing/2, eye_spacing/2];
+// rotation of each eye's module frame; tips point at the nose when module_rot = 90
+function eye_rot(x) = (x > 0) ? -module_rot : module_rot;
 cb_depth   = max(0, plate_t - screw_t);
 
-assert(rim_wall >= 1.2, "rim_wall below 1.2 mm minimum wall");
+if (rim_enable) assert(rim_wall >= 1.2, "rim_wall below 1.2 mm minimum wall");
 assert(insert_boss_h - insert_depth >= 1.2, "insert floor too thin");
 // wall between an M2 hole and the nearest cable-window corner
 win_dx = standoff_spacing/2 - (conn_w/2 + win_margin);
@@ -111,7 +135,17 @@ module slot2d() {
 }
 
 module outline2d() {
-    union() {
+    if (mount_style == "skull") {
+        xo = eye_spacing/2 + abs(hole_dy) + skull_plate_lat;
+        union() {
+            offset(r = skull_plate_r) offset(delta = -skull_plate_r)
+                square([2*xo, 2*skull_plate_half_h], center = true);
+            for (p = skull_mount_holes) hull() {
+                translate(p) circle(d = skull_mount_boss_d + skull_slot_len);
+                translate([p[0], 0]) circle(d = skull_mount_boss_d);
+            }
+        }
+    } else union() {
         hull() for (s = [-1, 1]) translate([s*end_boss_x, 0]) circle(d = bar_h);
         for (x = eye_xs) translate([x, 0]) eye_outer2d();
         for (p = insert_bosses) translate(p) circle(d = insert_boss_od);
@@ -120,14 +154,20 @@ module outline2d() {
 
 // M2 screw holes (cut after the chamfer so the head seat stays a full flat annulus)
 module m2_holes2d() {
-    for (x = eye_xs, s = [-1, 1]) translate([x + s*standoff_spacing/2, hole_dy]) hole2d(m2_clear_d);
+    for (x = eye_xs) translate([x, 0]) rotate(eye_rot(x))
+        for (s = [-1, 1]) translate([s*standoff_spacing/2, hole_dy]) hole2d(m2_clear_d);
 }
 
 // vertical through-cuts that get the bed-side chamfer
 module cuts2d() {
-    for (x = eye_xs) translate([x, 0]) window2d();
-    for (p = insert_bosses) translate(p) hole2d(m3_clear_d);
-    for (p = adjust_slots) translate(p) slot2d();
+    for (x = eye_xs) translate([x, 0]) rotate(eye_rot(x)) window2d();
+    if (mount_style == "skull") {
+        for (p = skull_mount_holes) hull() for (s = [-1, 1])
+            translate([p[0], p[1] + s*skull_slot_len/2]) hole2d(skull_slot_w);
+    } else {
+        for (p = insert_bosses) translate(p) hole2d(m3_clear_d);
+        for (p = adjust_slots) translate(p) slot2d();
+    }
 }
 
 module plate2d() { difference() { outline2d(); cuts2d(); } }
@@ -145,36 +185,36 @@ module eye_mount() {
     difference() {
         union() {
             chamfered_extrude(plate_t) plate2d();
-            // locating rims
-            for (x = eye_xs) translate([x, 0, plate_t - 0.01])
+            // locating rims (off by default)
+            if (rim_enable) for (x = eye_xs) translate([x, 0, plate_t - 0.01]) rotate(eye_rot(x))
                 linear_extrude(rim_h + 0.01) difference() {
                     eye_outer2d();
                     offset(r = fit_clear) pcb2d();
                     translate([-fpc_notch_w/2, tip_y - 5]) square([fpc_notch_w, 5 + 2]);
                 }
             // heat-set insert bosses
-            for (p = insert_bosses) translate([p[0], p[1], plate_t - 0.01])
+            if (mount_style != "skull") for (p = insert_bosses) translate([p[0], p[1], plate_t - 0.01])
                 cylinder(d = insert_boss_od, h = insert_boss_h - plate_t + 0.01);
         }
         // insert holes from the top, with a small lead-in
-        for (p = insert_bosses) translate([p[0], p[1], insert_boss_h - insert_depth]) {
+        if (mount_style != "skull") for (p = insert_bosses) translate([p[0], p[1], insert_boss_h - insert_depth]) {
             cylinder(d = insert_d, h = insert_depth + 1);
             translate([0, 0, insert_depth - 0.5]) cylinder(d1 = insert_d, d2 = insert_d + 1.0, h = 0.501);
         }
         // M2 screw holes
         translate([0, 0, -1]) linear_extrude(plate_t + 2) m2_holes2d();
         // M3 clearance continues through the boss
-        for (p = insert_bosses) translate([p[0], p[1], -1])
+        if (mount_style != "skull") for (p = insert_bosses) translate([p[0], p[1], -1])
             linear_extrude(insert_boss_h + 2) hole2d(m3_clear_d);
         // relief pocket under the PCB, leaving full-height seats at the standoffs
-        if (relief_d > 0) for (x = eye_xs) translate([x, 0, plate_t - relief_d])
+        if (relief_d > 0) for (x = eye_xs) translate([x, 0, plate_t - relief_d]) rotate(eye_rot(x))
             linear_extrude(relief_d + 0.01) difference() {
                 offset(delta = -0.5) pcb2d();
                 for (s = [-1, 1]) translate([s*standoff_spacing/2, hole_dy]) circle(d = seat_d);
             }
         // optional counterbores (only when plate_t > screw_t)
         if (cb_depth > 0) for (x = eye_xs, s = [-1, 1])
-            translate([x + s*standoff_spacing/2, hole_dy, -1])
+            translate([x, 0, -1]) rotate(eye_rot(x)) translate([s*standoff_spacing/2, hole_dy, 0])
                 linear_extrude(cb_depth + 1) hole2d(m2_head_d);
     }
 }
