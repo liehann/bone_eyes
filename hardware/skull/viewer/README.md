@@ -42,6 +42,11 @@ git-ignored. `template.html` is the page source.
   click passes through them.
 - Click a part, or its name in the list, to highlight it and show its name.
 - Drag to orbit, scroll to zoom, and right-drag or shift-drag to pan.
-  "Reset view" reframes the visible parts.
+- The "+", "−" and "Fit" buttons (bottom left) and the + / − / 0 keys zoom in
+  or out by 20%, or fit everything visible from the current angle.
+- "Reset view" fits everything visible from the default three-quarter front
+  angle. The view refits on window resize until you move the camera.
 - You can set the starting state in the URL hash, for example
   `index.html#explode=1&jaw=18&xray=1&hide=stand&select=servo`.
+  `#selftest=reset` moves the camera and then presses Reset view, which is
+  handy for headless screenshots.

@@ -8,9 +8,14 @@
   :root { --bg:#111317; --panel:#1b1e24ee; --fg:#e6e6e6; --dim:#8a919c; --acc:#e8c27a; --line:#2c313a; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font:13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow:hidden; }
-  #c { position:fixed; inset:0; display:block; }
-  #panel { position:fixed; top:12px; left:12px; width:250px; max-height:calc(100% - 24px); overflow:auto;
-    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; box-sizing:border-box; }
+  body { display:flex; }
+  #view { position:relative; flex:1; min-width:0; min-height:0; }
+  #c { position:absolute; inset:0; width:100%; height:100%; display:block; outline:none; }
+  #panel { flex:none; width:260px; height:100%; overflow:auto; background:#16191e;
+    border-right:1px solid var(--line); padding:10px 12px; box-sizing:border-box; }
+  #zoom { position:absolute; left:12px; bottom:12px; display:flex; gap:4px; }
+  #zoom button { min-width:32px; height:32px; font-size:16px; padding:0 8px; }
+  #zoom button.txt { font-size:12px; }
   h1 { font-size:14px; margin:0 0 8px; }
   h2 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:12px 0 4px;
     display:flex; justify-content:space-between; align-items:center; gap:6px; }
@@ -25,11 +30,12 @@
   .ctl { margin:8px 0; }
   .ctl div { display:flex; justify-content:space-between; color:var(--dim); }
   input[type=range] { width:100%; accent-color:var(--acc); }
-  #info { position:fixed; right:12px; bottom:12px; background:var(--panel); border:1px solid var(--line);
+  #info { position:absolute; right:12px; bottom:12px; background:var(--panel); border:1px solid var(--line);
     border-radius:8px; padding:8px 12px; min-width:160px; display:none; }
   #info b { color:var(--acc); }
-  #status { position:fixed; right:12px; top:12px; color:var(--dim); font-size:11px; }
-  @media (max-width:600px) { #panel { width:calc(100% - 32px); left:16px; max-height:45%; } }
+  #status { position:absolute; right:12px; top:12px; color:var(--dim); font-size:11px; }
+  @media (max-width:700px) { body { flex-direction:column; } #panel { width:100%; height:auto; max-height:40%;
+    border-right:0; border-bottom:1px solid var(--line); } }
 </style>
 <script type="importmap">
 { "imports": {
@@ -39,7 +45,6 @@
 </script>
 </head>
 <body>
-<canvas id="c"></canvas>
 <div id="panel">
   <h1>Skull assembly</h1>
   <div class="row"><button id="all">Show all</button><button id="none">Hide all</button><button id="reset">Reset view</button></div>
@@ -48,8 +53,12 @@
   <label class="part"><input type="checkbox" id="xray"> X-ray shells (face, back, jaw)</label>
   <div id="groups"></div>
 </div>
-<div id="info"></div>
-<div id="status">loading…</div>
+<div id="view">
+  <canvas id="c" tabindex="0"></canvas>
+  <div id="zoom"><button id="zin" title="Zoom in (+)">+</button><button id="zout" title="Zoom out (−)">−</button><button id="zfit" class="txt" title="Fit all visible (0)">Fit</button></div>
+  <div id="info"></div>
+  <div id="status">loading…</div>
+</div>
 <script id="glb" type="application/octet-stream">__GLB_B64__</script>
 <script type="module">
 import * as THREE from 'three';
@@ -78,11 +87,17 @@ const root = new THREE.Group(); root.rotation.x = -Math.PI / 2; scene.add(root);
 const parts = {};          // name -> {meta, obj (moved by explode), mesh, mat}
 const H = META.hinge;
 
-function resize() {
-  const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+let touched = false;        // the user has orbited/zoomed since the last fit
+controls.addEventListener('start', () => { touched = true; });
+const canvas = $('c');
+function resize() {          // drawing buffer follows the canvas's own CSS box (x devicePixelRatio)
+  const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (Object.keys(parts).length && !touched) resetView();
 }
-addEventListener('resize', resize); resize();
+new ResizeObserver(resize).observe(canvas); resize();
 
 const b64 = $('glb').textContent.trim();
 const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -118,6 +133,10 @@ new GLTFLoader().parse(bin.buffer, '', gltf => {
   for (const n of (q.get('hide') || '').split(',')) if (parts[n]) { parts[n].obj.visible = false; parts[n].cb.checked = false; }
   if (q.has('select')) select(q.get('select'));
   if (q.has('explode')) resetView();
+  if (q.get('selftest') === 'reset') {   // headless check: disturb the camera, then press Reset view
+    controls.target.add(new THREE.Vector3(80, -60, 40)); dolly(0.3); touched = true;
+    $('reset').click(); document.body.dataset.selftest = 'reset';
+  }
   const n = Object.keys(parts).length;
   status.textContent = `${n} parts · explode from ${META.explode_source}` + (H ? ` · hinge from ${H.source}` : '');
   document.title = 'Skull Assembly Viewer';
@@ -149,11 +168,14 @@ $('none').onclick = () => setVis(() => true, false);
 // explode
 $('explode').oninput = e => {
   const t = +e.target.value; $('exv').textContent = Math.round(t * 100) + '%';
+  setExplode(t);
+};
+function setExplode(t) {
   for (const p of Object.values(parts)) {
     const o = p.meta.explode;
     p.obj.position.set(p.obj.userData.base.x + o[0] * t, p.obj.userData.base.y + o[1] * t, p.obj.userData.base.z + o[2] * t);
   }
-};
+}
 
 // jaw
 if (H) {
@@ -192,7 +214,8 @@ let down = null;
 renderer.domElement.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
 renderer.domElement.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
-  ptr.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  const r = canvas.getBoundingClientRect();
+  ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
   ray.setFromCamera(ptr, camera);
   const meshes = Object.values(parts).filter(p => p.obj.visible).map(p => p.mesh);
   let hits = ray.intersectObjects(meshes, false);
@@ -203,16 +226,49 @@ renderer.domElement.addEventListener('pointerup', e => {
   select(hits.length ? hits[0].object.userData.part : null);
 });
 
-function resetView() {
+// Framing: fit the bounding sphere of the visible parts (current explode/jaw pose) into the
+// canvas, using the narrower of the vertical and horizontal FOV, with padding.
+const VIEW_DIR = new THREE.Vector3(0.6, 0.22, 1).normalize();   // 3/4 front, slightly from above
+const PAD = 1.15;
+function fitSphere() {
   const box = new THREE.Box3();
+  root.updateMatrixWorld(true);
   for (const p of Object.values(parts)) if (p.obj.visible) box.expandByObject(p.obj);
-  const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2;
-  controls.target.copy(c);
-  camera.position.copy(c).add(new THREE.Vector3(0.75, 0.35, 1).normalize().multiplyScalar(r / Math.sin(THREE.MathUtils.degToRad(17.5)) * 1.05));
-  camera.near = r / 50; camera.far = r * 50; camera.updateProjectionMatrix();
-  controls.update();
+  if (box.isEmpty()) for (const p of Object.values(parts)) box.expandByObject(p.obj);
+  return box.getBoundingSphere(new THREE.Sphere());
 }
-$('reset').onclick = resetView;
+let fitDist = 500;
+function resetView(keepDir) {
+  const s = fitSphere();
+  const vHalf = THREE.MathUtils.degToRad(camera.fov / 2);
+  const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+  fitDist = s.radius * PAD / Math.sin(Math.min(vHalf, hHalf));
+  const dir = keepDir ? camera.position.clone().sub(controls.target).normalize() : VIEW_DIR;
+  controls.target.copy(s.center);
+  camera.position.copy(s.center).addScaledVector(dir, fitDist);
+  camera.near = fitDist / 100; camera.far = fitDist * 20; camera.updateProjectionMatrix();
+  controls.minDistance = fitDist * 0.1; controls.maxDistance = fitDist * 4;
+  controls.update();
+  touched = false;
+}
+function dolly(f) {          // f < 1 zooms in
+  const off = camera.position.clone().sub(controls.target);
+  const d = THREE.MathUtils.clamp(off.length() * f, controls.minDistance, controls.maxDistance);
+  camera.position.copy(controls.target).addScaledVector(off.normalize(), d);
+  controls.update(); touched = true;
+}
+$('zin').onclick = () => dolly(0.8);
+$('zout').onclick = () => dolly(1.25);
+$('zfit').onclick = () => resetView(true);
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === '+' || e.key === '=') dolly(0.8);
+  else if (e.key === '-' || e.key === '_' || e.key === '−') dolly(1.25);
+  else if (e.key === '0') resetView(true);
+  else return;
+  e.preventDefault();
+});
+$('reset').onclick = () => resetView(false);
 
 renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
 </script>
