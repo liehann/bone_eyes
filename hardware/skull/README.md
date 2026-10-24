@@ -1,8 +1,9 @@
 # Printable skull
 
 An animatronic skull built from Peter from Belgium's CC0 anatomical skull
-(Printables 2770): a removable face, the cranium back, a servo-driven jaw, an
-electronics tray and a stand. Everything comes from `build.py` and is
+(Printables 2770). It has a face that is also the chassis, a back cover, a
+servo-driven jaw, an electronics tray and a stand. Every electronic part and
+the jaw mount on the face; the cover goes on last. Everything comes from `build.py` and is
 reproducible.
 
 ![front](skull_front.png)
@@ -11,11 +12,12 @@ reproducible.
 |---|---|
 | `skull_front.png`, `skull_iso.png`, `skull_side.png` | assembled, on the stand; sockets/nose drawn painted black, screens gold |
 | `skull_jaw_open.png` | jaw at the full 18° opening |
-| `skull_exploded.png` | parts pulled apart |
+| `skull_exploded.png` | parts pulled apart in assembly order: eye bar, radar, servo, tray, joint brackets, cover; jaw and stand below |
 | `skull_bottom.png` | underside (servo cup, pivot boss, neck boss, USB slot) |
 | `skull_face_from_behind.png`, `skull_face_from_behind_34.png` | the face part from behind: open, nothing between you and the eye/radar mounts |
 | `skull_face_from_behind_hw.png` | the same with the eye bar, modules, radar and joint brackets in place |
-| `skull_back_from_front.png`, `skull_back_from_front_34.png` | the cranium back seen through its cut, with the servo and the ESP32 tray |
+| `skull_face_from_behind_hw_34.png` | the face from behind at 3/4, with the jaw, servo, ESP32 tray, eye bar and radar fitted |
+| `skull_back_from_front.png`, `skull_back_from_front_34.png` | the back cover seen through its cut (USB notch at the bottom) |
 | `skull_section_orbits.png` | sections through the orbit centres and through one eye (socket bowls, modules, bar) |
 | `skull_section_jaw.png` | sections through the servo/neck and along the hinge axis |
 
@@ -100,7 +102,7 @@ union in `cache/`.
    - **Assembly paths.** The eye bar with both modules and their plugged-in
      cables goes in straight from behind, and so does the radar. Their swept
      paths, from the final position back past the cut, are kept free of face
-     material, including screwdriver access to the three bar bolts. That path
+     material, including screwdriver access to the two bar bolts. That path
      also must not leave the skull. The joint bosses and dowel bosses are
      placed outside it. The current build reports no collisions, a clear
    sweep, and stops that engage 1.5° past each end.
@@ -114,18 +116,18 @@ with the jaw. The stand adds 78 mm.
 
 | STL (`out/`) | Size as printed (mm) | Volume | Print orientation | Supports | Time (rough) |
 |---|---|---|---|---|---|
-| `face.stl` | 113 × 154 × 61 | 113 cm³ | cut face on the bed, face up | tree: socket bowls and nasal bowl (their backs face the bed), eye-bar post ends, brow | ~4.5 h |
-| `back.stl` | 134 × 145 × 123 | 183 cm³ | cut face on the bed, crown up | tree: neck boss, pivot boss, servo-flange bosses, base underside | ~7.5 h |
+| `face.stl` | 134 × 162 × 136 | 211 cm³ | cut face on the bed, face up | tree: socket and nose bowls, eye-bar post ends, tray posts, neck boss, pivot boss, servo-flange bosses, base underside | ~10 h |
+| `back.stl` (cover) | 122 × 130 × 48 | 56 cm³ | cut face on the bed, crown up | none to little | ~2 h |
 | `jaw.stl` | 99 × 97 × 69 | 49 cm³ | upright, as in the skull | tree under the lower border and the two hinge pads | ~2 h |
 | `servo_bracket.stl` | 40 × 18 × 27 | 2.4 cm³ | mounting plate on the bed | none | 15 min |
-| `tray.stl` | 72 × 74 × 24 | 22 cm³ | plate on the bed, cradle up | none | 45 min |
+| `tray.stl` | 72 × 35 × 24 | 12 cm³ | plate on the bed, cradle up | none | 30 min |
 | `stand.stl` | Ø110 × 78 | 87 cm³ | base on the bed | none | ~2 h |
-| `joint_bracket_*.stl` ×4 | about 20 × 16 × 12 | ~2 cm³ | as exported | small, under the arm | 10 min each |
+| `joint_bracket_*.stl` ×4 | about 8 × 19 × 24 | ~2 cm³ | as exported | small, under the arm | 10 min each |
 | `dowel.stl` (print 2) | Ø4 × 13 | — | upright | none | 5 min |
 
 Times are estimates for a Bambu H2D with PLA at 0.2 mm (about 10 mm³/s
 average plus support overhead). Check them in Bambu Studio. Everything fits
-the H2D bed. The cranium back is the largest part at 134 × 145 × 123.
+the H2D bed. The face is the largest part at 134 × 162 × 136.
 
 **Settings:** PLA (PETG if it will sit in sun or heat). 0.2 mm layers;
 0.16 mm on the face for the teeth if you like. 4 walls, 25 % gyroid. Tree
@@ -159,16 +161,24 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - Behind the bowls, everything is cleared with 0.75 mm round it: the
   modules, the bar, the M2 heads, the connectors and their cables (a 16 mm
   channel behind each window), and screwdriver access to the bar bolts.
-- The bar back face is at Y = 26.85. The face/back cut is placed 6 mm
-  behind it (Y = 32.9, `Y_SPLIT = None` means automatic). With the back off,
-  all three bar bolts face you.
-- Three posts on the inside of the face carry M3 inserts at (0, 0) and
-  (±27.5, +16). The bar's slots are Ø3.6 with 3 mm vertical travel, so you
-  can centre the screens in the bezels.
+- The bar back face is at Y = 26.85. Both bar bolts face you from the open
+  back of the face.
+- Two posts on the inside of the face carry M3 inserts at (±27.5, +16). The
+  bar's slots are Ø3.6 with 3 mm vertical travel, so you can centre the
+  screens in the bezels.
+  - There is no centre post. That keeps the slot between the bowls free for
+    the radar to go in.
 
 ### Jaw: direct drive
 - The hinge axis is the condyle axis (Y = 65.1, Z = −29.4 in the eye frame), parallel to X.
-- An MG90S sits in a closed cup in the cranium floor on the +X side, its
+- **The face part is the chassis.** The servo cup, the servo-bracket bosses
+  and the jaw pivot boss are all part of the face. The jaw hangs from the face
+  assembly.
+  - Jaw load path: jaw → horn and pivot bolt → servo bracket and pivot boss →
+    the face's cranial base → the neck boss → the stand.
+  - The face's cranial base is the skull's own base and sides, the stiffest
+    part of the skull.
+- An MG90S sits in a closed cup in the cranial floor on the +X side, its
   output shaft on the hinge axis. The cup is part of the shell, so nothing
   inside is visible.
 - The servo screws onto a separate L-bracket with its own tab screws. The
@@ -194,54 +204,70 @@ radar sees through the nasal window. Use paint without metal flakes there.
   the cup bulging about 15 mm below the base, hidden between the jaw rami.
   There are no linkages to set up.
 
-### Face/back joint
-- The cut is a coronal plane at Y = 32.9, 6 mm behind the eye bar.
-- **From behind, the face part is open:** you see only the socket bowl backs
-  with their screen openings, the three eye-bar posts, the radar frame, four
-  small joint bosses near the outer wall, and two dowel bosses at the top.
+### Face and cover
+- **The cut is a coronal plane at Y = 108**, behind the foramen magnum and
+  the neck boss.
+  - The face (front of the cut) holds everything: eyes, radar, servo, jaw
+    pivot, ESP32 tray, neck boss.
+  - The back is only the occipital cap, a cover with no load and no
+    electronics.
+- **From behind, the face is open.** You see:
+  - the socket bowl backs with their screen openings;
+  - the two eye-bar posts;
+  - the radar frame;
+  - the servo cup and its bosses;
+  - the jaw pivot boss;
+  - the three tray posts and the neck boss;
+  - four small joint bosses and two dowel bosses near the outer wall.
+
   Nothing bridges between the bowls.
-- There are 4 **bracket joints**, all with screws from the side:
-  - two at the temples (z = +28, 9 mm behind the cut);
-  - two just above the arches (z = 0, 7 mm behind the cut).
+- **Insertion paths** (checked by the build):
+  - Eye bar with both modules and their plugged-in cables: straight back
+    25 mm, lifted 20 mm over the servo bosses and tray posts, then out of the
+    open back. It is clear of every fixed face feature and stays inside the
+    skull.
+  - Bar bolts: screwdriver access straight from behind.
+  - Radar: slides straight back out of its frame to the choana wall. It then
+    goes in or out on edge through an 8 mm slot between the bowls, which is
+    clear all the way up past the eyes even with the bar fitted.
+  - Cover: slides straight on along −Y with the jaw (closed), servo, tray,
+    ESP32, eye bar, radar and joint brackets all in place. Checked over 60 mm
+    of travel; nothing catches.
+- There are 4 **bracket joints**, all with screws from the side. Two are high
+  (z = +30) and two low (z = −5), 12 mm behind the cut.
   - The script picks each position from a short list. A position is accepted
     when:
-    - the bracket, trimmed so the back slides on without catching, still has
+    - the bracket, trimmed so the cover slides on without catching, still has
       solid material round its insert and its screw;
-    - the face boss stays out of the eye-bar and radar insertion path.
+    - the face boss stays out of the insertion paths.
   - Each bracket is a separate L-part. Its flange sticks out sideways and
-    bolts to a compact insert boss on the face with an M3×12 along Y. The head
-    faces back, so you reach it while the back is off.
-  - The back then slides on, and an M3×12 goes from outside through a
-    counterbored pad in the back shell into an insert in the bracket. The
-    counterbore leaves 3 mm under the head.
-  - Every part prints with its cut face on the bed, which is why nothing
-    sticks out of the cut.
-- The cranial-base level of the seam has no joint. There is no room there
-  outside the eye-bar path, and the shells are stiff enough.
+    bolts to a compact insert boss on the face with an M3×12 along Y.
+  - An M3×12 goes from outside through a counterbored pad in the cover into
+    an insert in the bracket. The counterbore leaves 3 mm under the head.
 - **2 dowels** (printed, Ø4 in Ø5 holes) at the top of the seam help line it
-  up. The screws do the real locating.
+  up.
 
 ### Electronics
-- **ESP32-DevKitC-VIE** (no mounting holes). It sits in a cradle on a
-  separate tray: two end walls with ledges 16 mm up, so the pin headers and
-  DuPont housings fit underneath, and a zip-tie slot pair across the module
-  end.
-  - The board stands vertical, long axis up, USB at the bottom.
-  - The tray bolts with 3× M3×8 onto three insert posts that come forward
-    from the occipital wall (front faces at Y = 125).
-- **Power: USB cable slot.** An 18 × 11 mm slot with round ends goes through
-  the floor at x = 0, Y = 114, just behind the neck boss. It is underneath
-  and invisible from the front, and a USB-A plug passes through it.
-  - A zip-tie arch (`TIE_BAR`, tunnel 7 × 5 mm) stands on the floor 13 mm
-    behind the slot for strain relief.
-  - Power comes from outside: a power bank or the laptop. There is no
-    internal battery bay.
+- **ESP32-DevKitC-VIE** (no mounting holes) sits on a separate flat tray.
+  - The tray bolts with 3× M3×8 onto three insert posts that rise from the
+    cranial floor, over the foramen magnum, between the servo and the cut.
+  - The board lies flat with its pins down, on two end ledges 16 mm up, so
+    the DuPont housings fit underneath. A zip-tie slot pair holds it.
+  - The USB end points to +X.
+  - Everything is visible and reachable from the open back for bench testing.
+- **Power:** from outside (a power bank or the laptop) through the USB cable.
+  There is no internal battery.
+  - The cover has an open **9 mm notch** in its front edge at floor level,
+    x = +24, 14 mm deep. Lay the cable in it before sliding the cover on, so
+    nothing needs threading.
+  - A zip-tie arch on the face floor just in front of the cut (y = 100)
+    gives strain relief.
 - **HLK-LD2410C** (35 × 7 mm, no holes) lies horizontal and faces forward
   behind the **1.8 mm nasal window**: the flat bottom of the nose bowl, 6 mm
   behind the piriform rim.
   - It sits in a frame pocket (0.6 mm clearance), open at the back for the
     header and cable.
-  - Fix it with a dab of hot glue or tape. Antenna side to the wall.
+  - Fix it with a dab of hot glue or tape. Antenna side to the window.
 
 ### Stand
 - The neck boss is Ø28 under the foramen magnum (Y = 90), with an M5
@@ -255,9 +281,9 @@ radar sees through the nasal window. Use paint without metal flakes there.
 
 | Item | Qty | Where |
 |---|---|---|
-| M3 heat-set insert (Ø4.1 × 5.7 hole) | 17 | 3 eye-bar posts, 4 face joint bosses, 4 joint brackets, 1 jaw pivot boss, 2 servo-bracket bosses, 3 tray posts |
+| M3 heat-set insert (Ø4.1 × 5.7 hole) | 16 | 2 eye-bar posts, 4 face joint bosses, 4 joint brackets, 1 jaw pivot boss, 2 servo-bracket bosses, 3 tray posts |
 | M5 heat-set insert | 1 | neck boss |
-| M3×12 | 11 | 3 eye bar, 4 brackets to face, 4 back to brackets |
+| M3×12 | 10 | 2 eye bar, 4 brackets to face, 4 cover to brackets |
 | M3×20 | 1 | jaw pivot (+ M3 washer) |
 | M3×8 | 5 | 2 servo bracket, 3 tray |
 | M2×8 | 4 | modules to eye bar (existing stack) |
@@ -268,33 +294,34 @@ radar sees through the nasal window. Use paint without metal flakes there.
 
 ## Assembly
 
-1. Heat-set all the inserts. Do the face posts and bosses and the joint
-   brackets from their open side.
-2. **Face:**
-   - Fit the modules to the eye bar (M2×8, tips toward the nose).
-   - Plug in the cables through the windows.
-   - Bolt the bar to the three posts (M3×12 from behind) and centre the
-     screens in the bezels.
-   - Fit the radar in its pocket behind the nose.
-   - Then bolt the four joint brackets to the face bosses (M3×12 along Y).
-     Do this after the bar, because the brackets sit beside the bar's
-     insertion path.
-3. **Back:**
-   - Screw the servo into its bracket. Lower it into the cup from inside, with
-     the gear tower going down the slot in the cup wall. Bolt the flange
-     (2× M3×8).
-   - Bolt the tray with the ESP32 to the rear posts (3× M3×8) and route the
-     USB cable out of the floor slot. Zip-tie it to the arch behind the slot.
-4. **Join:**
-   - Put the dowels in.
-   - Slide the back onto the face brackets and fit the 4 M3×12 from outside
-     (all four from the sides).
-5. **Jaw:**
+Everything goes onto the face. The cover goes on last.
+
+1. Heat-set all the inserts (the face's open back gives access to every
+   boss).
+2. **Face down on the bench, open back up:**
+   - Fit the modules to the eye bar (M2×8, tips toward the nose) and plug in
+     their cables.
+   - Lower the bar in through the open back and bolt it to the two posts
+     (M3×12 from behind). Centre the screens in the bezels.
+   - Put the radar in its frame behind the nose window: on edge down the slot
+     between the bowls, then turned flat and slid forward.
+3. **Chassis:**
+   - Screw the servo into its bracket. Lower it into the cup with the gear
+     tower going down the slot in the cup wall. Bolt the flange (2× M3×8).
+   - Bolt the tray with the ESP32 to its three posts (3× M3×8).
+   - Wire everything and test on the bench with all of it visible.
+4. **Jaw:**
    - Centre the servo at the closed angle and push the horn on, pointing down
      the ramus.
    - Offer up the jaw, screw the horn to the jaw pad, then put the M3×20 pivot
      bolt (with a washer) through the other condyle into the pivot boss.
-6. Bolt the skull onto the stand (M5×16 from inside the column).
+5. Bolt the four joint brackets to the face bosses (M3×12 along Y).
+6. **Cover:**
+   - Put the dowels in.
+   - Lay the USB cable through the tie arch.
+   - Slide the cover on along −Y, with the cable dropping into its notch.
+   - Fit the 4 M3×12 from the sides.
+7. Bolt the skull onto the stand (M5×16 from inside the column).
 
 ## Parameters you are likely to touch (top of `build.py`)
 
@@ -313,8 +340,8 @@ radar sees through the nasal window. Use paint without metal flakes there.
 | `NASAL_RECESS`, `NASAL_T`, `NASAL_BOTTOM` | 6, 1.8, 0.72 | nose bowl depth, window thickness, window size |
 | `JAW_OPEN_DEG`, `JAW_STOP_MARGIN`, `JAW_CLOSE_STOP`, `TEETH_GAP` | 18, 2, −0.5, 0.8 | jaw range and stops |
 | `SERVO`, `SERVO_SIDE`, `HORN_FACE_X` | MG90S | servo dimensions and side |
-| `Y_SPLIT`, `JOINTS`, `DOWELS` | auto (32.9) | cut plane and candidate joint positions |
-| `RADAR`, `ESP32`, `TRAY`, `TRAY_POSTS`, `USB_SLOT`, `TIE_BAR` | | electronics and power cable |
+| `Y_SPLIT`, `JOINTS`, `DOWELS` | 108 | cut plane (face = chassis / cover) and candidate joint positions |
+| `RADAR`, `ESP32`, `TRAY`, `TRAY_POSTS`, `USB_NOTCH`, `TIE_BAR` | | electronics and power cable |
 | `BEHIND_EYES`, `CHOANA` | | interior sealing (keeps the face open from behind) |
 | `NECK`, `STAND` | M5 | neck insert and stand size |
 | `FIT` | 0.75 | clearance round dropped-in parts |
@@ -332,6 +359,10 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - **The temples are filled flush and the arches are webbed**, so the
   zygomatic arches read in relief rather than as free bars. This is closer to
   a prop skull than to real anatomy.
+- **The face is a big print** (about 10 h, 134 × 162 × 136 mm) because it is
+  also the chassis. The cover is small.
+- **The jaw closes on the back teeth.** The model's incisors stay about 6 mm
+  apart (an open bite in the source jaw); the molars are at 0.8 mm.
 - **The servo cup and the jaw-pivot boss show from below.** They hang 10–15 mm
   under the skull base between the jaw rami. The tip of the servo horn shows
   just behind the ramus.

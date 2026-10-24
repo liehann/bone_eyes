@@ -49,6 +49,7 @@ SMALL_CLOSE_R = 1.5     # closes sutures / pinholes before the shell is taken
 WEB_CLOSE_R = 7.0       # gaps narrower than ~2x this get a recessed web
 WEB_RECESS = 3.5        # web front face this far behind the bridged surface
 WEB_T = 2.0             # web thickness
+SIMPLIFY_TOL = 0.03     # mm; mesh simplification of the big parts before export
 MC_SIGMA = 1.2          # voxels; smoothing of the distance field before marching cubes
 INNER_SKIN = 0.7        # marching-cubes inner layer starts this far below the voxel surface
 
@@ -120,18 +121,21 @@ EYE_BAR_STL = os.path.join(HERE, '..', 'eye_mount.stl')
 BAR_T = 5.65            # bar thickness = M2x8 screw stack
 STANDOFF_H = 3.0        # module standoff height (estimate, see hardware/README.md)
 MODULE_T = 3.2          # PCB back to glass front (estimate)
-BAR_HOLES = [(0.0, 0.0), (-27.5, 16.0), (27.5, 16.0)]   # = skull_mount_holes in the scad
+BAR_HOLES = [(-27.5, 16.0), (27.5, 16.0)]   # = skull_mount_holes in the scad
 BAR_PLATE = dict(half_w=27.5 + 0.14 + 4.0, half_h=10.4, corner_r=4.0, chamfer=4.0, boss_d=9.0, slot=3.0)
 MODULE_ROT = 90         # tip toward the nose (scad module_rot)
 FIT = 0.75              # general clearance round parts that drop in
 
 # --- split + joints -------------------------------------------------------------
-Y_SPLIT = None          # face / back cut plane; None = 6 mm behind the eye-bar back face
-JOINTS = [  # (name, candidate z (temples) or x (base) to try in order, radial direction)
-    ('temple_L', (28.0, 20.0, 36.0, 12.0), (-1, 0, 0)),
-    ('temple_R', (28.0, 20.0, 36.0, 12.0), (1, 0, 0)),
-    ('low_L', (-12.0, -8.0, -16.0, -4.0, 0.0), (-1, 0, 0)),     # just above the arch, screw from the side
-    ('low_R', (-12.0, -8.0, -16.0, -4.0, 0.0), (1, 0, 0)),
+# The face part is the chassis: it carries the eyes, radar, servo, jaw pivot,
+# ESP32 tray and the neck. The cut sits behind the foramen magnum, so the back
+# is only the occipital cap, a cover that slides on last.
+Y_SPLIT = 108.0         # face / back cut plane
+JOINTS = [  # (name, candidate z to try in order, radial direction): all screwed from the side
+    ('upper_L', (30.0, 20.0, 40.0, 50.0), (-1, 0, 0)),
+    ('upper_R', (30.0, 20.0, 40.0, 50.0), (1, 0, 0)),
+    ('lower_L', (-5.0, 0.0, -10.0, 5.0, -15.0), (-1, 0, 0)),
+    ('lower_R', (-5.0, 0.0, -10.0, 5.0, -15.0), (1, 0, 0)),
 ]
 JOINT_Y = 12.0          # radial screw this far behind the seam
 DOWELS = [(-22.0, 1), (22.0, 1)]   # (x, +1 top / -1 bottom of the seam)
@@ -142,12 +146,13 @@ INSERT_L = 5.7
 
 # --- electronics / base --------------------------------------------------------------
 RADAR = dict(L=35.0, W=7.0, T=1.2, comp=3.0, z=-27.5)    # HLK-LD2410C 35 x 7 mm
-Y_TRAY = 125.0          # front face of the electronics tray posts
-TRAY_POSTS = [(-25.0, 0.0), (25.0, 0.0), (0.0, 45.0)]
-TRAY = dict(w=72.0, h=74.0, t=3.0, zc=15.0)
+# ESP32 tray: horizontal plate on three insert posts over the foramen magnum,
+# between the servo and the cut; board lies flat, pins down, USB end at +X
+TRAY = dict(x0=-36.0, x1=36.0, y0=77.5, y1=105.0, z_top=-6.0, t=3.0)
+TRAY_POSTS = [(-26.0, 81.0), (26.0, 81.0), (0.0, 101.0)]   # (x, y); posts rise from the floor
 ESP32 = dict(L=55.0, W=28.0, T=1.6, standoff=16.0)       # ESP32-DevKitC V4 (no mounting holes)
-USB_SLOT = dict(x=0.0, y=114.0, L=18.0, W=11.0)   # rounded slot through the floor, passes a USB-A plug
-TIE_BAR = dict(dy=13.0, w=12.0, t=4.0, h=10.0, tunnel_w=7.0, tunnel_h=5.0)  # zip-tie arch behind the slot
+USB_NOTCH = dict(x=24.0, w=9.0, depth=14.0)   # open notch in the cover's front edge, floor level: the cable drops in
+TIE_BAR = dict(dy=-8.0, w=12.0, t=4.0, h=10.0, tunnel_w=7.0, tunnel_h=5.0)  # zip-tie arch in front of the cut
 NECK = dict(y=90.0, r=14.0, z_bottom=-42.0, insert_d=6.4, insert_l=10.0)   # M5 heat-set insert
 STAND = dict(base_d=110.0, base_t=6.0, col_d=28.0, col_id=16.0, h=78.0, top_t=6.0)
 
@@ -655,8 +660,8 @@ def jaw_hinge(jaw):
 def jaw_closed_angle(jaw, cr, hinge):
     """Most-closed angle (deg about +X, +ve opens) that leaves TEETH_GAP between
     the lower and the upper teeth (cranium in front of / below the hinge only)."""
-    front = cr ^ m_box([-90, -80, -90], [90, hinge[0] - 25, hinge[1] + 5])
-    for a in np.arange(-25.0, 15.01, 0.25):
+    front = cr ^ m_box([-90, -80, -90], [90, 25.0, hinge[1] - 10.0])     # upper teeth and palate only
+    for a in np.arange(-30.0, 15.01, 0.25):
         if jaw.transform(rot_x_about(*hinge, a)).min_gap(front, TEETH_GAP + 0.5) >= TEETH_GAP:
             return float(a)
     raise RuntimeError('no closed angle found')
@@ -934,30 +939,31 @@ def radar_parts(y_wall_back):
 
 
 def tray_parts():
-    """Electronics tray (separate part) + ESP32 cradle; skull coordinates."""
+    """Electronics tray (separate part) with the ESP32 cradle; skull coordinates.
+    Flat plate over the foramen magnum; the board lies flat, pins down, on two
+    end ledges 16 mm up (room for DuPont housings), USB end at +X."""
     T = TRAY; E = ESP32; c = FIT
-    y1 = Y_TRAY; y0 = y1 - T['t']
-    zc = T['zc']
-    plate = m_box([-T['w'] / 2, y0, zc - T['h'] / 2], [T['w'] / 2, y1, zc + T['h'] / 2])
-    yb = y0 - E['standoff']                      # board back face
-    yf = yb - E['T']
-    zb0 = zc - E['L'] / 2; zb1 = zc + E['L'] / 2
+    z1 = T['z_top']; z0 = z1 - T['t']
+    yc = (T['y0'] + T['y1']) / 2
+    plate = m_box([T['x0'], T['y0'], z0], [T['x1'], T['y1'], z1])
+    zb = z1 + E['standoff']; zt = zb + E['T']          # board bottom / top
+    xb0 = -E['L'] / 2; xb1 = E['L'] / 2
     parts = [plate]
-    for sg, zend in ((-1, zb0), (1, zb1)):
-        wall = m_box([-E['W'] / 2 - c - 2.5, yf - 3.0, min(zend + sg * c, zend + sg * (c + 2.5))],
-                     [E['W'] / 2 + c + 2.5, y0 + 0.01, max(zend + sg * c, zend + sg * (c + 2.5))])
-        ledge = m_box([-9.0, yb, min(zend, zend - sg * 5.0)], [9.0, y0 + 0.01, max(zend, zend - sg * 5.0)])
+    for sg, xend in ((-1, xb0), (1, xb1)):
+        wall = m_box([min(xend + sg * c, xend + sg * (c + 2.5)), yc - E['W'] / 2 - c - 2.5, z1 - 0.01],
+                     [max(xend + sg * c, xend + sg * (c + 2.5)), yc + E['W'] / 2 + c + 2.5, zt + 3.0])
+        ledge = m_box([min(xend, xend - sg * 5.0), yc - 9.0, z1 - 0.01], [max(xend, xend - sg * 5.0), yc + 9.0, zb])
         parts += [wall, ledge]
     tray = union(parts)
-    cuts = [m_box([-6.5, yf - 10, zb0 - 6], [6.5, yb + 2.0, zb0 + 0.1])]          # USB plug
-    for hx, hz in TRAY_POSTS:
-        cuts.append(m_cyl([hx, y0 - 1, hz], [hx, y1 + 1, hz], 1.9))
-    for sx in (-1, 1):
-        cuts.append(m_box([sx * 18 - 1.0, y0 - 1, zc + 8], [sx * 18 + 1.0, y1 + 1, zc + 12]))  # zip tie
+    cuts = [m_box([xb1 - 0.1, yc - 6.5, zb - 2.0], [xb1 + 10, yc + 6.5, zt + 10])]       # USB plug
+    for hx, hy in TRAY_POSTS:
+        cuts.append(m_cyl([hx, hy, z0 - 1], [hx, hy, z1 + 1], 1.9))
+    for sy in (-1, 1):
+        cuts.append(m_box([-14.0, yc + sy * 17 - 1.0, z0 - 1], [-10.0, yc + sy * 17 + 1.0, z1 + 1]))  # zip tie
     tray = tray - union(cuts)
-    board = union([m_box([-E['W'] / 2, yf, zb0], [E['W'] / 2, yb, zb1])] +
-                  [m_box([sx * 11.4 - 1.3 if sx > 0 else -14.0, yb, zb0 + 3], [14.0 if sx > 0 else -11.4 + 1.3, yb + 14.0, zb1 - 3])
-                   for sx in (-1, 1)])      # header rows + dupont housings
+    board = union([m_box([xb0, yc - E['W'] / 2, zb], [xb1, yc + E['W'] / 2, zt])] +
+                  [m_box([xb0 + 3, yc + sy * 11.4 - (1.3 if sy > 0 else 1.3), zb - 14.0],
+                         [xb1 - 3, yc + sy * 11.4 + 1.3, zb]) for sy in (-1, 1)])      # header rows + DuPont housings
     return tray, board
 
 
@@ -1053,76 +1059,83 @@ def build():
     # ---- radar
     y_wall_back = NASAL_RIM_Y + NASAL_RECESS + NASAL_T
     radar, radar_clear, radar_frame = radar_parts(y_wall_back)
-    # insertion corridors: the bar with both modules (and cables) goes in straight
-    # from behind, the radar too; nothing on the face may stand in the way
-    if Y_SPLIT is None:
-        Y_SPLIT = round(y_back + 6.0, 1)
     info['y_split'] = Y_SPLIT
-    corridor = union([eye_clear.translate([0, dy, 0]) for dy in np.arange(0.0, Y_SPLIT - y_front + 14.0, 1.5)])
+    # insertion corridors. Fixed face features must stay out of them. The eye bar
+    # with both modules and their cables goes in from the open back: straight
+    # back 25 mm, lifted 20 mm (over the servo bosses and tray posts), then back
+    # out past the cut. The radar slides straight back from its frame to the
+    # choana wall; from there it is turned by hand between the bowls.
+    path = [(0, dy, 0) for dy in np.arange(0, 25.01, 1.5)] + [(0, 25, dz) for dz in np.arange(0, 20.01, 1.5)] + \
+        [(0, dy, 20) for dy in np.arange(25, Y_SPLIT - y_front + 14, 2.0)]
+    corridor = union([eye_clear.translate(list(map(float, t_))) for t_ in path])
     R_ = RADAR
-    corridor += m_box([-R_['L'] / 2 - 0.6, y_wall_back + 0.2, R_['z'] - R_['W'] / 2 - 0.6],
-                      [R_['L'] / 2 + 0.6, Y_SPLIT + 12.0, R_['z'] + R_['W'] / 2 + 0.6])
+    radar_path = m_box([-R_['L'] / 2 - 0.6, y_wall_back + 0.2, R_['z'] - R_['W'] / 2 - 0.6],
+                       [R_['L'] / 2 + 0.6, CHOANA['y0'] - 0.5, R_['z'] + R_['W'] / 2 + 0.6])
     # clearance cuts must stay inside the skull, or they would open holes in the surface
     skin = mc_mesh(np.where(sh['env'] | (sd > 0), 1.0, -1.0).astype(np.float32), G, 0.0, step=2) + socket_air
+    front_ = m_box([-300, -300, -300], [300, Y_SPLIT, 300])
     pierce = dict(eyes=vol(eye_clear - skin), radar=vol(radar_clear - skin),
-                  insertion_corridor=vol((corridor ^ m_box([-300, -300, -300], [300, Y_SPLIT, 300])) - skin))
+                  eye_bar_path=vol((corridor ^ front_) - skin), radar_path=vol(radar_path - skin))
     info['clearance_outside_skull_cm3'] = {k: round(v, 3) for k, v in pierce.items()}
     log('clearance volume outside the skull surface (cm3):', info['clearance_outside_skull_cm3'])
-    # free half-width at mid bar depth, |z| < 3 (decides whether the modules must be rotated)
-    sl = skin.transform(np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0]], float)).slice(-(y_back - BAR_T / 2))
-    xs_ = [p_[:, 0] for p_ in map(np.asarray, sl.to_polygons()) if np.any(abs(p_[:, 1]) < 3)]
-    if xs_:
-        log('skull outer half-width at the bar (y=%.1f, |z|<3): %.1f mm' % (y_back - BAR_T / 2, min(abs(np.concatenate(xs_)).max(), 99)))
-    for nm_, M_ in (('eyes', eye_clear - skin), ('radar', radar_clear - skin),
-                    ('corridor', (corridor ^ m_box([-300, -300, -300], [300, Y_SPLIT, 300])) - skin)):
+    for nm_, M_ in (('eyes', eye_clear - skin), ('radar', radar_clear - skin), ('eye-bar path', (corridor ^ front_) - skin)):
         for q in M_.decompose():
             if q.volume() > 0.5:
                 log('  %s clearance outside the skull: %.2f cm3 at %s' % (nm_, q.volume() / 1000, np.round(q.bounding_box(), 1)))
     radar_frame = (radar_frame ^ inside) - radar_clear
+    # past the choana wall the radar is turned on edge and lifted up between the
+    # bowls (behind the nose bones, in front of the eye bar); that slot is checked in verify()
+    radar_lift = m_box([-R_['W'] / 2 - 0.7, 9.0, R_['z'] - R_['W'] / 2 - 0.6], [R_['W'] / 2 + 0.7, 9.0 + 4.8, 12.0])
 
-    # ---- joints
-    J = joints(G, sd, inside, cavity, corridor)
+    # ---- joints (face bosses must stay out of the insertion paths)
+    J = joints(G, sd, inside, cavity, corridor + radar_path)
     info['joints'] = J['info']
 
-    # ---- split
-    big = 400.0
-    face = crm ^ m_box([-big, -big, -big], [big, Y_SPLIT, big])
-    back = crm ^ m_box([-big, Y_SPLIT, -big], [big, big, big])
-
-    # face part
-    face = face - socket_air - eye_clear - radar_clear
-    face = union([face, socket_wall, posts, radar_frame] + J['face_add']) ^ m_box([-big, -big, -big], [big, Y_SPLIT, big])
-    face = face - union([post_holes, apert, radar_clear, socket_air] + J['face_cut'])
-    face = face - eye_clear - (corridor ^ m_box([-big, -big, -big], [big, Y_SPLIT + 1, big]))
-    face = clean(face, 'face')
-
-    # back part
+    # ---- chassis features on the face: servo cup bosses, jaw pivot, tray posts, neck, tie bar
     slot = union([mech['finger_clear'].transform(rot_x_about(*hinge, a))
                   for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 0.5)])
     pivot = mech['skull_pivot'] - slot - mech['skull_pivot_holes']
     sboss = union([m_cyl(p, p - np.array([0, 0, 40.0]), 4.5) for p in mech['bracket_bolts']]) ^ inside
     sboss_h = union([m_cyl(p + [0, 0, 0.01], p - [0, 0, INSERT_L], INSERT_D / 2) for p in mech['bracket_bolts']]
                     + [m_cyl(p, p - [0, 0, INSERT_L + 3.5], 1.6) for p in mech['bracket_bolts']])
-    tposts = union([m_cyl([x, Y_TRAY, z], [x, Y_TRAY + 60, z], 4.5) for x, z in TRAY_POSTS]) ^ inside
-    tposts_h = union([m_cyl([x, Y_TRAY - 0.01, z], [x, Y_TRAY + INSERT_L, z], INSERT_D / 2) for x, z in TRAY_POSTS]
-                     + [m_cyl([x, Y_TRAY, z], [x, Y_TRAY + INSERT_L + 3.5, z], 1.6) for x, z in TRAY_POSTS])
+    tz0 = TRAY['z_top'] - TRAY['t']
+    tposts = union([m_cyl([x, y, tz0], [x, y, tz0 - 45], 4.5) for x, y in TRAY_POSTS]) ^ inside
+    tposts_h = union([m_cyl([x, y, tz0 + 0.01], [x, y, tz0 - INSERT_L], INSERT_D / 2) for x, y in TRAY_POSTS]
+                     + [m_cyl([x, y, tz0], [x, y, tz0 - INSERT_L - 3.5], 1.6) for x, y in TRAY_POSTS])
     N = NECK
     neck = m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], -12.0], N['r'])
     neck_h = m_cyl([0, N['y'], N['z_bottom'] - 0.01], [0, N['y'], N['z_bottom'] + N['insert_l']], N['insert_d'] / 2) + \
         m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], N['z_bottom'] + N['insert_l'] + 4], 2.75)
-    U = USB_SLOT
-    zf = inner_point(G, sd, [U['x'], U['y'], 0.0], [0, 0, -1.0], SHELL_T)[2]       # floor (inner surface)
-    usb = mf.Manifold.batch_hull([m_cyl([U['x'] + sx * (U['L'] - U['W']) / 2, U['y'], zf - 25],
-                                        [U['x'] + sx * (U['L'] - U['W']) / 2, U['y'], zf + 6], U['W'] / 2) for sx in (-1, 1)])
-    Tb = TIE_BAR; ty = U['y'] + Tb['dy']
+    U = USB_NOTCH; Tb = TIE_BAR; ty = Y_SPLIT + Tb['dy']
     zf2 = inner_point(G, sd, [U['x'], ty, 0.0], [0, 0, -1.0], SHELL_T)[2]
     tie = m_box([U['x'] - Tb['w'] / 2, ty - Tb['t'] / 2, zf2 - 3], [U['x'] + Tb['w'] / 2, ty + Tb['t'] / 2, zf2 + Tb['h']]) - \
         m_box([U['x'] - Tb['tunnel_w'] / 2, ty - Tb['t'], zf2 + 1.0], [U['x'] + Tb['tunnel_w'] / 2, ty + Tb['t'], zf2 + 1.0 + Tb['tunnel_h']])
-    info['usb_slot'] = dict(centre=[U['x'], U['y'], round(float(zf), 1)], size=[U['L'], U['W']])
-    log('USB slot %gx%g through the floor at x=%.0f y=%.0f (floor z=%.1f); tie bar at y=%.0f' % (U['L'], U['W'], U['x'], U['y'], zf, ty))
-    back = union([back, pivot, sboss, tposts, neck, tie ^ inside] + J['back_add']) ^ m_box([-big, Y_SPLIT, -big], [big, big, big])
-    back = back - union([mech['cup_env'], mech['cup_slot'], mech['skull_pivot_holes'], slot, sboss_h, tposts_h, neck_h, usb]
-                        + J['back_cut'])
+    zf = inner_point(G, sd, [U['x'], Y_SPLIT + 2.0, 0.0], [0, 0, -1.0], SHELL_T)[2]
+    usb = mf.Manifold.batch_hull([m_cyl([U['x'], Y_SPLIT - 1.0, zf - 20], [U['x'], Y_SPLIT - 1.0, zf + 5], U['w'] / 2),
+                                  m_cyl([U['x'], Y_SPLIT + U['depth'] - U['w'] / 2, zf - 20],
+                                        [U['x'], Y_SPLIT + U['depth'] - U['w'] / 2, zf + 5], U['w'] / 2)])
+    info['usb_notch'] = dict(x=U['x'], y=Y_SPLIT, floor_z=round(float(zf), 1), width=U['w'], depth=U['depth'])
+    log('USB notch %g wide x %g deep in the cover front edge at x=%.0f (floor z=%.1f); tie bar at y=%.0f'
+        % (U['w'], U['depth'], U['x'], zf, ty))
+
+    # ---- split
+    big = 400.0
+    front = m_box([-big, -big, -big], [big, Y_SPLIT, big])
+    rear = m_box([-big, Y_SPLIT, -big], [big, big, big])
+    face = crm ^ front
+    back = crm ^ rear
+
+    # face part = the chassis
+    face = face - socket_air - eye_clear - radar_clear
+    face = union([face, socket_wall, posts, radar_frame, pivot, sboss, tposts, neck, tie ^ inside] + J['face_add']) ^ front
+    face = face - union([post_holes, apert, radar_clear, socket_air, mech['cup_env'], mech['cup_slot'],
+                         mech['skull_pivot_holes'], slot, sboss_h, tposts_h, neck_h] + J['face_cut'])
+    face = face - eye_clear - (corridor ^ m_box([-big, -big, -big], [big, Y_SPLIT + 1, big]))
+    face = clean(face, 'face')
+
+    # back part = cover
+    back = union([back] + J['back_add']) ^ rear
+    back = back - union([usb] + J['back_cut'])
     back = clean(back, 'back')
 
     # jaw
@@ -1144,7 +1157,8 @@ def build():
     yb_ = y_glass - SCREEN_GAP - SOCKET_WALL
     paint = union([paint] + [m_cyl([xe, yb_ - 0.05, 0], [xe, y_glass - 0.1, 0], APERTURE_D / 2 + 0.15) -
                              m_cyl([xe, yb_ - 1, 0], [xe, y_glass, 0], APERTURE_D / 2 - 0.2) for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
-    return dict(parts=parts, hardware=hardware, display=dict(paint=paint, screens=screens), info=info, hinge=hinge, mech=mech, jaw_moving=jaw_moving,
+    return dict(parts=parts, hardware=hardware, display=dict(paint=paint, screens=screens), info=info,
+                radar_lift=radar_lift, hinge=hinge, mech=mech, jaw_moving=jaw_moving,
                 G=G, sh=sh, inside=inside, crm=crm)
 
 
@@ -1177,7 +1191,12 @@ def verify(R):
         rep['jaw_sweep'].append((round(float(a), 1), round(v, 3)))
     # stop check: one step past each stop must collide (finger in the slot end)
     for a in (JAW_CLOSE_STOP - 1.5, JAW_OPEN_DEG + JAW_STOP_MARGIN + 1.5):
-        rep.setdefault('beyond_stops', []).append((float(a), round(vol(jm.transform(rot_x_about(*hinge, a)) ^ P['back']), 3)))
+        rep.setdefault('beyond_stops', []).append((float(a), round(vol(jm.transform(rot_x_about(*hinge, a)) ^ P['face']), 3)))
+    rep['radar_lift_path_blocked_cm3'] = round(vol(R['radar_lift'] ^ union([P['face'], H['bar'], H['modules']])), 3)
+    # cover: slides on along -Y last, with the jaw (closed), chassis and all electronics in place
+    onface = union([P['face'], P['jaw'], P['servo_bracket'], P['tray'], H['servo'], H['horn'], H['esp32'],
+                    H['bar'], H['modules'], H['radar']] + [m for k, m in P.items() if k.startswith('joint_bracket')])
+    rep['cover_slide'] = max(vol(P['back'].translate([0, d, 0]) ^ onface) for d in np.arange(1.0, 61.0, 2.0))
     # joint brackets: the back part slides on along Y; nothing may catch on the way
     rep['bracket_slide'] = []
     for k, m in P.items():
@@ -1223,6 +1242,9 @@ def export(R):
     for name, M in R['parts'].items():
         fn = os.path.join(OUT, name + '.stl')
         P = print_pose(name, M)
+        if P.num_tri() > 150000:          # keep the STLs small enough for git (< 25 MB)
+            n0 = P.num_tri(); P = P.simplify(SIMPLIFY_TOL)
+            log('%s: simplified %d -> %d triangles (tolerance %.2f mm)' % (name, n0, P.num_tri(), SIMPLIFY_TOL))
         for _ in range(3):
             to_tri(P).export(fn)
             t = trimesh.load(fn)                       # check what a slicer will read
@@ -1283,25 +1305,28 @@ def render(R):
     jobs.append(('skull_bottom.png', scad('bot.scad', asm(skip=('stand',))), '0,40,-20,180,0,0,400'))
     o = scad('open.scad', asm(jaw_deg=JAW_OPEN_DEG))
     jobs.append(('skull_jaw_open.png', o, '0,40,-20,80,0,60,440'))
-    ex = dict(face=(0, -90, 0), bar=(0, -45, 0), modules=(0, -45, 0), radar=(0, -70, 0), jaw=(0, 0, -70),
-              stand=(0, 0, -110), tray=(0, 70, 0), esp32=(0, 70, 0), back=(0, 25, 0),
-              servo=(40, 25, -40), servo_bracket=(40, 25, -40), horn=(40, 25, -40))
+    # exploded in assembly order: face (chassis) stays put; eye bar + LCDs and radar
+    # come out of its back, then the servo, the tray + ESP32, the jaw, the cover
+    ex = dict(bar=(0, 110, 30), modules=(0, 110, 30), radar=(0, 130, -10), servo=(0, 95, 70), servo_bracket=(0, 95, 70),
+              horn=(0, 95, 70), tray=(0, 150, 95), esp32=(0, 150, 95), jaw=(0, 0, -70), back=(0, 210, 0),
+              stand=(0, 0, -120))
     for k in items:
         if k.startswith('joint_bracket'):
-            ex[k] = (0, -40, 0)
+            ex[k] = (0, 175, 0)
     e = scad('expl.scad', asm(explode=ex))
-    jobs.append(('skull_exploded.png', e, '0,20,-60,65,0,300,700'))
+    jobs.append(('skull_exploded.png', e, '0,150,0,65,0,240,900'))
     fb = scad('face_back.scad', 'color("ivory") import("face.stl");')
     jobs.append(('skull_face_from_behind.png', fb, '0,20,-10,90,0,180,300'))
     jobs.append(('skull_face_from_behind_34.png', fb, '0,20,-10,65,0,215,330'))
     fh = scad('face_back_hw.scad', 'color("ivory") import("face.stl");\n' + '\n'.join(
         'color("%s") import("%s.stl");' % (col(k), k) for k in items
-        if k in ('bar', 'modules', 'radar', 'screens') or k.startswith('joint_bracket')))
+        if k in ('bar', 'modules', 'radar', 'screens', 'servo', 'servo_bracket', 'horn', 'tray', 'esp32', 'jaw')
+        or k.startswith('joint_bracket')))
     jobs.append(('skull_face_from_behind_hw.png', fh, '0,20,-10,90,0,180,300'))
-    bk = scad('back_front.scad', 'color("wheat") import("back.stl");\n' + '\n'.join(
-        'color("%s") import("%s.stl");' % (col(k), k) for k in items if k in ('servo', 'servo_bracket', 'tray', 'esp32')))
-    jobs.append(('skull_back_from_front.png', bk, '0,70,-10,90,0,0,320'))
-    jobs.append(('skull_back_from_front_34.png', bk, '0,70,-10,65,0,35,340'))
+    jobs.append(('skull_face_from_behind_hw_34.png', fh, '0,40,-10,60,0,215,340'))
+    bk = scad('back_front.scad', 'color("wheat") import("back.stl");')
+    jobs.append(('skull_back_from_front.png', bk, '0,130,10,90,0,0,260'))
+    jobs.append(('skull_back_from_front_34.png', bk, '0,130,10,65,0,35,280'))
     procs = []
     for fn, f, cam in jobs:
         procs.append(subprocess.Popen([SCAD, '-o', os.path.join(HERE, fn), '--preview', '--imgsize=1400,1100',
@@ -1361,6 +1386,8 @@ def main():
         log('%-24s %6.1f cm3  %s mm  watertight=%s bodies=%d' % (k, v['volume_cm3'], v['size'], v['watertight'], v['bodies']))
     log('collisions (> 0.005 cm3):', rep['collisions'] or 'none')
     log('bracket slide-on interference (cm3):', rep['bracket_slide'])
+    log('cover slide-on interference (cm3, jaw and electronics fitted): %.3f' % rep['cover_slide'])
+    log('radar on-edge lift path between the bowls, blocked volume (cm3): %.3f' % rep['radar_lift_path_blocked_cm3'])
     log('jaw sweep overlaps:', [a for a in rep['jaw_sweep'] if a[1] > 0.005] or 'none',
         '| past the stops:', rep['beyond_stops'])
     export(R)

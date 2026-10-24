@@ -83,7 +83,7 @@ skull_plate_lat    = 4.0;  // plate edge outside the standoff line
 skull_plate_r      = 4.0;  // corner radius
 skull_plate_chamfer = 4.0; // extra chamfer on the lower outer corners
 // M3 mounting slots: bolt from the back face into inserts on the skull posts
-skull_mount_holes  = [[0, 0], [-27.5, 16], [27.5, 16]];
+skull_mount_holes  = [[-27.5, 16], [27.5, 16]]; // no centre hole: keeps the space behind the nose free
 skull_mount_boss_d = 9.0;
 skull_slot_w       = 3.6;  // oversized for M3 (loose fit)
 skull_slot_len     = 3.0;  // vertical travel

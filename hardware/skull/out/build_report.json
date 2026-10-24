@@ -3,23 +3,23 @@
   "face": {
    "watertight": true,
    "bodies": 2,
-   "volume_cm3": 88.95,
-   "tris": 269550,
+   "volume_cm3": 211.42,
+   "tris": 495630,
    "size": [
-    112.8,
-    61.6,
-    153.9
+    134.2,
+    135.9,
+    161.5
    ]
   },
   "back": {
    "watertight": true,
    "bodies": 2,
-   "volume_cm3": 177.61,
-   "tris": 335678,
+   "volume_cm3": 56.42,
+   "tris": 106044,
    "size": [
-    134.2,
-    122.8,
-    144.7
+    121.8,
+    47.7,
+    130.1
    ]
   },
   "jaw": {
@@ -47,12 +47,12 @@
   "tray": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 21.86,
-   "tris": 1192,
+   "volume_cm3": 12.05,
+   "tris": 744,
    "size": [
     72.0,
-    23.6,
-    74.0
+    34.5,
+    23.6
    ]
   },
   "stand": {
@@ -77,47 +77,47 @@
     13.0
    ]
   },
-  "joint_bracket_temple_L": {
+  "joint_bracket_upper_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 1.91,
-   "tris": 2672,
+   "volume_cm3": 2.21,
+   "tris": 706,
    "size": [
     8.0,
-    15.7,
+    18.7,
     24.0
    ]
   },
-  "joint_bracket_temple_R": {
+  "joint_bracket_upper_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 1.85,
-   "tris": 3012,
+   "volume_cm3": 2.21,
+   "tris": 688,
    "size": [
     8.0,
-    15.7,
+    18.7,
     24.0
    ]
   },
-  "joint_bracket_low_L": {
+  "joint_bracket_lower_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 1.55,
-   "tris": 3548,
+   "volume_cm3": 2.17,
+   "tris": 836,
    "size": [
     8.0,
-    13.7,
-    22.4
+    18.7,
+    24.0
    ]
   },
-  "joint_bracket_low_R": {
+  "joint_bracket_lower_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 1.66,
-   "tris": 3318,
+   "volume_cm3": 2.17,
+   "tris": 824,
    "size": [
     8.0,
-    13.7,
+    18.7,
     24.0
    ]
   }
@@ -212,28 +212,30 @@
  "beyond_stops": [
   [
    -2.0,
-   0.008
+   0.015
   ],
   [
    21.5,
    0.012
   ]
  ],
+ "radar_lift_path_blocked_cm3": 0.0,
+ "cover_slide": 0.0,
  "bracket_slide": [
   [
-   "joint_bracket_temple_L",
+   "joint_bracket_upper_L",
    0.0
   ],
   [
-   "joint_bracket_temple_R",
+   "joint_bracket_upper_R",
    0.0
   ],
   [
-   "joint_bracket_low_L",
+   "joint_bracket_lower_L",
    0.0
   ],
   [
-   "joint_bracket_low_R",
+   "joint_bracket_lower_R",
    0.0
   ]
  ],
@@ -306,80 +308,77 @@
   },
   "y_glass": 15.0,
   "y_bar_back": 26.85,
-  "y_split": 32.9,
+  "y_split": 108.0,
   "clearance_outside_skull_cm3": {
    "eyes": 0.0,
    "radar": 0.0,
-   "insertion_corridor": 0.0
+   "eye_bar_path": 0.0,
+   "radar_path": 0.0
   },
   "joints": [
    {
-    "name": "temple_L",
+    "name": "upper_L",
     "screw_point": [
-     -57.8,
-     41.9,
-     28.0
+     -56.4,
+     120.0,
+     30.0
     ],
     "dir": [
      -1.0,
      0.0,
      0.0
     ],
-    "behind_cut": 9.0
+    "behind_cut": 12.0
    },
    {
-    "name": "temple_R",
+    "name": "upper_R",
     "screw_point": [
-     57.8,
-     41.9,
-     28.0
+     56.8,
+     120.0,
+     30.0
     ],
     "dir": [
      1.0,
      0.0,
      0.0
     ],
-    "behind_cut": 9.0
+    "behind_cut": 12.0
    },
    {
-    "name": "low_L",
+    "name": "lower_L",
     "screw_point": [
-     -50.4,
-     39.9,
-     0.0
+     -48.4,
+     120.0,
+     -5.0
     ],
     "dir": [
      -1.0,
      0.0,
      0.0
     ],
-    "behind_cut": 7.0
+    "behind_cut": 12.0
    },
    {
-    "name": "low_R",
+    "name": "lower_R",
     "screw_point": [
-     50.4,
-     39.9,
-     0.0
+     48.8,
+     120.0,
+     -5.0
     ],
     "dir": [
      1.0,
      0.0,
      0.0
     ],
-    "behind_cut": 7.0
+    "behind_cut": 12.0
    }
   ],
-  "usb_slot": {
-   "centre": [
-    0.0,
-    114.0,
-    -31.8
-   ],
-   "size": [
-    18.0,
-    11.0
-   ]
+  "usb_notch": {
+   "x": 24.0,
+   "y": 108.0,
+   "floor_z": -31.4,
+   "width": 9.0,
+   "depth": 14.0
   }
  }
 }

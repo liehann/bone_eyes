@@ -2,7 +2,7 @@
 
 Flat bar holding both Waveshare 0.71" round LCD modules (GC9D01, 160×160),
 screens facing forward. The printed skull (`skull/`, see `skull/README.md`)
-bolts it onto three posts on the inside of the face.
+bolts it onto two posts on the inside of the face.
 
 `mount_style` picks the variant:
 
@@ -13,8 +13,8 @@ bolts it onto three posts on the inside of the face.
   picture 90° in firmware** (GC9D01 MADCTL). The module at +X (on your right
   as you face the skull) is turned −90° (clockwise seen from the front), and the
   other is turned +90°.
-  There are three oversized M3 slots (Ø3.6, 3 mm vertical travel) at (0, 0)
-  and (±27.5, 16). M3×12 bolts go in from the back into heat-set inserts in the
+  There are two oversized M3 slots (Ø3.6, 3 mm vertical travel) at
+  (±27.5, 16). M3×12 bolts go in from the back into heat-set inserts in the
   skull's posts. There are no bosses on the bar.
 - **`"inserts"`**: the original stand-alone bar (102 × 26.1 mm, tip down,
   three M3 insert bosses).
@@ -160,6 +160,6 @@ Skull style: three M3 slots, see above. The rest of this section is the
    Do this before screwing down if the window is tight for your fingers.
 4. Fit the M2×8 screws from the back into the standoffs. Snug them only, as
    the brass standoffs strip easily.
-5. Skull style: bolt the bar onto the three face posts with M3×12 from behind
+5. Skull style: bolt the bar onto the two face posts with M3×12 from behind
    (inserts are in the posts), and centre the screens in the bezels using the
    slots. Inserts style: bolt from behind into the bar's inserts.
