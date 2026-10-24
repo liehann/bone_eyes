@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skull Assembly Viewer</title>
+<style>
+  :root { --bg:#111317; --panel:#1b1e24ee; --fg:#e6e6e6; --dim:#8a919c; --acc:#e8c27a; --line:#2c313a; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow:hidden; }
+  #c { position:fixed; inset:0; display:block; }
+  #panel { position:fixed; top:12px; left:12px; width:250px; max-height:calc(100% - 24px); overflow:auto;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; box-sizing:border-box; }
+  h1 { font-size:14px; margin:0 0 8px; }
+  h2 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:12px 0 4px;
+    display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  h2 span:last-child { white-space:nowrap; flex:none; }
+  h2 button { font-size:10px; padding:1px 6px; }
+  label.part { display:flex; align-items:center; gap:6px; padding:2px 0; cursor:pointer; }
+  label.part.sel { color:var(--acc); }
+  .sw { width:10px; height:10px; border-radius:2px; flex:none; border:1px solid #0006; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0; }
+  button { background:#2a2f38; color:var(--fg); border:1px solid #3a404b; border-radius:4px; padding:3px 8px; cursor:pointer; font:inherit; }
+  button:hover { background:#353b46; }
+  .ctl { margin:8px 0; }
+  .ctl div { display:flex; justify-content:space-between; color:var(--dim); }
+  input[type=range] { width:100%; accent-color:var(--acc); }
+  #info { position:fixed; right:12px; bottom:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:8px 12px; min-width:160px; display:none; }
+  #info b { color:var(--acc); }
+  #status { position:fixed; right:12px; top:12px; color:var(--dim); font-size:11px; }
+  @media (max-width:600px) { #panel { width:calc(100% - 32px); left:16px; max-height:45%; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <h1>Skull assembly</h1>
+  <div class="row"><button id="all">Show all</button><button id="none">Hide all</button><button id="reset">Reset view</button></div>
+  <div class="ctl"><div><span>Explode</span><span id="exv">0%</span></div><input id="explode" type="range" min="0" max="1" step="0.01" value="0"></div>
+  <div class="ctl" id="jawctl"><div><span>Jaw angle</span><span id="jawv">0°</span></div><input id="jaw" type="range" step="0.5" value="0"></div>
+  <label class="part"><input type="checkbox" id="xray"> X-ray shells (face, back, jaw)</label>
+  <div id="groups"></div>
+</div>
+<div id="info"></div>
+<div id="status">loading…</div>
+<script id="glb" type="application/octet-stream">__GLB_B64__</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const META = /*__META__*/null;
+const $ = id => document.getElementById(id);
+const status = $('status');
+window.onerror = (m) => { status.textContent = 'error: ' + m; document.title = 'ERROR ' + m; };
+
+const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111317);
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 5000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303040, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(200, 300, 400); scene.add(key);
+const rim = new THREE.DirectionalLight(0xbfd0ff, 0.9); rim.position.set(-300, 100, -300); scene.add(rim);
+
+// build.py frame is Z-up with the face looking -Y; three.js is Y-up. This maps -Y to +Z (toward the camera).
+const root = new THREE.Group(); root.rotation.x = -Math.PI / 2; scene.add(root);
+
+const parts = {};          // name -> {meta, obj (moved by explode), mesh, mat}
+const H = META.hinge;
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const b64 = $('glb').textContent.trim();
+const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+new GLTFLoader().parse(bin.buffer, '', gltf => {
+  const byName = {};
+  gltf.scene.traverse(o => { if (o.isMesh) byName[o.name] = o; });
+  for (const pm of META.parts) {
+    const mesh = byName[pm.name] || gltf.scene.getObjectByName(pm.name)?.children?.find(c => c.isMesh);
+    if (!mesh) { console.warn('missing', pm.name); continue; }
+    mesh.removeFromParent(); mesh.position.set(0, 0, 0); mesh.rotation.set(0, 0, 0); mesh.scale.set(1, 1, 1);
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(pm.color), roughness: pm.group === 'printed' ? 0.8 : 0.5,
+      metalness: 0.05, flatShading: pm.flat, side: THREE.DoubleSide });
+    mesh.material = mat;
+    if (!pm.flat) mesh.geometry.computeVertexNormals();
+    mesh.userData.part = pm.name;
+    let obj = mesh;
+    if (pm.name === 'jaw' && H) {          // pivot about the hinge axis (X through H.point)
+      obj = new THREE.Group();
+      obj.userData.base = new THREE.Vector3(...H.point);
+      mesh.position.set(-H.point[0], -H.point[1], -H.point[2]);
+      obj.add(mesh);
+    } else obj.userData.base = new THREE.Vector3();
+    obj.position.copy(obj.userData.base);
+    root.add(obj);
+    parts[pm.name] = { meta: pm, obj, mesh, mat };
+  }
+  buildUI(); resetView(); applyXray();
+  // optional state in the URL hash, e.g. #explode=1&jaw=18&xray=1&hide=face,back&select=servo
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.has('explode')) { $('explode').value = q.get('explode'); $('explode').dispatchEvent(new Event('input')); }
+  if (q.has('jaw') && H) { $('jaw').value = q.get('jaw'); $('jaw').dispatchEvent(new Event('input')); }
+  if (q.get('xray') === '1') { $('xray').checked = true; applyXray(); }
+  for (const n of (q.get('hide') || '').split(',')) if (parts[n]) { parts[n].obj.visible = false; parts[n].cb.checked = false; }
+  if (q.has('select')) select(q.get('select'));
+  if (q.has('explode')) resetView();
+  const n = Object.keys(parts).length;
+  status.textContent = `${n} parts · explode from ${META.explode_source}` + (H ? ` · hinge from ${H.source}` : '');
+  document.title = 'Skull Assembly Viewer';
+  document.body.dataset.ready = n;
+}, err => { status.textContent = 'GLB error: ' + err; document.title = 'ERROR glb'; });
+
+function buildUI() {
+  const groups = { printed: 'Printed parts', hardware: 'Electronics / hardware' };
+  for (const [g, title] of Object.entries(groups)) {
+    const h = document.createElement('h2');
+    h.innerHTML = `<span>${title}</span><span><button data-g="${g}" data-v="1">all</button> <button data-g="${g}" data-v="0">none</button></span>`;
+    $('groups').append(h);
+    for (const p of Object.values(parts).filter(p => p.meta.group === g)) {
+      const l = document.createElement('label'); l.className = 'part'; l.dataset.part = p.meta.name;
+      l.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:${p.meta.color}"></span>${p.meta.label}`;
+      const cb = l.querySelector('input');
+      cb.onchange = () => { p.obj.visible = cb.checked; };
+      p.cb = cb; p.label = l;
+      l.addEventListener('click', e => { if (e.target !== cb) { e.preventDefault(); select(p.meta.name); } });
+      $('groups').append(l);
+    }
+  }
+  $('groups').querySelectorAll('h2 button').forEach(b => b.onclick = () => setVis(p => p.meta.group === b.dataset.g, b.dataset.v === '1'));
+}
+function setVis(filter, v) { for (const p of Object.values(parts)) if (filter(p)) { p.obj.visible = v; p.cb.checked = v; } }
+$('all').onclick = () => setVis(() => true, true);
+$('none').onclick = () => setVis(() => true, false);
+
+// explode
+$('explode').oninput = e => {
+  const t = +e.target.value; $('exv').textContent = Math.round(t * 100) + '%';
+  for (const p of Object.values(parts)) {
+    const o = p.meta.explode;
+    p.obj.position.set(p.obj.userData.base.x + o[0] * t, p.obj.userData.base.y + o[1] * t, p.obj.userData.base.z + o[2] * t);
+  }
+};
+
+// jaw
+if (H) {
+  const s = $('jaw'); s.min = META.jaw.min; s.max = META.jaw.max; s.value = 0;
+  s.title = `nominal open ${META.jaw.nominal}°, stops ${META.jaw.min}° .. ${META.jaw.max}°`;
+  s.oninput = () => {
+    $('jawv').textContent = (+s.value).toFixed(1) + '°';
+    if (parts.jaw) parts.jaw.obj.rotation.x = THREE.MathUtils.degToRad(+s.value);
+  };
+} else $('jawctl').style.display = 'none';
+
+// x-ray
+function applyXray() {
+  const on = $('xray').checked;
+  for (const p of Object.values(parts)) if (p.meta.shell) {
+    p.mat.transparent = on; p.mat.opacity = on ? 0.18 : 1; p.mat.depthWrite = !on; p.mat.needsUpdate = true;
+    p.mesh.renderOrder = on ? 1 : 0;
+  }
+}
+$('xray').onchange = applyXray;
+
+// picking
+let selected = null;
+function select(name) {
+  if (selected) { selected.mat.emissive.setHex(0x000000); selected.label.classList.remove('sel'); }
+  selected = name ? parts[name] : null;
+  const info = $('info');
+  if (!selected) { info.style.display = 'none'; return; }
+  selected.mat.emissive.setHex(0x553300); selected.label.classList.add('sel');
+  const m = selected.meta;
+  info.innerHTML = `<b>${m.label}</b><br><span style="color:var(--dim)">${m.name}.stl · ${m.group === 'printed' ? 'printed' : 'hardware stand-in'}<br>${m.tris.toLocaleString()} tris${m.tris_src !== m.tris ? ` (from ${m.tris_src.toLocaleString()})` : ''}</span>`;
+  info.style.display = 'block';
+}
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+  ptr.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const meshes = Object.values(parts).filter(p => p.obj.visible).map(p => p.mesh);
+  let hits = ray.intersectObjects(meshes, false);
+  if ($('xray').checked) {   // in x-ray, prefer whatever is behind the transparent shells
+    const solid = hits.filter(h => !parts[h.object.userData.part].meta.shell);
+    if (solid.length) hits = solid;
+  }
+  select(hits.length ? hits[0].object.userData.part : null);
+});
+
+function resetView() {
+  const box = new THREE.Box3();
+  for (const p of Object.values(parts)) if (p.obj.visible) box.expandByObject(p.obj);
+  const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2;
+  controls.target.copy(c);
+  camera.position.copy(c).add(new THREE.Vector3(0.75, 0.35, 1).normalize().multiplyScalar(r / Math.sin(THREE.MathUtils.degToRad(17.5)) * 1.05));
+  camera.near = r / 50; camera.far = r * 50; camera.updateProjectionMatrix();
+  controls.update();
+}
+$('reset').onclick = resetView;
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
