@@ -49,7 +49,8 @@ const uint8_t kInit[] = {
     0x00,
 };
 
-constexpr uint8_t MADCTL_MY = 0x80, MADCTL_MX = 0x40, MADCTL_RGB = 0x08;  // BGR is 0x00 on this panel
+constexpr uint8_t MADCTL_MY = 0x80, MADCTL_MX = 0x40, MADCTL_MV = 0x20, MADCTL_ML = 0x10;
+constexpr uint8_t MADCTL_RGB = 0x08;  // BGR is 0x00 on this panel
 
 }  // namespace
 
@@ -209,8 +210,26 @@ void Gc9d01Bus::initPanels() {
   select(-1);
 }
 
-void Gc9d01Bus::setOrientation(int panel, bool rot180, bool swapRB) {
-  uint8_t m = (rot180 ? (MADCTL_MX | MADCTL_MY) : 0) | (swapRB ? MADCTL_RGB : 0);
+uint8_t Gc9d01Bus::madctl(int rotDeg, bool swapRB) {
+  // Values from Arduino_GFX Arduino_GC9D01::setRotation. The panel runs
+  // dual-gate (0xBF = 0x01), so with MV set even and odd lines swap unless ML
+  // is set (Arduino_GFX commit 42e6ce8a). That commit also flipped MY
+  // against the usual MX|MV (90) / MY|MV (270), so ML evidently reverses the
+  // line order on this panel too.
+  uint8_t m;
+  switch (((rotDeg % 360) + 360) % 360) {
+    case 90: m = MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_ML; break;  // 0xF0
+    case 180: m = MADCTL_MX | MADCTL_MY; break;                          // 0xC0
+    case 270: m = MADCTL_MV | MADCTL_ML; break;                          // 0x30
+    default: m = 0; break;
+  }
+  return m | (swapRB ? MADCTL_RGB : 0);
+}
+
+void Gc9d01Bus::setOrientation(int panel, int rotDeg, bool swapRB) { setMadctl(panel, madctl(rotDeg, swapRB)); }
+
+void Gc9d01Bus::setMadctl(int panel, uint8_t m) {
+  endFrame();
   select(panel);
   command(0x36, &m, 1);
   select(-1);

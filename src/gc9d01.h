@@ -24,9 +24,14 @@ class Gc9d01Bus {
   int addPanel(int csPin);  // returns panel index
   // Hard reset (every RST pin) and init every panel at once (all CS low).
   void initPanels();
-  // MADCTL per panel. rot180 uses MX|MY only: no MV, so no even/odd line
-  // swap issue in the panel's dual-gate mode.
-  void setOrientation(int panel, bool rot180, bool swapRB);
+  // MADCTL per panel. rotDeg (0/90/180/270) turns the picture clockwise as
+  // seen on the glass, relative to the native orientation (tip/FPC at the
+  // bottom); same as Arduino_GFX setRotation(rotDeg / 90). 90/270 use MV, and
+  // need ML too because of the dual-gate scan (see madctl()).
+  void setOrientation(int panel, int rotDeg, bool swapRB);
+  // Raw MADCTL byte for one panel (bench experiments).
+  void setMadctl(int panel, uint8_t m);
+  static uint8_t madctl(int rotDeg, bool swapRB);
 
   // Pixel streaming. Buffers must be DMA-capable and hold big-endian RGB565.
   void beginFrame(int panel, int x0, int y0, int x1, int y1);

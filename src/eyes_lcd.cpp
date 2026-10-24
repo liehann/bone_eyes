@@ -81,8 +81,7 @@ class LcdEyes : public EyeBackend {
     }
     ledcWrite(BL_LEDC_CHANNEL, 0);
     bus_.initPanels();
-    bus_.setOrientation(0, EYE_L_ROT180, TFT_SWAP_RB);
-    bus_.setOrientation(1, EYE_R_ROT180, TFT_SWAP_RB);
+    applyOrientation();
     bus_.fill(0, 0);
     bus_.fill(1, 0);
     ledcWrite(BL_LEDC_CHANNEL, brightness_);
@@ -96,8 +95,18 @@ class LcdEyes : public EyeBackend {
 
   void reinit() {
     bus_.initPanels();
-    bus_.setOrientation(0, EYE_L_ROT180, TFT_SWAP_RB);
-    bus_.setOrientation(1, EYE_R_ROT180, TFT_SWAP_RB);
+    applyOrientation();
+  }
+
+  // Per-eye picture rotation (deg clockwise, 0/90/180/270), from config.h at
+  // boot, changed with `lcd rot`.
+  int rotation(int eye) const { return rot_[eye]; }
+  void setRotation(int eye, int deg) {
+    rot_[eye] = deg;
+    bus_.setOrientation(eye, deg, TFT_SWAP_RB);
+  }
+  void applyOrientation() {
+    for (int e = 0; e < 2; e++) bus_.setOrientation(e, rot_[e], TFT_SWAP_RB);
   }
 
   void fillBoth(uint16_t c) {
@@ -178,6 +187,7 @@ class LcdEyes : public EyeBackend {
   }
 
  private:
+  int rot_[2] = {EYE_L_ROT, EYE_R_ROT};
   // Per-frame choices, made once on core 1 so both eyes agree.
   struct Frame {
     int style;
@@ -426,6 +436,22 @@ void toggleTask(void* arg) {
   vTaskDelete(nullptr);
 }
 
+void printRotation() {
+  for (int e = 0; e < 2; e++) {
+    const int r = lcd ? lcd->rotation(e) : (e ? EYE_R_ROT : EYE_L_ROT);
+    Serial.printf("lcd: eye %c rot %d (MADCTL 0x%02X)%s\n", e ? 'R' : 'L', r, Gc9d01Bus::madctl(r, TFT_SWAP_RB),
+                  r == (e ? EYE_R_ROT : EYE_L_ROT) ? "" : ", config.h default differs");
+  }
+}
+
+// "L"/"R"/"both" -> eye index (2 = both), -1 if neither.
+int eyeArg(const char* a) {
+  if (!strcasecmp(a, "L") || !strcmp(a, "0")) return 0;
+  if (!strcasecmp(a, "R") || !strcmp(a, "1")) return 1;
+  if (!strcasecmp(a, "both") || !strcmp(a, "2")) return 2;
+  return -1;
+}
+
 // `lcd prof`: average frame-time breakdown since the last call.
 void printProf() {
   FrameProf f = frameProf;
@@ -450,7 +476,8 @@ void printProf() {
 
 void cmdLcd(int argc, char** argv) {
   const char* usage =
-      "usage: lcd spi <MHz> | init | fill <r> <g> <b> | pins | toggle <gpio> | prof  (then 'eyes anim' to resume)";
+      "usage: lcd spi <MHz> | init | fill <r> <g> <b> | pins | toggle <gpio> | prof | rot [L|R|both 0|90|180|270] | "
+      "madctl <L|R> <hex>  (then 'eyes anim' to resume)";
   if (argc < 2) {
     Serial.println(usage);
     if (lcd && lcd->started()) printClock();
@@ -469,7 +496,12 @@ void cmdLcd(int argc, char** argv) {
       else Serial.printf("  %-4s  %-4d  =L\n", p.name, p.left);
     }
     Serial.println("  CLK/DIN L on the VSPI IO_MUX, R copied through the GPIO matrix; DC/RST R follow L; BL share one LEDC channel");
+    printRotation();
     if (lcd && lcd->started()) printClock();
+    return;
+  }
+  if (sub == "rot" && argc < 3) {
+    printRotation();
     return;
   }
   if (!lcd || !lcd->started() || eyes::backend() != eyes::Backend::Lcd) {
@@ -480,7 +512,7 @@ void cmdLcd(int argc, char** argv) {
     Serial.println("lcd: toggle still running, wait for it to finish");
     return;
   }
-  if (sub != "spi" && sub != "init" && sub != "fill" && sub != "toggle") {
+  if (sub != "spi" && sub != "init" && sub != "fill" && sub != "toggle" && sub != "rot" && sub != "madctl") {
     Serial.println(usage);
     return;
   }
@@ -520,6 +552,29 @@ void cmdLcd(int argc, char** argv) {
     uint16_t c = rgb(constrain(r, 0, 255), constrain(g, 0, 255), constrain(b, 0, 255));
     lcd->fillBoth(c);
     Serial.printf("lcd: filled both with %ld %ld %ld (RGB565 0x%04X)\n", r, g, b, c);
+  } else if (sub == "rot") {
+    long deg;
+    const int eye = eyeArg(argv[2]);
+    if (eye < 0 || !console::argInt(argc, argv, 3, deg) || deg < 0 || deg > 270 || deg % 90) {
+      Serial.println("usage: lcd rot <L|R|both> <0|90|180|270>  (clockwise, as seen from the front)");
+      return;
+    }
+    for (int e = 0; e < 2; e++)
+      if (eye == 2 || eye == e) lcd->setRotation(e, (int)deg);
+    printRotation();
+    lcd->testPattern(2);
+    Serial.println("lcd: test pattern up (bars red/green/blue/white top to bottom, yellow square top-left)");
+  } else if (sub == "madctl") {
+    const int eye = argc > 2 ? eyeArg(argv[2]) : -1;
+    char* end = nullptr;
+    const long m = argc > 3 ? strtol(argv[3], &end, 16) : -1;
+    if (eye < 0 || eye > 1 || !end || *end || m < 0 || m > 0xFF) {
+      Serial.println("usage: lcd madctl <L|R> <hex byte>  (raw, until the next 'lcd rot'/'lcd init')");
+      return;
+    }
+    lcd->bus().setMadctl(eye, (uint8_t)m);
+    lcd->testPattern(2);
+    Serial.printf("lcd: eye %c MADCTL 0x%02lX, test pattern up\n", eye ? 'R' : 'L', m);
   } else {  // toggle
     long pin;
     char name[16];
@@ -560,7 +615,8 @@ EyeBackend* makeLcdEyes() {
       if (strcmp(kStyles[i], EYE_ART_DEFAULT) == 0) currentStyle = i;
     console::add("art", "LCD eye style: art [default|dragon|fire]", cmdArt);
     console::add("flames", "flames + smoke around hazel/dragon eyes: flames [on|off]", cmdFlames);
-    console::add("lcd", "LCD bench diagnostics: lcd spi <MHz> | init | fill r g b | pins | toggle <gpio> | prof", cmdLcd);
+    console::add("lcd", "LCD bench diagnostics: lcd spi <MHz> | init | fill r g b | pins | toggle <gpio> | prof | rot | madctl",
+                 cmdLcd);
     registered = true;
   }
   static LcdEyes* instance = new LcdEyes();  // owns the SPI bus; reused across backend switches

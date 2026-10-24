@@ -95,6 +95,7 @@ Type `help` in the monitor.
 | `art default\|dragon\|fire` | LCD eye style. `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids |
 | `flames on\|off` | flames and smoke rising from hazel/dragon eyes |
 | `lcd prof` | frame-time breakdown since the last call: simulation, row rendering on each core, SPI waits |
+| `lcd rot [L\|R\|both <0\|90\|180\|270>]` | show or set each eye's picture rotation (clockwise, seen from the front), then show the test pattern. Not saved: copy the working values into `EYE_L_ROT` / `EYE_R_ROT` |
 
 ### Display bring-up checklist (milestone 2)
 
@@ -102,7 +103,11 @@ Type `help` in the monitor.
    green, blue and white bands top to bottom, a magenta border, a yellow
    top-left square and one dot.
    - Red and blue swapped: set `TFT_SWAP_RB`.
-   - Upside down: set `EYE_L_ROT180`.
+   - Rotated: try `lcd rot L <0|90|180|270>` until the bars run red, green,
+     blue, white from top to bottom with the yellow square top-left, then
+     set `EYE_L_ROT` (and `EYE_R_ROT`) in `config.h` to match. The skull's
+     defaults are L = 270 and R = 90, because each module is mounted with its
+     tip toward the nose. On the old tip-down bar, use 0 and 0.
    - Garbage or nothing: check that VCC is on 3V3 (on 5 V the panel stays
      black), then DC/RST. 40 MHz SPI works on both eyes; `lcd spi 27` (Waveshare's
      demo speed) is only worth trying with long leads.

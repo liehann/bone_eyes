@@ -64,8 +64,15 @@ constexpr uint8_t BL_LEDC_CHANNEL = 7;         // high channel, servo lib takes 
 constexpr uint8_t BL_DEFAULT = 200;            // 0..255
 // Per-mounting fixes, checked on the bench with `eyes test` / `eyes look`:
 constexpr bool TFT_SWAP_RB = false;        // red and blue swapped in `eyes test`
-constexpr bool EYE_L_ROT180 = false;       // panel mounted upside down
-constexpr bool EYE_R_ROT180 = false;
+// Picture rotation per eye, degrees clockwise as seen from the front, relative
+// to the panel's native orientation (tip/FPC at the bottom): 0, 90, 180, 270.
+// In the printed skull each module is turned 90 deg so its tip points at the
+// nose (hardware/eye_mount.scad module_rot): the left eye (viewer's right) is
+// turned 90 deg clockwise, the right eye 90 deg anticlockwise, so the picture
+// is turned back the other way. Old stand-alone bar (tip down): 0 and 0.
+// Adjust on the bench with `lcd rot <L|R> <deg>` and `eyes test`.
+constexpr int EYE_L_ROT = 270;
+constexpr int EYE_R_ROT = 90;
 constexpr bool EYE_GAZE_X_INVERT = false;  // `eyes look 1 0` should look toward the skull's right
 // "L"/"R" are the skull's own left/right (L = viewer's right). The lid art
 // has a tear duct on one side; these put both at the nose (checked with
