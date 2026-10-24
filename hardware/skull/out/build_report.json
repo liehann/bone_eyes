@@ -2,20 +2,20 @@
  "parts": {
   "face": {
    "watertight": true,
-   "bodies": 1,
-   "volume_cm3": 113.17,
-   "tris": 336836,
+   "bodies": 2,
+   "volume_cm3": 88.95,
+   "tris": 269550,
    "size": [
     112.8,
-    60.8,
+    61.6,
     153.9
    ]
   },
   "back": {
    "watertight": true,
    "bodies": 2,
-   "volume_cm3": 182.94,
-   "tris": 354448,
+   "volume_cm3": 177.61,
+   "tris": 335678,
    "size": [
     134.2,
     122.8,
@@ -80,45 +80,45 @@
   "joint_bracket_temple_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.2,
-   "tris": 2666,
+   "volume_cm3": 1.91,
+   "tris": 2672,
    "size": [
-    20.0,
+    8.0,
     15.7,
-    12.0
+    24.0
    ]
   },
   "joint_bracket_temple_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.13,
-   "tris": 3018,
+   "volume_cm3": 1.85,
+   "tris": 3012,
    "size": [
-    20.0,
+    8.0,
     15.7,
-    12.0
+    24.0
    ]
   },
-  "joint_bracket_base_L": {
-   "watertight": false,
-   "bodies": 1,
-   "volume_cm3": 2.42,
-   "tris": 6340,
-   "size": [
-    12.0,
-    18.7,
-    20.0
-   ]
-  },
-  "joint_bracket_base_R": {
+  "joint_bracket_low_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.42,
-   "tris": 6218,
+   "volume_cm3": 1.55,
+   "tris": 3548,
    "size": [
-    12.0,
-    18.7,
-    20.0
+    8.0,
+    13.7,
+    22.4
+   ]
+  },
+  "joint_bracket_low_R": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.66,
+   "tris": 3318,
+   "size": [
+    8.0,
+    13.7,
+    24.0
    ]
   }
  },
@@ -229,11 +229,11 @@
    0.0
   ],
   [
-   "joint_bracket_base_L",
+   "joint_bracket_low_L",
    0.0
   ],
   [
-   "joint_bracket_base_R",
+   "joint_bracket_low_R",
    0.0
   ]
  ],
@@ -309,7 +309,8 @@
   "y_split": 32.9,
   "clearance_outside_skull_cm3": {
    "eyes": 0.0,
-   "radar": 0.0
+   "radar": 0.0,
+   "insertion_corridor": 0.0
   },
   "joints": [
    {
@@ -341,33 +342,44 @@
     "behind_cut": 9.0
    },
    {
-    "name": "base_L",
+    "name": "low_L",
     "screw_point": [
-     -27.0,
-     44.9,
-     -16.8
+     -50.4,
+     39.9,
+     0.0
     ],
     "dir": [
+     -1.0,
      0.0,
-     0.0,
-     -1.0
+     0.0
     ],
-    "behind_cut": 12.0
+    "behind_cut": 7.0
    },
    {
-    "name": "base_R",
+    "name": "low_R",
     "screw_point": [
-     27.0,
-     44.9,
-     -16.4
+     50.4,
+     39.9,
+     0.0
     ],
     "dir": [
+     1.0,
      0.0,
-     0.0,
-     -1.0
+     0.0
     ],
-    "behind_cut": 12.0
+    "behind_cut": 7.0
    }
-  ]
+  ],
+  "usb_slot": {
+   "centre": [
+    0.0,
+    114.0,
+    -31.8
+   ],
+   "size": [
+    18.0,
+    11.0
+   ]
+  }
  }
 }

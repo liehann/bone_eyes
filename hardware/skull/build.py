@@ -73,13 +73,24 @@ FOSSA_ROI = dict(abs_x_min=30.0, y_min=4.0, y_max=110.0, z_min=-6.0, z_max=75.0)
 FOSSA_IGNORE_BELOW = -6.0   # the fossa fill ignores bone below this (the arches), so it hugs the skull
 FOSSA_RECESS = 0.0
 SMOOTH_SIGMA = 1.5      # voxels; smooths the outside-air boundary (webs) before the shell is taken
-CAVITY_PROBE = (0.0, 75.0, 40.0)          # a point inside the brain cavity (leak check)
+CAVITY_PROBE = (0.0, 75.0, 40.0)
+# Everything behind the eyes, inside the skull's hull, is made "inside" (sealed
+# at WEB_RECESS behind the hull surface). Otherwise outside air reaches in
+# through the gaps beside the arches and the shell lines it with walls, which
+# end up as a plate behind the eyes that blocks assembly.
+BEHIND_EYES = dict(box=((-75.0, -5.0, -18.0), (75.0, 70.0, 50.0)), close_r=22.0)
+BEHIND_PROBE = (0.0, 22.0, 0.0)  # between the bowls, behind the eyes: must be inside          # a point inside the brain cavity (leak check)
 
 # --- nose / radar ------------------------------------------------------------
 NASAL_RIM_Y = -6.0      # piriform aperture rim depth (eye frame)
 NASAL_RECESS = 6.0      # nasal window front face behind the aperture rim
 NASAL_T = 1.8           # = radar window thickness
 NASAL_BOTTOM = 0.72     # bowl bottom outline = rim outline scaled by this
+# Wall across the back of the nasal cavity (in front of the choanae). Without it
+# the nasal cavity is open to the throat, counts as outside air and the shell
+# lines it with walls right behind the eye bar.
+CHOANA = dict(y0=22.0, y1=24.5, seeds=[(-6.0, -28.0), (6.0, -28.0), (0.0, -20.0)], roi=(-24.0, 24.0, -50.0, 2.0))
+NOSE_PROBE = (0.0, 15.0, -27.0)   # must end up inside (behind the window, in front of the choana wall)
 NASAL_SEEDS = [(-5.0, -28.0), (5.0, -28.0), (0.0, -22.0)]
 NASAL_ROI = (-18.0, 18.0, -42.0, -10.0)   # x0, x1, z0, z1
 EYE_PLUG_GROW = 5.0     # plug column = orbit opening grown by this (covers the brow overhang)
@@ -119,11 +130,11 @@ Y_SPLIT = None          # face / back cut plane; None = 6 mm behind the eye-bar 
 JOINTS = [  # (name, candidate z (temples) or x (base) to try in order, radial direction)
     ('temple_L', (28.0, 20.0, 36.0, 12.0), (-1, 0, 0)),
     ('temple_R', (28.0, 20.0, 36.0, 12.0), (1, 0, 0)),
-    ('base_L', (-17.0, -22.0, -12.0, -27.0, -8.0), (0, 0, -1)),
-    ('base_R', (17.0, 22.0, 12.0, 27.0, 8.0), (0, 0, -1)),
+    ('low_L', (-12.0, -8.0, -16.0, -4.0, 0.0), (-1, 0, 0)),     # just above the arch, screw from the side
+    ('low_R', (-12.0, -8.0, -16.0, -4.0, 0.0), (1, 0, 0)),
 ]
 JOINT_Y = 12.0          # radial screw this far behind the seam
-DOWELS = [(-22.0, 1), (22.0, 1)]   # (x, top) dowel bosses at the top of the seam
+DOWELS = [(-22.0, 1), (22.0, 1)]   # (x, +1 top / -1 bottom of the seam)
 DOWEL_D = 4.0
 DOWEL_HOLE_D = 5.0      # loose
 INSERT_D = 4.1          # M3 heat-set insert hole
@@ -135,7 +146,8 @@ Y_TRAY = 125.0          # front face of the electronics tray posts
 TRAY_POSTS = [(-25.0, 0.0), (25.0, 0.0), (0.0, 45.0)]
 TRAY = dict(w=72.0, h=74.0, t=3.0, zc=15.0)
 ESP32 = dict(L=55.0, W=28.0, T=1.6, standoff=16.0)       # ESP32-DevKitC V4 (no mounting holes)
-USB_EXIT = (0.0, 112.0, 13.0)        # x, y, hole diameter (through the floor)
+USB_SLOT = dict(x=0.0, y=114.0, L=18.0, W=11.0)   # rounded slot through the floor, passes a USB-A plug
+TIE_BAR = dict(dy=13.0, w=12.0, t=4.0, h=10.0, tunnel_w=7.0, tunnel_h=5.0)  # zip-tie arch behind the slot
 NECK = dict(y=90.0, r=14.0, z_bottom=-42.0, insert_d=6.4, insert_l=10.0)   # M5 heat-set insert
 STAND = dict(base_d=110.0, base_t=6.0, col_d=28.0, col_id=16.0, h=78.0, top_t=6.0)
 
@@ -490,6 +502,8 @@ def make_plugs(G, B, scale):
     sk = socket(c, th, rb, yr, rb * NASAL_BOTTOM, y_win, NASAL_T, flat_bottom=True)
     sockets['nasal'] = sk
     plugs['nasal'] = G.vox(sk['plug'])
+    C = CHOANA
+    plugs['choana'] = fill_slab_holes(G, B, 1, C['y0'], C['y1'], C['seeds'], C['roi'], close_r=1.0)
     info['nasal'] = dict(centre=list(c), window_y=y_win)
     for k, v in plugs.items():
         log('plug %-6s %6.2f cm3' % (k, v.sum() * h ** 3 / 1000))
@@ -534,6 +548,10 @@ def shell(G, B, plugs, extra_in=None, extra_out=None):
     core = env & (denv >= rec) & (denv <= rec + WEB_T)
     small = ndimage.binary_closing(S0, iterations=int(round(SMALL_CLOSE_R / h)), border_value=0) | S0
     M = small | core
+    be = BEHIND_EYES
+    (x0, y0, z0), (x1, y1, z1) = be['box']
+    ebe = closing_env(S0, be['close_r'], h)
+    M |= ebe & (edt(~ebe, h) >= WEB_RECESS) & (X >= x0) & (X <= x1) & (Y >= y0) & (Y <= y1) & (Z >= z0) & (Z <= z1)
     if extra_in is not None:
         M |= extra_in
     log('outside air')
@@ -804,13 +822,13 @@ def obox(o, er, ey, et, r, y, t):
     return mf.Manifold.cube(list(hi - lo)).translate(list(lo)).transform(M)
 
 
-def joints(G, sd, inside, cavity):
+def joints(G, sd, inside, cavity, corridor):
     """Bracket joints: face boss (insert along -Y at the seam), separate bracket,
     back pad (radial screw from outside into the bracket insert)."""
     res = dict(face_add=[], face_cut=[], back_add=[], back_cut=[], brackets=[], info=[])
     PAD_IN = 3.0
 
-    def attempt(hint, d, jy):
+    def attempt(hint, d, jy, sg):
         yj = Y_SPLIT + jy
         if d[0] != 0:
             start = np.array([0.0, yj, hint])
@@ -830,8 +848,9 @@ def joints(G, sd, inside, cavity):
         o = np.array([q0[0], 0.0, q0[2]])                   # local origin (y absolute)
         qj = np.array([q0[0], yj, q0[2]])
         arm = obox(o, er, ey, et, (-8.0, 0.0), (Y_SPLIT + 0.3, yj + 7.0), (-6.0, 6.0))
-        fl = obox(o, er, ey, et, (-20.0, 0.0), (Y_SPLIT + 0.3, Y_SPLIT + 6.3), (-6.0, 6.0))
-        ys = o - er * 15.0
+        # flange sticks out sideways (sg = +-1 along et); the Y screw sits in it
+        fl = obox(o, er, ey, et, (-8.0, 0.0), (Y_SPLIT + 0.3, Y_SPLIT + 6.3), tuple(sorted((-6.0 * sg, 18.0 * sg))))
+        ys = o - er * 4.0 + et * 12.0 * sg
         br = (arm + fl) ^ (cavity + m_box([-300, -300, -300], [300, Y_SPLIT + 0.3, 300]))
         bb = np.array(br.bounding_box())
         local = (cavity ^ m_box(bb[:3] - [1, jy + 10, 1], bb[3:] + 1)) + \
@@ -841,15 +860,23 @@ def joints(G, sd, inside, cavity):
         # the insert and the Y screw need solid material round them
         need = [m_cyl(qj, qj - er * (INSERT_L + 1.0), 3.9), m_cyl([ys[0], Y_SPLIT + 0.3, ys[2]], [ys[0], Y_SPLIT + 6.3, ys[2]], 3.4)]
         ok = min(vol(br ^ n) / vol(n) for n in need)
-        return ok, dict(yj=yj, p_in=p_in, p_out=p_out, er=er, ey=ey, et=et, q0=q0, qj=qj, o=o, ys=ys, br=br)
+        # compact face boss round the Y screw, tied radially out into the shell
+        boss = (m_cyl([ys[0], Y_SPLIT - 10.0, ys[2]], [ys[0], Y_SPLIT, ys[2]], 5.5) +
+                obox(o, er, ey, et, (-4.0, 12.0), (Y_SPLIT - 10.0, Y_SPLIT), (12.0 * sg - 5.5, 12.0 * sg + 5.5))) ^ inside
+        cv = vol(boss ^ corridor)      # brackets go on after the eye bar; only the face boss must stay clear
+        if os.environ.get('SKULL_DEBUG'):
+            log('  try %s hint %.0f jy %.0f sg %d: material %.2f corridor %.3f p_in %s' % (d, hint, jy, sg, ok, cv, np.round(p_in, 1)))
+        if cv > 0.005:          # would block the eye bar / radar going in
+            ok = 0.0
+        return ok, dict(sg=sg, boss=boss, yj=yj, p_in=p_in, p_out=p_out, er=er, ey=ey, et=et, q0=q0, qj=qj, o=o, ys=ys, br=br)
 
     for name, hints, d in JOINTS:
         d = np.asarray(d, float)
         best = None
         for jy in (JOINT_Y, 9.0, 7.0):
-            for hint in hints:
+            for hint, sg in [(h_, g_) for h_ in hints for g_ in (1, -1)]:
                 try:
-                    ok, J = attempt(hint, d, jy)
+                    ok, J = attempt(hint, d, jy, sg)
                 except RuntimeError:
                     continue
                 if best is None or ok > best[0]:
@@ -871,14 +898,19 @@ def joints(G, sd, inside, cavity):
         hole_r = [m_cyl(qj + er * 0.01, qj - er * INSERT_L, INSERT_D / 2), m_cyl(qj, qj - er * (INSERT_L + 3.5), 1.6)]
         hole_y = m_cyl([ys[0], Y_SPLIT, ys[2]], [ys[0], Y_SPLIT + 8, ys[2]], 1.75)
         res['brackets'].append((name, J['br'] - union(hole_r + [hole_y])))
-        boss = obox(o, J['er'], J['ey'], J['et'], (-20.0, 12.0), (Y_SPLIT - 10.0, Y_SPLIT), (-7.0, 7.0)) ^ inside
+        boss = J['boss']
         res['face_add'].append(boss)
         res['face_cut'] += [m_cyl([ys[0], Y_SPLIT + 0.01, ys[2]], [ys[0], Y_SPLIT - INSERT_L, ys[2]], INSERT_D / 2),
                             m_cyl([ys[0], Y_SPLIT, ys[2]], [ys[0], Y_SPLIT - INSERT_L - 3.5, ys[2]], 1.6)]
         res['info'].append(dict(name=name, screw_point=p_out.round(1).tolist(), dir=d.tolist(), behind_cut=jy))
-    for x, _ in DOWELS:
-        p_in = inner_point(G, sd, [x, Y_SPLIT, 40.0], [0, 0, 1.0], SHELL_T)
-        cz = p_in[2] - 5.0
+    for x, side in DOWELS:
+        p_in = inner_point(G, sd, [x, Y_SPLIT, 40.0 if side > 0 else -14.0], [0, 0, float(side)], SHELL_T)
+        cz = p_in[2] - 5.0 * side
+        fb = m_cyl([x, Y_SPLIT - 10, cz], [x, Y_SPLIT, cz], 5.5) ^ inside
+        if vol(fb ^ corridor) > 0.005:
+            log('dowel at x=%.0f %s skipped (in the eye-bar path)' % (x, 'top' if side > 0 else 'bottom'))
+            continue
+        log('dowel at x=%.0f z=%.1f' % (x, cz))
         res['face_add'].append(m_cyl([x, Y_SPLIT - 10, cz], [x, Y_SPLIT, cz], 5.5) ^ inside)
         res['back_add'].append(m_cyl([x, Y_SPLIT, cz], [x, Y_SPLIT + 10, cz], 5.5) ^ inside)
         h = m_cyl([x, Y_SPLIT - 7, cz], [x, Y_SPLIT + 7, cz], DOWEL_HOLE_D / 2)
@@ -964,6 +996,7 @@ def clean(M, name):
 
 
 def build():
+    global Y_SPLIT
     cr, jaw = load_sources()
     cr, jaw, info = frame(cr, jaw)
     hinge = jaw_hinge(jaw)
@@ -990,6 +1023,10 @@ def build():
     cup_v = ndimage.binary_dilation(G.vox(mech['cup_env']), iterations=int(np.ceil((SHELL_T + 0.4) / G.h)))
     sh = shell(G, Bv, plugs, extra_in=cup_v, extra_out=sweep_v)
     assert not sh['leak'], 'the cavity is visible from outside'
+    if sh['A'][G.idx(NOSE_PROBE)] and os.environ.get('SKULL_DEBUG'):
+        np.savez_compressed(os.path.join(CACHE, 'debug_A.npz'), A=sh['A'], o=G.o)
+    assert not sh['A'][G.idx(NOSE_PROBE)], 'the nasal cavity is still open to the throat'
+    assert not sh['A'][G.idx(BEHIND_PROBE)], 'the space behind the eyes is open to the outside'
     crm = shell_mesh(G, cr, sh)
     sd = sh['sd']
     inside = mc_mesh(sd - 0.4, G, 0.0, step=2)
@@ -1010,18 +1047,25 @@ def build():
     socket_wall = union([sk['wall'] for sk in sockets.values()])
     apert = union([m_cyl([xe, y_glass - SCREEN_GAP - SOCKET_WALL - 1, 0], [xe, y_glass - 0.05, 0], APERTURE_D / 2)
                    for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
-    global Y_SPLIT
-    if Y_SPLIT is None:
-        Y_SPLIT = round(y_back + 6.0, 1)
-    info.update(y_glass=y_glass, y_bar_back=y_back, y_split=Y_SPLIT)
+    info.update(y_glass=y_glass, y_bar_back=y_back)
     log('eyes: glass %.2f mm behind the rim plane, bar back face at y=%.2f' % (y_glass, y_back))
 
     # ---- radar
     y_wall_back = NASAL_RIM_Y + NASAL_RECESS + NASAL_T
     radar, radar_clear, radar_frame = radar_parts(y_wall_back)
+    # insertion corridors: the bar with both modules (and cables) goes in straight
+    # from behind, the radar too; nothing on the face may stand in the way
+    if Y_SPLIT is None:
+        Y_SPLIT = round(y_back + 6.0, 1)
+    info['y_split'] = Y_SPLIT
+    corridor = union([eye_clear.translate([0, dy, 0]) for dy in np.arange(0.0, Y_SPLIT - y_front + 14.0, 1.5)])
+    R_ = RADAR
+    corridor += m_box([-R_['L'] / 2 - 0.6, y_wall_back + 0.2, R_['z'] - R_['W'] / 2 - 0.6],
+                      [R_['L'] / 2 + 0.6, Y_SPLIT + 12.0, R_['z'] + R_['W'] / 2 + 0.6])
     # clearance cuts must stay inside the skull, or they would open holes in the surface
     skin = mc_mesh(np.where(sh['env'] | (sd > 0), 1.0, -1.0).astype(np.float32), G, 0.0, step=2) + socket_air
-    pierce = dict(eyes=vol(eye_clear - skin), radar=vol(radar_clear - skin))
+    pierce = dict(eyes=vol(eye_clear - skin), radar=vol(radar_clear - skin),
+                  insertion_corridor=vol((corridor ^ m_box([-300, -300, -300], [300, Y_SPLIT, 300])) - skin))
     info['clearance_outside_skull_cm3'] = {k: round(v, 3) for k, v in pierce.items()}
     log('clearance volume outside the skull surface (cm3):', info['clearance_outside_skull_cm3'])
     # free half-width at mid bar depth, |z| < 3 (decides whether the modules must be rotated)
@@ -1029,14 +1073,15 @@ def build():
     xs_ = [p_[:, 0] for p_ in map(np.asarray, sl.to_polygons()) if np.any(abs(p_[:, 1]) < 3)]
     if xs_:
         log('skull outer half-width at the bar (y=%.1f, |z|<3): %.1f mm' % (y_back - BAR_T / 2, min(abs(np.concatenate(xs_)).max(), 99)))
-    for nm_, M_ in (('eyes', eye_clear - skin), ('radar', radar_clear - skin)):
+    for nm_, M_ in (('eyes', eye_clear - skin), ('radar', radar_clear - skin),
+                    ('corridor', (corridor ^ m_box([-300, -300, -300], [300, Y_SPLIT, 300])) - skin)):
         for q in M_.decompose():
             if q.volume() > 0.5:
                 log('  %s clearance outside the skull: %.2f cm3 at %s' % (nm_, q.volume() / 1000, np.round(q.bounding_box(), 1)))
     radar_frame = (radar_frame ^ inside) - radar_clear
 
     # ---- joints
-    J = joints(G, sd, inside, cavity)
+    J = joints(G, sd, inside, cavity, corridor)
     info['joints'] = J['info']
 
     # ---- split
@@ -1048,7 +1093,7 @@ def build():
     face = face - socket_air - eye_clear - radar_clear
     face = union([face, socket_wall, posts, radar_frame] + J['face_add']) ^ m_box([-big, -big, -big], [big, Y_SPLIT, big])
     face = face - union([post_holes, apert, radar_clear, socket_air] + J['face_cut'])
-    face = face - eye_clear
+    face = face - eye_clear - (corridor ^ m_box([-big, -big, -big], [big, Y_SPLIT + 1, big]))
     face = clean(face, 'face')
 
     # back part
@@ -1065,8 +1110,17 @@ def build():
     neck = m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], -12.0], N['r'])
     neck_h = m_cyl([0, N['y'], N['z_bottom'] - 0.01], [0, N['y'], N['z_bottom'] + N['insert_l']], N['insert_d'] / 2) + \
         m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], N['z_bottom'] + N['insert_l'] + 4], 2.75)
-    usb = m_cyl([USB_EXIT[0], USB_EXIT[1], -70], [USB_EXIT[0], USB_EXIT[1], -10], USB_EXIT[2] / 2)
-    back = union([back, pivot, sboss, tposts, neck] + J['back_add']) ^ m_box([-big, Y_SPLIT, -big], [big, big, big])
+    U = USB_SLOT
+    zf = inner_point(G, sd, [U['x'], U['y'], 0.0], [0, 0, -1.0], SHELL_T)[2]       # floor (inner surface)
+    usb = mf.Manifold.batch_hull([m_cyl([U['x'] + sx * (U['L'] - U['W']) / 2, U['y'], zf - 25],
+                                        [U['x'] + sx * (U['L'] - U['W']) / 2, U['y'], zf + 6], U['W'] / 2) for sx in (-1, 1)])
+    Tb = TIE_BAR; ty = U['y'] + Tb['dy']
+    zf2 = inner_point(G, sd, [U['x'], ty, 0.0], [0, 0, -1.0], SHELL_T)[2]
+    tie = m_box([U['x'] - Tb['w'] / 2, ty - Tb['t'] / 2, zf2 - 3], [U['x'] + Tb['w'] / 2, ty + Tb['t'] / 2, zf2 + Tb['h']]) - \
+        m_box([U['x'] - Tb['tunnel_w'] / 2, ty - Tb['t'], zf2 + 1.0], [U['x'] + Tb['tunnel_w'] / 2, ty + Tb['t'], zf2 + 1.0 + Tb['tunnel_h']])
+    info['usb_slot'] = dict(centre=[U['x'], U['y'], round(float(zf), 1)], size=[U['L'], U['W']])
+    log('USB slot %gx%g through the floor at x=%.0f y=%.0f (floor z=%.1f); tie bar at y=%.0f' % (U['L'], U['W'], U['x'], U['y'], zf, ty))
+    back = union([back, pivot, sboss, tposts, neck, tie ^ inside] + J['back_add']) ^ m_box([-big, Y_SPLIT, -big], [big, big, big])
     back = back - union([mech['cup_env'], mech['cup_slot'], mech['skull_pivot_holes'], slot, sboss_h, tposts_h, neck_h, usb]
                         + J['back_cut'])
     back = clean(back, 'back')
@@ -1189,6 +1243,9 @@ COLORS = dict(face='ivory', back='wheat', jaw='tan', servo_bracket='seagreen', t
 def render(R):
     import subprocess
     tmp = os.path.join(CACHE, 'render'); os.makedirs(tmp, exist_ok=True)
+    for f in os.listdir(tmp):                       # no stale parts (the viewer reads this folder)
+        if f.endswith('.stl'):
+            os.remove(os.path.join(tmp, f))
     items = dict(R['parts']); items.pop('dowel', None)
     items.update(R['hardware'])
     items.update(R['display'])
@@ -1234,6 +1291,17 @@ def render(R):
             ex[k] = (0, -40, 0)
     e = scad('expl.scad', asm(explode=ex))
     jobs.append(('skull_exploded.png', e, '0,20,-60,65,0,300,700'))
+    fb = scad('face_back.scad', 'color("ivory") import("face.stl");')
+    jobs.append(('skull_face_from_behind.png', fb, '0,20,-10,90,0,180,300'))
+    jobs.append(('skull_face_from_behind_34.png', fb, '0,20,-10,65,0,215,330'))
+    fh = scad('face_back_hw.scad', 'color("ivory") import("face.stl");\n' + '\n'.join(
+        'color("%s") import("%s.stl");' % (col(k), k) for k in items
+        if k in ('bar', 'modules', 'radar', 'screens') or k.startswith('joint_bracket')))
+    jobs.append(('skull_face_from_behind_hw.png', fh, '0,20,-10,90,0,180,300'))
+    bk = scad('back_front.scad', 'color("wheat") import("back.stl");\n' + '\n'.join(
+        'color("%s") import("%s.stl");' % (col(k), k) for k in items if k in ('servo', 'servo_bracket', 'tray', 'esp32')))
+    jobs.append(('skull_back_from_front.png', bk, '0,70,-10,90,0,0,320'))
+    jobs.append(('skull_back_from_front_34.png', bk, '0,70,-10,65,0,35,340'))
     procs = []
     for fn, f, cam in jobs:
         procs.append(subprocess.Popen([SCAD, '-o', os.path.join(HERE, fn), '--preview', '--imgsize=1400,1100',
