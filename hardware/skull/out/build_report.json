@@ -3,23 +3,23 @@
   "face": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 82.89,
-   "tris": 222160,
+   "volume_cm3": 113.17,
+   "tris": 336836,
    "size": [
-    109.2,
-    52.2,
-    151.1
+    112.8,
+    60.8,
+    153.9
    ]
   },
   "back": {
    "watertight": true,
-   "bodies": 1,
-   "volume_cm3": 192.45,
-   "tris": 370012,
+   "bodies": 2,
+   "volume_cm3": 182.94,
+   "tris": 354448,
    "size": [
     134.2,
-    131.7,
-    146.5
+    122.8,
+    144.7
    ]
   },
   "jaw": {
@@ -47,8 +47,8 @@
   "tray": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 21.71,
-   "tris": 1474,
+   "volume_cm3": 21.86,
+   "tris": 1192,
    "size": [
     72.0,
     23.6,
@@ -80,30 +80,30 @@
   "joint_bracket_temple_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 1.26,
-   "tris": 2160,
+   "volume_cm3": 2.2,
+   "tris": 2666,
    "size": [
-    18.7,
-    18.7,
+    20.0,
+    15.7,
     12.0
    ]
   },
   "joint_bracket_temple_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 1.64,
-   "tris": 3482,
+   "volume_cm3": 2.13,
+   "tris": 3018,
    "size": [
     20.0,
-    18.7,
+    15.7,
     12.0
    ]
   },
   "joint_bracket_base_L": {
-   "watertight": true,
+   "watertight": false,
    "bodies": 1,
-   "volume_cm3": 2.16,
-   "tris": 1334,
+   "volume_cm3": 2.42,
+   "tris": 6340,
    "size": [
     12.0,
     18.7,
@@ -113,8 +113,8 @@
   "joint_bracket_base_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.07,
-   "tris": 2748,
+   "volume_cm3": 2.42,
+   "tris": 6218,
    "size": [
     12.0,
     18.7,
@@ -174,39 +174,39 @@
   ],
   [
    11.5,
-   0.0
+   0.001
   ],
   [
    12.5,
-   0.0
+   0.001
   ],
   [
    13.5,
-   0.0
+   0.001
   ],
   [
    14.5,
-   0.0
+   0.001
   ],
   [
    15.5,
-   0.0
+   0.001
   ],
   [
    16.5,
-   0.0
+   0.001
   ],
   [
    17.5,
-   0.0
+   0.001
   ],
   [
    18.5,
-   0.0
+   0.001
   ],
   [
    19.5,
-   0.0
+   0.002
   ]
  ],
  "beyond_stops": [
@@ -216,7 +216,7 @@
   ],
   [
    21.5,
-   0.009
+   0.012
   ]
  ],
  "bracket_slide": [
@@ -243,7 +243,7 @@
   "origin_src": [
    -0.75,
    -164.75,
-   1529.75
+   1531.8954545454546
   ],
   "orbits_src": [
    {
@@ -270,85 +270,103 @@
   ],
   "hinge": [
    65.13116162694143,
-   -27.42857706332635
+   -29.42857706332635
   ],
   "jaw_closed_from_source_deg": -9.0,
   "eyes": {
    "eyeL": {
     "x": -27.0,
-    "z": 0.0,
+    "z": -2.0,
     "rim_y": 0.5,
-    "lateral_crest_y": 7.5,
     "breadth": 31.0,
     "height": 37.0,
-    "x_lat": -42.5,
-    "tilt_deg": 51.91122711902468
+    "rim_y_range": [
+     -11.476628476435636,
+     8.369198343885996
+    ]
    },
    "eyeR": {
     "x": 27.25,
-    "z": 0.0,
+    "z": -2.0,
     "rim_y": -1.0,
-    "lateral_crest_y": 7.5,
     "breadth": 31.5,
     "height": 37.0,
-    "x_lat": 43.0,
-    "tilt_deg": 47.41950921665633
+    "rim_y_range": [
+     -11.368446485705235,
+     8.26472844670713
+    ]
+   },
+   "nasal": {
+    "centre": [
+     -0.033121019108280254,
+     -27.704458598726113
+    ],
+    "window_y": 0.0
    }
   },
-  "y_glass": 6.0,
-  "y_bar_back": 17.85,
+  "y_glass": 15.0,
+  "y_bar_back": 26.85,
+  "y_split": 32.9,
+  "clearance_outside_skull_cm3": {
+   "eyes": 0.0,
+   "radar": 0.0
+  },
   "joints": [
    {
     "name": "temple_L",
     "screw_point": [
-     -55.8,
-     36.0,
+     -57.8,
+     41.9,
      28.0
     ],
     "dir": [
      -1.0,
      0.0,
      0.0
-    ]
+    ],
+    "behind_cut": 9.0
    },
    {
     "name": "temple_R",
     "screw_point": [
-     55.8,
-     36.0,
+     57.8,
+     41.9,
      28.0
     ],
     "dir": [
      1.0,
      0.0,
      0.0
-    ]
+    ],
+    "behind_cut": 9.0
    },
    {
     "name": "base_L",
     "screw_point": [
-     -17.0,
-     36.0,
-     -22.8
+     -27.0,
+     44.9,
+     -16.8
     ],
     "dir": [
      0.0,
      0.0,
      -1.0
-    ]
+    ],
+    "behind_cut": 12.0
    },
    {
     "name": "base_R",
     "screw_point": [
-     17.0,
-     36.0,
-     -33.8
+     27.0,
+     44.9,
+     -16.4
     ],
     "dir": [
      0.0,
      0.0,
      -1.0
-    ]
+    ],
+    "behind_cut": 12.0
    }
   ]
  }

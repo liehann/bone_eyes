@@ -49,25 +49,37 @@ SMALL_CLOSE_R = 1.5     # closes sutures / pinholes before the shell is taken
 WEB_CLOSE_R = 7.0       # gaps narrower than ~2x this get a recessed web
 WEB_RECESS = 3.5        # web front face this far behind the bridged surface
 WEB_T = 2.0             # web thickness
+MC_SIGMA = 1.2          # voxels; smoothing of the distance field before marching cubes
 INNER_SKIN = 0.7        # marching-cubes inner layer starts this far below the voxel surface
 
 # --- eyes ------------------------------------------------------------------
-EYE_PLATE_DEPTH = 2.8   # front face of the eye plate behind the orbit rim plane
-EYE_PLATE_T = 2.0       # eye plate thickness (bezel)
-SCREEN_GAP = 0.6        # plate back face to glass
-BEZEL_D = 19.2          # aperture in the eye plate (active circle 18.0, glass 20.12)
-EYE_DZ = 0.0            # move both eyes up/down from the measured orbit centre
+EYE_DEPTH = 15.0        # screen glass behind the orbit rim plane (socket bowl depth)
+SOCKET_WALL = 2.0       # bowl wall (>= 1.6)
+SCREEN_GAP = 0.6        # bowl back face (bezel) to glass
+APERTURE_D = 18.5       # opening at the bottom of the bowl (active circle 18.0, glass 20.12)
+ORBIT_SHRINK = 0.0      # pull the orbit rim outline in by this fraction
+SOCKET_N = 120          # points round each loft ring
+SOCKET_K = 28           # rings from rim to bottom
+EYE_DZ = 2.0            # move both eyes up/down from the measured orbit centre
 
 BASE_CLOSE_R = 15.0     # larger closing radius on the skull base (hidden on the stand)
 BASE_ROI = dict(y_min=22.0, z_max=-8.0)   # base region: behind the palate, below the orbits
 TEMPLE_CLOSE_R = 22.0   # closes the gap behind/under each zygomatic arch
 TEMPLE_ROI = dict(abs_x_min=34.0, y_min=8.0, y_max=72.0, z_min=-50.0, z_max=2.0)
+# Temporal fossa behind each orbit (above the arch): filled almost flush, like a
+# prop skull's full temples. This also widens the space behind the eyes.
+FOSSA_CLOSE_R = 30.0
+FOSSA_ROI = dict(abs_x_min=30.0, y_min=4.0, y_max=110.0, z_min=-6.0, z_max=75.0)
+FOSSA_IGNORE_BELOW = -6.0   # the fossa fill ignores bone below this (the arches), so it hugs the skull
+FOSSA_RECESS = 0.0
+SMOOTH_SIGMA = 1.5      # voxels; smooths the outside-air boundary (webs) before the shell is taken
 CAVITY_PROBE = (0.0, 75.0, 40.0)          # a point inside the brain cavity (leak check)
 
 # --- nose / radar ------------------------------------------------------------
 NASAL_RIM_Y = -6.0      # piriform aperture rim depth (eye frame)
-NASAL_RECESS = 5.0      # nasal wall front face behind the aperture rim
+NASAL_RECESS = 6.0      # nasal window front face behind the aperture rim
 NASAL_T = 1.8           # = radar window thickness
+NASAL_BOTTOM = 0.72     # bowl bottom outline = rim outline scaled by this
 NASAL_SEEDS = [(-5.0, -28.0), (5.0, -28.0), (0.0, -22.0)]
 NASAL_ROI = (-18.0, 18.0, -42.0, -10.0)   # x0, x1, z0, z1
 EYE_PLUG_GROW = 5.0     # plug column = orbit opening grown by this (covers the brow overhang)
@@ -98,17 +110,17 @@ BAR_T = 5.65            # bar thickness = M2x8 screw stack
 STANDOFF_H = 3.0        # module standoff height (estimate, see hardware/README.md)
 MODULE_T = 3.2          # PCB back to glass front (estimate)
 BAR_HOLES = [(0.0, 0.0), (-27.5, 16.0), (27.5, 16.0)]   # = skull_mount_holes in the scad
-BAR_PLATE = dict(half_w=27.5 + 0.14 + 4.0, half_h=11.6, boss_d=9.0, slot=3.0)
+BAR_PLATE = dict(half_w=27.5 + 0.14 + 4.0, half_h=10.4, corner_r=4.0, chamfer=4.0, boss_d=9.0, slot=3.0)
 MODULE_ROT = 90         # tip toward the nose (scad module_rot)
 FIT = 0.75              # general clearance round parts that drop in
 
 # --- split + joints -------------------------------------------------------------
-Y_SPLIT = 24.0          # face / back cut plane
-JOINTS = [  # (name, seam point hint (x, z), radial direction) ; bracket joints
-    ('temple_L', (-1, 28.0), (-1, 0, 0)),
-    ('temple_R', (1, 28.0), (1, 0, 0)),
-    ('base_L', (-17.0, -1), (0, 0, -1)),
-    ('base_R', (17.0, -1), (0, 0, -1)),
+Y_SPLIT = None          # face / back cut plane; None = 6 mm behind the eye-bar back face
+JOINTS = [  # (name, candidate z (temples) or x (base) to try in order, radial direction)
+    ('temple_L', (28.0, 20.0, 36.0, 12.0), (-1, 0, 0)),
+    ('temple_R', (28.0, 20.0, 36.0, 12.0), (1, 0, 0)),
+    ('base_L', (-17.0, -22.0, -12.0, -27.0, -8.0), (0, 0, -1)),
+    ('base_R', (17.0, 22.0, 12.0, 27.0, 8.0), (0, 0, -1)),
 ]
 JOINT_Y = 12.0          # radial screw this far behind the seam
 DOWELS = [(-22.0, 1), (22.0, 1)]   # (x, top) dowel bosses at the top of the seam
@@ -353,43 +365,112 @@ def column_to_bone(B, col, y0, y1, Yg):
     return col[:, None, :] & behind & (jj < first[:, None, :]) & (Yg <= y1[:, None, :])
 
 
-def make_plugs(G, B, scale):
-    """Closing plugs for the big openings (eyes, nose).
+def polar_outline(mask, G, c, n, step=0.1, rmax=40.0):
+    """Radius of the mask boundary from centre c=(x, z) along n directions."""
+    th = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    rs = np.arange(0.5, rmax, step)
+    r = np.zeros(n)
+    for i, t in enumerate(th):
+        xs = c[0] + rs * np.cos(t); zs = c[1] + rs * np.sin(t)
+        v = ndimage.map_coordinates(mask.astype(np.float32), [(xs - G.o[0]) / G.h, (zs - G.o[2]) / G.h], order=1)
+        out = np.where(v < 0.5)[0]
+        r[i] = rs[out[0]] if len(out) else rmax
+    return th, r
 
-    Each plug fills a column (x,z inside the opening seen from the front, grown a
-    little) from its closing surface S(x,z) back EYE/NASAL_PLUG_DEPTH mm, and never
-    in front of the visible face surface. Everything behind S becomes "inside",
-    so after shelling S is the front face of a SHELL_T thick wall.
-    Eye: S is coronal at EYE_PLATE_DEPTH round the screen and bends back to the
-    lateral orbital rim (the orbit opening faces forward-laterally).
-    """
+
+def circ_smooth(a, w):
+    k = np.ones(w) / w
+    return np.convolve(np.r_[a[-w:], a, a[:w]], k, mode='same')[w:-w]
+
+
+def rings_mesh(rings, cap_first=None, cap_last=None, cyclic=False):
+    """Closed surface through rings (list of (N,3)); fan caps to the given points."""
+    rings = [np.asarray(r, float) for r in rings]
+    N = len(rings[0]); V = np.vstack(rings); F = []
+    nr = len(rings)
+    pairs = [(i, i + 1) for i in range(nr - 1)] + ([(nr - 1, 0)] if cyclic else [])
+    for a, b in pairs:
+        for j in range(N):
+            j1 = (j + 1) % N
+            p, q, r_, s_ = a * N + j, a * N + j1, b * N + j, b * N + j1
+            F += [[p, r_, q], [q, r_, s_]]
+    V = list(V)
+    if cap_first is not None:
+        ci = len(V); V.append(cap_first)
+        F += [[ci, j, (j + 1) % N] for j in range(N)]
+    if cap_last is not None:
+        ci = len(V); V.append(cap_last); o = (nr - 1) * N
+        F += [[ci, o + (j + 1) % N, o + j] for j in range(N)]
+    t = trimesh.Trimesh(np.array(V), np.array(F), process=True)
+    trimesh.repair.fix_normals(t)
+    if t.volume < 0:
+        t.invert()
+    assert t.is_watertight, 'loft not watertight'
+    return to_man(t)
+
+
+def socket(c, th, r_rim, y_rim, r_bot, y_bot, W, K=SOCKET_K, flat_bottom=False):
+    """Smooth bowl lofted from the rim outline (r_rim, y_rim per angle th) to a
+    bottom outline (r_bot per angle) at depth y_bot. Profile per angle is a
+    quarter ellipse: straight back at the rim, curving in to a flat bottom.
+    Returns wall (thickness W behind the visible surface), air (inside the bowl,
+    extended forward), plug (bowl + wall, for the voxel stage) and paint (a
+    0.2 mm skin on the visible surface, renders only)."""
+    s_ = np.linspace(0, np.pi / 2, K)[:, None]
+    r = r_bot + (r_rim - r_bot) * np.cos(s_)
+    y = y_rim + (y_bot - y_rim) * np.sin(s_)
+    nr = (y_bot - y_rim) * np.cos(s_); ny = (r_rim - r_bot) * np.sin(s_)
+    L = np.hypot(nr, ny); nr /= L; ny /= L
+    ct, st = np.cos(th), np.sin(th)
+
+    def P(rr, yy):
+        return np.stack([c[0] + rr * ct, yy, c[1] + rr * st], axis=-1)
+    inner = P(r, y)
+    outer = P(r + W * nr, y + W * ny)
+    paint_in = P(r - 0.2 * nr, y - 0.2 * ny)
+    ctr = lambda yy: np.array([c[0], yy, c[1]])
+    if flat_bottom:
+        wall = rings_mesh([inner[k] for k in range(K)][::-1] + [outer[k] for k in range(K)],
+                          cap_first=ctr(y_bot), cap_last=ctr(y_bot + W))
+        paint = rings_mesh([paint_in[k] for k in range(K)][::-1] + [inner[k] for k in range(K)],
+                           cap_first=ctr(y_bot - 0.2), cap_last=ctr(y_bot))
+    else:
+        wall = rings_mesh([inner[k] for k in range(K)] + [outer[k] for k in range(K)][::-1], cyclic=True)
+        paint = rings_mesh([paint_in[k] for k in range(K)] + [inner[k] for k in range(K)][::-1], cyclic=True)
+    front = P(r_rim, y_rim - 12.0)
+    air = rings_mesh([front] + [inner[k] for k in range(K)], cap_first=ctr(float(np.mean(y_rim)) - 12.0),
+                     cap_last=ctr(y_bot))
+    plug = rings_mesh([outer[k] for k in range(K)], cap_first=ctr(float(np.mean(y_rim))), cap_last=ctr(y_bot + W))
+    return dict(wall=wall, air=air, plug=plug, paint=paint)
+
+
+def make_plugs(G, B, scale):
+    """Eye sockets and nose: smooth lofted bowls. Their solids go to the voxel
+    stage as plugs (the bowl region becomes inside) and their air as forced
+    outside; the exact meshes replace the voxel surfaces afterwards."""
     h = G.h
     Df = front_depth(B, G.o, h)                       # [ix, iz]
+    Dn = np.nan_to_num(Df, nan=1e3)
     orbs = measure_orbits(Df, G.o, h, seeds=((-EYE_SPACING / 2, 0.0), (EYE_SPACING / 2, 0.0)),
                           margin=ORBIT_RIM_MARGIN * scale)
-    Xg, Zg = np.meshgrid(G.x, G.z, indexing='ij')
-    Yg = G.y[None, :, None]
-    plugs, info = {}, {}
+    plugs, info, sockets = {}, {}, {}
+    y_bot = EYE_DEPTH - SCREEN_GAP - SOCKET_WALL
     for side, o, xc in (('eyeL', orbs[0], -EYE_SPACING / 2), ('eyeR', orbs[1], EYE_SPACING / 2)):
-        m = o['mask']
-        ii = np.where(m.any(1))[0]
-        x_lat = G.x[ii.min()] if xc < 0 else G.x[ii.max()]
-        r0 = BEZEL_D / 2 + 2.5
-        run = abs(x_lat - xc) - r0
-        tan = max(0.0, (o['lateral_crest_y'] - 1.0 - EYE_PLATE_DEPTH) / max(run, 1.0))
-        S = EYE_PLATE_DEPTH + tan * np.clip(np.sign(xc) * (Xg - xc) - r0, 0, None)
-        grow = ndimage.binary_dilation(m, iterations=int(round(EYE_PLUG_GROW / h)))
-        lat = np.sign(xc) * (Xg - x_lat) > 1.0         # do not grow past the lateral rim
-        col = grow & ~lat
-        y0 = np.where(m, S, np.maximum(S, np.nan_to_num(Df, nan=1e3)))   # ring: not in front of the face
-        plugs[side] = column_to_bone(B, col, y0, S + EYE_PLUG_DEPTH, Yg)
-        info[side] = dict(x=o['x'], z=o['z'], rim_y=o['rim_y'], lateral_crest_y=o['lateral_crest_y'],
-                          breadth=o['breadth'], height=o['height'], x_lat=float(x_lat), tilt_deg=float(np.degrees(np.arctan(tan))))
-        log('%s: measured centre x=%.2f z=%.2f (frame), opening %.1f x %.1f, rim y %.2f, lateral crest y %.2f, plate bends back %.0f deg'
-            % (side, o['x'], o['z'], o['breadth'], o['height'], o['rim_y'], o['lateral_crest_y'], info[side]['tilt_deg']))
+        c = (xc, 0.0)
+        th, rb = polar_outline(o['mask'], G, c, SOCKET_N)
+        rb = circ_smooth(rb, 5)
+        yr = ndimage.map_coordinates(np.clip(Dn, -60, 60), [(c[0] + (rb + 1.5) * np.cos(th) - G.o[0]) / h,
+                                                           (c[1] + (rb + 1.5) * np.sin(th) - G.o[2]) / h], order=1)
+        yr = np.minimum(circ_smooth(yr, 7), y_bot - 2.0)
+        rr = rb * (1 - ORBIT_SHRINK)
+        sk = socket(c, th, rr, yr, APERTURE_D / 2, y_bot, SOCKET_WALL)
+        sockets[side] = sk
+        plugs[side] = G.vox(sk['plug'])
+        info[side] = dict(x=o['x'], z=o['z'], rim_y=o['rim_y'], breadth=o['breadth'], height=o['height'],
+                          rim_y_range=[float(yr.min()), float(yr.max())])
+        log('%s: measured centre x=%.2f z=%.2f (frame), opening %.1f x %.1f, rim y %.1f..%.1f, bowl bottom y=%.1f'
+            % (side, o['x'], o['z'], o['breadth'], o['height'], yr.min(), yr.max(), y_bot))
     # nose
-    y0n = NASAL_RIM_Y + NASAL_RECESS
-    Dn = np.nan_to_num(Df, nan=1e3)
     lab, _ = ndimage.label(Dn > NASAL_RIM_Y + 4.0)
     nm = np.zeros_like(Dn, bool)
     for sx, sz in NASAL_SEEDS:
@@ -397,13 +478,31 @@ def make_plugs(G, B, scale):
         if l:
             nm |= lab == l
     assert nm.sum() * h * h < 1500, 'nasal opening leaks'
-    ring = ndimage.binary_dilation(nm, iterations=int(round(NASAL_PLUG_GROW / h))) & ~nm
-    y0 = np.where(nm, y0n, np.maximum(y0n, Dn))
-    nm |= ring
-    plugs['nasal'] = column_to_bone(B, nm, y0, np.full_like(y0, y0n + NASAL_PLUG_DEPTH), Yg)
+    nm = ndimage.binary_fill_holes(ndimage.binary_closing(nm, iterations=4))
+    ii, kk = np.where(nm)
+    c = (float(G.x[ii].mean()), float(G.z[kk].mean()))
+    th, rb = polar_outline(nm, G, c, SOCKET_N)
+    rb = circ_smooth(rb, 5)
+    yr = ndimage.map_coordinates(np.clip(Dn, -60, 60), [(c[0] + (rb + 1.5) * np.cos(th) - G.o[0]) / h,
+                                                       (c[1] + (rb + 1.5) * np.sin(th) - G.o[2]) / h], order=1)
+    y_win = NASAL_RIM_Y + NASAL_RECESS
+    yr = np.minimum(circ_smooth(yr, 7), y_win - 2.0)
+    sk = socket(c, th, rb, yr, rb * NASAL_BOTTOM, y_win, NASAL_T, flat_bottom=True)
+    sockets['nasal'] = sk
+    plugs['nasal'] = G.vox(sk['plug'])
+    info['nasal'] = dict(centre=list(c), window_y=y_win)
     for k, v in plugs.items():
         log('plug %-6s %6.2f cm3' % (k, v.sum() * h ** 3 / 1000))
-    return plugs, info, Df
+    return plugs, info, Df, sockets
+
+
+def closing_env(S, R, h):
+    """Morphological closing of S with a ball of radius R, on a grid padded so
+    the dilated solid never touches the border."""
+    p = int(np.ceil(R / h)) + 2
+    Sp = np.pad(S, p)
+    aout = outside(edt(Sp, h) <= R)
+    return (edt(aout, h) > R)[p:-p, p:-p, p:-p]
 
 
 def shell(G, B, plugs, extra_in=None, extra_out=None):
@@ -421,15 +520,18 @@ def shell(G, B, plugs, extra_in=None, extra_out=None):
             (BASE_CLOSE_R, (Y >= BASE_ROI['y_min']) & (Z <= BASE_ROI['z_max'])),
             (TEMPLE_CLOSE_R, (abs(X) >= t['abs_x_min']) & (Y >= t['y_min']) & (Y <= t['y_max'])
              & (Z >= t['z_min']) & (Z <= t['z_max']))]
+    f = FOSSA_ROI
+    fossa = (abs(X) >= f['abs_x_min']) & (Y >= f['y_min']) & (Y <= f['y_max']) & (Z >= f['z_min']) & (Z <= f['z_max'])
+    rois.append((FOSSA_CLOSE_R, fossa))
     env = S0.copy()
-    d0 = edt(S0, h)
+    S0f = S0 & ~((abs(X) > FOSSA_ROI['abs_x_min']) & (Z < FOSSA_IGNORE_BELOW))
     for R, roi in rois:
         log('closing r=%g' % R)
-        aout = outside(d0 <= R)
-        e = edt(aout, h) > R
+        e = closing_env(S0f if roi is fossa else S0, R, h)
         env |= e if roi is None else (e & roi)
     denv = edt(~env, h)
-    core = env & (denv >= WEB_RECESS) & (denv <= WEB_RECESS + WEB_T)
+    rec = np.where(fossa, FOSSA_RECESS, WEB_RECESS)
+    core = env & (denv >= rec) & (denv <= rec + WEB_T)
     small = ndimage.binary_closing(S0, iterations=int(round(SMALL_CLOSE_R / h)), border_value=0) | S0
     M = small | core
     if extra_in is not None:
@@ -437,6 +539,14 @@ def shell(G, B, plugs, extra_in=None, extra_out=None):
     log('outside air')
     A = outside(M)
     leak = A[G.idx(CAVITY_PROBE)]
+    if SMOOTH_SIGMA > 0:           # smooth the air/solid boundary (voxel stair-steps on webs)
+        As = ndimage.gaussian_filter(A.astype(np.float32), SMOOTH_SIGMA) > 0.5
+        As &= ndimage.binary_dilation(A, iterations=2)       # only nudge the boundary
+        As = As & outside(~As)
+        if As[G.idx(CAVITY_PROBE)]:
+            log('smoothing would open a thin wall; using the unsmoothed boundary')
+        else:
+            A = As
     if extra_out is not None:      # carved regions count as outside air; the shell wraps them
         A |= extra_out
         M &= ~extra_out
@@ -454,8 +564,8 @@ def shell_mesh(G, cr, sh):
     sd = sh['sd']
     t = SHELL_T
     log('mesh: band + inner layer')
-    band = mc_mesh(np.minimum(sd + 0.6, t + 0.25 - sd), G, 0.0, step=2, sigma=0.6)
-    inner = mc_mesh(np.minimum(sd - INNER_SKIN, t - sd), G, 0.0, step=2, sigma=0.6)
+    band = mc_mesh(np.minimum(sd + 0.6, t + 0.25 - sd), G, 0.0, step=2, sigma=MC_SIGMA)
+    inner = mc_mesh(np.minimum(sd - INNER_SKIN, t - sd), G, 0.0, step=2, sigma=MC_SIGMA)
     log('mesh: booleans (band %d tris, inner %d tris)' % (band.num_tri(), inner.num_tri()))
     outer = cr ^ band
     M = outer + inner
@@ -658,9 +768,14 @@ def place_modules(local):
 
 def bar_clearance_local():
     b = BAR_PLATE; c = 0.6
-    parts = [m_box([-b['half_w'] - c, -b['half_h'] - c, -0.5], [b['half_w'] + c, b['half_h'] + c, BAR_T])]
+    rc = b['corner_r']
+    cx, cy, ch = b['half_w'] - rc, b['half_h'] - rc, b['chamfer']
+    pts = [(sx * cx, cy) for sx in (-1, 1)] + [(sx * (cx - ch), -cy) for sx in (-1, 1)] + \
+        [(sx * cx, -cy + ch) for sx in (-1, 1)]
+    parts = [mf.Manifold.batch_hull([m_cyl([px, pz, -0.5], [px, pz, BAR_T], rc + c) for px, pz in pts])]
     for hx, hz in BAR_HOLES:
-        parts.append(m_cyl([hx, hz, -0.5], [hx, hz, BAR_T], b['boss_d'] / 2 + b['slot'] / 2 + c))
+        parts.append(mf.Manifold.batch_hull([m_cyl([hx, hz, -0.5], [hx, hz, BAR_T], b['boss_d'] / 2 + b['slot'] / 2 + c),
+                                             m_cyl([hx, 0, -0.5], [hx, 0, BAR_T], b['boss_d'] / 2 + c)]))
         parts.append(m_cyl([hx, hz, -3.6], [hx, hz, 0.01], 3.3))            # M3 head
         parts.append(m_cyl([hx, hz, -40.0], [hx, hz, -3.5], 3.6))           # driver access from behind
     return union(parts)
@@ -693,46 +808,74 @@ def joints(G, sd, inside, cavity):
     """Bracket joints: face boss (insert along -Y at the seam), separate bracket,
     back pad (radial screw from outside into the bracket insert)."""
     res = dict(face_add=[], face_cut=[], back_add=[], back_cut=[], brackets=[], info=[])
-    yj = Y_SPLIT + JOINT_Y
     PAD_IN = 3.0
-    for name, hint, d in JOINTS:
-        d = np.asarray(d, float)
+
+    def attempt(hint, d, jy):
+        yj = Y_SPLIT + jy
         if d[0] != 0:
-            start = np.array([0.0, yj, hint[1]])
+            start = np.array([0.0, yj, hint])
         else:
-            start = np.array([hint[0], yj, 0.0])
+            start = np.array([hint, yj, 0.0])
         p_in = inner_point(G, sd, start, d, SHELL_T)
         p_out = inner_point(G, sd, p_in, d, 0.0)
         er, ey, et = frame3(d)
-        q0 = p_in - er * (PAD_IN + 0.4)                     # bracket arm outer face
+        # the arm slides in from the cut: its outer face must clear the narrowest
+        # section between the cut and its final place; the pad makes up the rest
+        rr = []
+        for yy in np.arange(Y_SPLIT + 0.5, yj + 7.01, 1.0):
+            st2 = start.copy(); st2[1] = yy
+            rr.append(float(np.dot(inner_point(G, sd, st2, d, SHELL_T), er)))
+        r_face = min(min(rr), float(np.dot(p_in, er)) - PAD_IN) - 0.4
+        q0 = p_in + er * (r_face - float(np.dot(p_in, er)))     # bracket arm outer face
         o = np.array([q0[0], 0.0, q0[2]])                   # local origin (y absolute)
-        if d[0] == 0:
-            o = np.array([q0[0], 0.0, q0[2]])
-        # back part: pad + screw
-        res['back_add'].append(m_cyl(p_out + er * 1.0, p_in - er * PAD_IN, 6.5) ^ inside)
-        res['back_cut'] += [m_cyl(p_out + er * 12, p_out - er * 3.0, 3.25),
-                            m_cyl(p_out + er * 2, p_in - er * (PAD_IN + 1.0), 1.7)]
-        # bracket
+        qj = np.array([q0[0], yj, q0[2]])
         arm = obox(o, er, ey, et, (-8.0, 0.0), (Y_SPLIT + 0.3, yj + 7.0), (-6.0, 6.0))
         fl = obox(o, er, ey, et, (-20.0, 0.0), (Y_SPLIT + 0.3, Y_SPLIT + 6.3), (-6.0, 6.0))
-        qi = o + er * 0 + ey * yj
-        qi[1] = yj
-        hole_r = [m_cyl(np.array([q0[0], yj, q0[2]]) + er * 0.01, np.array([q0[0], yj, q0[2]]) - er * INSERT_L, INSERT_D / 2),
-                  m_cyl(np.array([q0[0], yj, q0[2]]), np.array([q0[0], yj, q0[2]]) - er * (INSERT_L + 3.5), 1.6)]
-        ys = np.array([q0[0], 0, q0[2]]) - er * 15.0
-        hole_y = m_cyl([ys[0], Y_SPLIT, ys[2]], [ys[0], Y_SPLIT + 8, ys[2]], 1.75)
-        br = (arm + fl) ^ cavity
+        ys = o - er * 15.0
+        br = (arm + fl) ^ (cavity + m_box([-300, -300, -300], [300, Y_SPLIT + 0.3, 300]))
         bb = np.array(br.bounding_box())
-        local = cavity ^ m_box(bb[:3] - [1, JOINT_Y + 10, 1], bb[3:] + 1)
-        for dd in np.arange(0.5, JOINT_Y + 8.01, 0.5):     # must slide in along Y without catching
+        local = (cavity ^ m_box(bb[:3] - [1, jy + 10, 1], bb[3:] + 1)) + \
+            m_box(bb[:3] - [1, jy + 30, 1], [bb[3] + 1, Y_SPLIT, bb[5] + 1])   # in front of the cut is free
+        for dd in np.arange(0.5, jy + 8.01, 0.5):         # must slide in along Y without catching
             br = br ^ local.translate([0, dd, 0])
-        res['brackets'].append((name, br - union(hole_r + [hole_y])))
-        # face boss with insert at the seam
-        boss = obox(o, er, ey, et, (-20.0, 12.0), (Y_SPLIT - 10.0, Y_SPLIT), (-7.0, 7.0)) ^ inside
+        # the insert and the Y screw need solid material round them
+        need = [m_cyl(qj, qj - er * (INSERT_L + 1.0), 3.9), m_cyl([ys[0], Y_SPLIT + 0.3, ys[2]], [ys[0], Y_SPLIT + 6.3, ys[2]], 3.4)]
+        ok = min(vol(br ^ n) / vol(n) for n in need)
+        return ok, dict(yj=yj, p_in=p_in, p_out=p_out, er=er, ey=ey, et=et, q0=q0, qj=qj, o=o, ys=ys, br=br)
+
+    for name, hints, d in JOINTS:
+        d = np.asarray(d, float)
+        best = None
+        for jy in (JOINT_Y, 9.0, 7.0):
+            for hint in hints:
+                try:
+                    ok, J = attempt(hint, d, jy)
+                except RuntimeError:
+                    continue
+                if best is None or ok > best[0]:
+                    best = (ok, J, hint, jy)
+                if ok > 0.97:
+                    break
+            if best and best[0] > 0.97:
+                break
+        ok, J, hint, jy = best
+        log('joint %s: hint %.1f, %.0f mm behind the cut, material round insert/screw %.0f %%' % (name, hint, jy, 100 * ok))
+        assert ok > 0.95, "no room for joint " + name
+        er, o, ys, qj, p_in, p_out = J['er'], J['o'], J['ys'], J['qj'], J['p_in'], J['p_out']
+        pad_face = J['q0'] + er * 0.4
+        D = float(np.dot(p_out - pad_face, er))             # outer surface to pad face
+        cb = max(3.0, D - 3.0)                              # leave 3 mm under the M3 head
+        res['back_add'].append(m_cyl(p_out + er * 1.0, pad_face, 6.5) ^ inside)
+        res['back_cut'] += [m_cyl(p_out + er * 12, p_out - er * cb, 3.25),
+                            m_cyl(p_out + er * 2, pad_face - er * 1.0, 1.7)]
+        hole_r = [m_cyl(qj + er * 0.01, qj - er * INSERT_L, INSERT_D / 2), m_cyl(qj, qj - er * (INSERT_L + 3.5), 1.6)]
+        hole_y = m_cyl([ys[0], Y_SPLIT, ys[2]], [ys[0], Y_SPLIT + 8, ys[2]], 1.75)
+        res['brackets'].append((name, J['br'] - union(hole_r + [hole_y])))
+        boss = obox(o, J['er'], J['ey'], J['et'], (-20.0, 12.0), (Y_SPLIT - 10.0, Y_SPLIT), (-7.0, 7.0)) ^ inside
         res['face_add'].append(boss)
         res['face_cut'] += [m_cyl([ys[0], Y_SPLIT + 0.01, ys[2]], [ys[0], Y_SPLIT - INSERT_L, ys[2]], INSERT_D / 2),
                             m_cyl([ys[0], Y_SPLIT, ys[2]], [ys[0], Y_SPLIT - INSERT_L - 3.5, ys[2]], 1.6)]
-        res['info'].append(dict(name=name, screw_point=p_out.round(1).tolist(), dir=d.tolist()))
+        res['info'].append(dict(name=name, screw_point=p_out.round(1).tolist(), dir=d.tolist(), behind_cut=jy))
     for x, _ in DOWELS:
         p_in = inner_point(G, sd, [x, Y_SPLIT, 40.0], [0, 0, 1.0], SHELL_T)
         cz = p_in[2] - 5.0
@@ -838,9 +981,11 @@ def build():
     G = Grid(b[:3] - [0, 0, 20], b[3:], VOX)
     log('grid', G.shape)
     Bv = G.vox(cr)
-    plugs, einfo, Df = make_plugs(G, Bv, info['scale'])
+    plugs, einfo, Df, sockets = make_plugs(G, Bv, info['scale'])
     info['eyes'] = einfo
     sweep_v = ndimage.binary_dilation(G.vox(sweep), iterations=int(round(JAW_SWEEP_CLEAR / G.h)))
+    for sk in sockets.values():                    # the bowls' air is outside by definition
+        sweep_v |= G.vox(sk['air'])
     # the shell is taken from the outside of the marked volume, so grow the cup by the wall
     cup_v = ndimage.binary_dilation(G.vox(mech['cup_env']), iterations=int(np.ceil((SHELL_T + 0.4) / G.h)))
     sh = shell(G, Bv, plugs, extra_in=cup_v, extra_out=sweep_v)
@@ -851,7 +996,7 @@ def build():
     cavity = mc_mesh(sd - (SHELL_T + 0.6), G, 0.0, step=2)      # free space inside the shell
 
     # ---- eyes
-    y_glass = EYE_PLATE_DEPTH + SHELL_T + SCREEN_GAP
+    y_glass = EYE_DEPTH
     y_back = y_glass + MODULE_T + STANDOFF_H + BAR_T
     y_front = y_back - BAR_T
     T = scad_to_skull(y_back)
@@ -861,14 +1006,33 @@ def build():
     posts = union([m_cyl([hx, y_front, hz], [hx, y_front - 45, hz], 4.5) for hx, hz in BAR_HOLES]) ^ inside
     post_holes = union([m_cyl([hx, y_front + 0.01, hz], [hx, y_front - INSERT_L, hz], INSERT_D / 2) for hx, hz in BAR_HOLES]
                        + [m_cyl([hx, y_front, hz], [hx, y_front - INSERT_L - 3.5, hz], 1.6) for hx, hz in BAR_HOLES])
-    apert = union([m_cyl([xe, EYE_PLATE_DEPTH - 10, 0], [xe, y_glass - 0.2, 0], BEZEL_D / 2)
+    socket_air = union([sk['air'] for sk in sockets.values()])
+    socket_wall = union([sk['wall'] for sk in sockets.values()])
+    apert = union([m_cyl([xe, y_glass - SCREEN_GAP - SOCKET_WALL - 1, 0], [xe, y_glass - 0.05, 0], APERTURE_D / 2)
                    for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
-    info.update(y_glass=y_glass, y_bar_back=y_back)
+    global Y_SPLIT
+    if Y_SPLIT is None:
+        Y_SPLIT = round(y_back + 6.0, 1)
+    info.update(y_glass=y_glass, y_bar_back=y_back, y_split=Y_SPLIT)
     log('eyes: glass %.2f mm behind the rim plane, bar back face at y=%.2f' % (y_glass, y_back))
 
     # ---- radar
-    y_wall_back = NASAL_RIM_Y + NASAL_RECESS + SHELL_T
+    y_wall_back = NASAL_RIM_Y + NASAL_RECESS + NASAL_T
     radar, radar_clear, radar_frame = radar_parts(y_wall_back)
+    # clearance cuts must stay inside the skull, or they would open holes in the surface
+    skin = mc_mesh(np.where(sh['env'] | (sd > 0), 1.0, -1.0).astype(np.float32), G, 0.0, step=2) + socket_air
+    pierce = dict(eyes=vol(eye_clear - skin), radar=vol(radar_clear - skin))
+    info['clearance_outside_skull_cm3'] = {k: round(v, 3) for k, v in pierce.items()}
+    log('clearance volume outside the skull surface (cm3):', info['clearance_outside_skull_cm3'])
+    # free half-width at mid bar depth, |z| < 3 (decides whether the modules must be rotated)
+    sl = skin.transform(np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0]], float)).slice(-(y_back - BAR_T / 2))
+    xs_ = [p_[:, 0] for p_ in map(np.asarray, sl.to_polygons()) if np.any(abs(p_[:, 1]) < 3)]
+    if xs_:
+        log('skull outer half-width at the bar (y=%.1f, |z|<3): %.1f mm' % (y_back - BAR_T / 2, min(abs(np.concatenate(xs_)).max(), 99)))
+    for nm_, M_ in (('eyes', eye_clear - skin), ('radar', radar_clear - skin)):
+        for q in M_.decompose():
+            if q.volume() > 0.5:
+                log('  %s clearance outside the skull: %.2f cm3 at %s' % (nm_, q.volume() / 1000, np.round(q.bounding_box(), 1)))
     radar_frame = (radar_frame ^ inside) - radar_clear
 
     # ---- joints
@@ -881,9 +1045,9 @@ def build():
     back = crm ^ m_box([-big, Y_SPLIT, -big], [big, big, big])
 
     # face part
-    face = face - eye_clear - radar_clear - apert
-    face = union([face, posts, radar_frame] + J['face_add']) ^ m_box([-big, -big, -big], [big, Y_SPLIT, big])
-    face = face - union([post_holes, apert, radar_clear] + J['face_cut'])
+    face = face - socket_air - eye_clear - radar_clear
+    face = union([face, socket_wall, posts, radar_frame] + J['face_add']) ^ m_box([-big, -big, -big], [big, Y_SPLIT, big])
+    face = face - union([post_holes, apert, radar_clear, socket_air] + J['face_cut'])
     face = face - eye_clear
     face = clean(face, 'face')
 
@@ -921,7 +1085,12 @@ def build():
         mf.Manifold.batch_hull([m_cyl(P(St['spline_top'] - 0.8, 0, 0), P(St['spline_top'] + 1.0, 0, 0), 3.2),
                                 m_cyl(P(St['spline_top'] - 0.8, -15, 0), P(St['spline_top'] + 1.0, -15, 0), 2.0)])
     hardware = dict(bar=bar, modules=modules, servo=mech['servo'], horn=horn_show, radar=radar, esp32=board)
-    return dict(parts=parts, hardware=hardware, info=info, hinge=hinge, mech=mech, jaw_moving=jaw_moving,
+    paint = union([sk['paint'] for sk in sockets.values()])
+    screens = union([m_cyl([xe, y_glass - 0.15, 0], [xe, y_glass + 0.05, 0], 9.0) for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
+    yb_ = y_glass - SCREEN_GAP - SOCKET_WALL
+    paint = union([paint] + [m_cyl([xe, yb_ - 0.05, 0], [xe, y_glass - 0.1, 0], APERTURE_D / 2 + 0.15) -
+                             m_cyl([xe, yb_ - 1, 0], [xe, y_glass, 0], APERTURE_D / 2 - 0.2) for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
+    return dict(parts=parts, hardware=hardware, display=dict(paint=paint, screens=screens), info=info, hinge=hinge, mech=mech, jaw_moving=jaw_moving,
                 G=G, sh=sh, inside=inside, crm=crm)
 
 
@@ -1014,7 +1183,7 @@ def export(R):
 SCAD = '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD'
 COLORS = dict(face='ivory', back='wheat', jaw='tan', servo_bracket='seagreen', tray='mediumpurple',
               stand='gray', bar='dimgray', modules='black', servo='royalblue', horn='crimson', radar='red',
-              esp32='teal')
+              esp32='teal', paint='#1a1a1a', screens='gold')
 
 
 def render(R):
@@ -1022,6 +1191,7 @@ def render(R):
     tmp = os.path.join(CACHE, 'render'); os.makedirs(tmp, exist_ok=True)
     items = dict(R['parts']); items.pop('dowel', None)
     items.update(R['hardware'])
+    items.update(R['display'])
     for k, m in items.items():
         to_tri(m).export(os.path.join(tmp, k + '.stl'))
     hinge = R['hinge']
@@ -1084,7 +1254,7 @@ def sections(R, items):
     from matplotlib.path import Path
     cols = dict(face='#f2e6c4', back='#d9b87c', jaw='#b88a4a', bar='#666666', modules='#111111',
                 servo='#3355cc', servo_bracket='#2e8b57', horn='#cc2233', radar='#ee2222', esp32='#119999',
-                tray='#9370db', stand='#999999')
+                tray='#9370db', stand='#999999', paint='#111111', screens='#e0b000')
     maps = dict(z=(np.eye(4)[:3], ('x', 'y'), 1), x=(np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0]], float), ('y', 'z'), 1),
                 y=(np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0]], float), ('x', 'z'), -1))
 

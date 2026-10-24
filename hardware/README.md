@@ -6,7 +6,7 @@ bolts it onto three posts on the inside of the face.
 
 `mount_style` picks the variant:
 
-- **`"skull"` (default, exported)**: a 5.65 mm plate, 67 × 33.6 mm. The
+- **`"skull"` (default, exported)**: a 5.65 mm plate, 67 × 32.4 mm, with the lower outer corners chamfered (tight spot in the skull). The
   modules are **turned 90°** so the pointed tip / FPC faces the nose
   (`module_rot = 90`). The skull is too narrow behind the orbits for the
   original layout, where the outer M2 screws sat at x = ±35.4. **Rotate the
@@ -28,7 +28,7 @@ were too tight, and the two M2 screws locate the module anyway.
 | `eye_mount.stl` | Export at default parameters |
 | `eye_mount_front.png`, `eye_mount_back.png`, `eye_mount_iso.png` | Previews |
 
-Overall size (skull style): **67 × 33.6 × 5.65 mm** (X × Y × Z).
+Overall size (skull style): **67 × 32.4 × 5.65 mm** (X × Y × Z).
 
 Re-export after changing a parameter:
 

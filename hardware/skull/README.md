@@ -9,11 +9,11 @@ reproducible.
 
 | Preview | |
 |---|---|
-| `skull_front.png`, `skull_side.png`, `skull_iso.png` | assembled, on the stand |
+| `skull_front.png`, `skull_iso.png`, `skull_side.png` | assembled, on the stand; sockets/nose drawn painted black, screens gold |
 | `skull_jaw_open.png` | jaw at the full 18° opening |
 | `skull_exploded.png` | parts pulled apart |
 | `skull_bottom.png` | underside (servo cup, pivot boss, neck boss, USB exit) |
-| `skull_section_orbits.png` | sections through the orbit centres and through one eye |
+| `skull_section_orbits.png` | sections through the orbit centres and through one eye (socket bowls, modules, bar) |
 | `skull_section_jaw.png` | sections through the servo/neck and along the hinge axis |
 
 ## Build
@@ -21,7 +21,7 @@ reproducible.
 ```sh
 cd hardware
 python3 -m venv .venv && .venv/bin/pip install -r skull/requirements.txt
-.venv/bin/python skull/build.py          # ~1 min; --no-render skips the PNGs
+.venv/bin/python skull/build.py          # ~2.5 min; --no-render skips the PNGs
 ```
 
 The script needs the source meshes, which are git-ignored because they are
@@ -51,28 +51,43 @@ union in `cache/`.
    inferior margins. The centre is the midpoint of the opening's breadth and
    height. The centres measure **59.0 mm** apart in the source, so the scale is
    **0.932×**. The origin is the midpoint between the orbits: Y = 0 is the
-   median rim depth, the face looks toward −Y, and +Z is up.
-3. **Clean shell.** The skull is voxelised at 0.5 mm.
-   - Closing walls go into the eyes and the nose. Gaps narrower than about
-     14 mm everywhere, 30 mm on the base and 44 mm round the zygomatic arches
-     get a web recessed 3.5 mm behind the bridged surface (the temples, round
-     the jaw hinge, the foramen magnum and the other base openings). The jaw's
-     swept volume is carved out.
+   median rim depth, the face looks toward −Y, and +Z is up (2 mm above the
+   orbit centres, `EYE_DZ`).
+3. **Eye sockets and nose.** Each is a smooth bowl lofted analytically in
+   manifold3d (not voxels). It starts at the measured rim outline, runs
+   straight back, then curves in (a quarter-ellipse profile per angle).
+   - Eyes: each bowl ends in a flat bezel with a Ø18.5 opening. The glass sits
+     **15 mm behind the rim plane**.
+   - Nose: the bowl ends in a flat 1.8 mm window 6 mm behind the piriform rim.
+     The radar looks through it.
+4. **Clean shell.** The skull is voxelised at 0.5 mm.
+   - The bowls seal the eyes and nose.
+   - Recessed webs (3.5 mm behind the bridged surface) close gaps narrower
+     than about 14 mm everywhere, 30 mm on the base and 44 mm round the
+     zygomatic arches. That covers round the jaw hinge, the foramen magnum and
+     the other base openings.
+   - The temporal fossae above the arches are filled flush (a closing of 30 mm
+     radius), giving full, smooth temples like a prop skull. This is also what
+     makes room behind the eyes.
+   - The jaw's swept volume is carved out.
    - The script then flood-fills the outside air and keeps a uniform
      **2.6 mm** shell under everything you can see. Internal anatomy
      (sphenoid, conchae, orbit walls, cranial base interior) disappears.
    - The build fails if the brain cavity can be reached from outside.
-   - The visible surface is Peter's original mesh; the inside is marching
-     cubes.
-4. **Parts and features**: split, posts, joints, servo, pivot, tray, neck. See
+   - The visible bone surface is Peter's original mesh. Web and inner surfaces
+     are marching cubes on a smoothed distance field. The bowls are then cut
+     in exactly, so their visible surfaces are smooth.
+5. **Parts and features**: split, posts, joints, servo, pivot, tray, neck. See
    below.
-5. **Checks.** Every STL is re-read after export: each must be watertight and
+6. **Checks.** Every STL is re-read after export: each must be watertight and
    a single body. No two placed parts may overlap by more than 0.005 cm³:
    the face, back, jaw, eye bar, eye modules, servo, servo bracket, ESP32 + pin
    headers, radar, tray, stand and joint brackets. The jaw is swept from the
    closed stop to the open stop in 1° steps against the face, back, servo,
    bracket and stand. The joint brackets are slid on along Y to check that the
-   back part can be fitted. The current build reports no collisions, a clear
+   back part can be fitted. Every clearance cut (modules, bar, cables, screw
+   access, radar) must stay inside the skull's closed envelope, so none of
+   them opens a hole in the surface. The current build reports no collisions, a clear
    sweep, and stops that engage 1.5° past each end.
 
 ## Size
@@ -84,50 +99,60 @@ with the jaw. The stand adds 78 mm.
 
 | STL (`out/`) | Size as printed (mm) | Volume | Print orientation | Supports | Time (rough) |
 |---|---|---|---|---|---|
-| `face.stl` | 109 × 151 × 52 | 83 cm³ | cut face on the bed, face up | tree: eye plates/nasal wall (they print as roofs), eye-bar post ends, brow | ~3.5 h |
-| `back.stl` | 134 × 147 × 132 | 192 cm³ | cut face on the bed, crown up | tree: neck boss, pivot boss, servo-flange bosses, base underside | ~8 h |
+| `face.stl` | 113 × 154 × 61 | 113 cm³ | cut face on the bed, face up | tree: socket bowls and nasal bowl (their backs face the bed), eye-bar post ends, brow | ~4.5 h |
+| `back.stl` | 134 × 145 × 123 | 183 cm³ | cut face on the bed, crown up | tree: neck boss, pivot boss, servo-flange bosses, base underside | ~7.5 h |
 | `jaw.stl` | 99 × 97 × 69 | 49 cm³ | upright, as in the skull | tree under the lower border and the two hinge pads | ~2 h |
 | `servo_bracket.stl` | 40 × 18 × 27 | 2.4 cm³ | mounting plate on the bed | none | 15 min |
 | `tray.stl` | 72 × 74 × 24 | 22 cm³ | plate on the bed, cradle up | none | 45 min |
 | `stand.stl` | Ø110 × 78 | 87 cm³ | base on the bed | none | ~2 h |
-| `joint_bracket_*.stl` ×4 | about 19 × 12 × 19 | 1.3–2.2 cm³ | as exported | small, under the arm | 10 min each |
+| `joint_bracket_*.stl` ×4 | about 20 × 16 × 12 / 12 × 19 × 20 | 2.1–2.4 cm³ | as exported | small, under the arm | 10 min each |
 | `dowel.stl` (print 2) | Ø4 × 13 | — | upright | none | 5 min |
 
 Times are estimates for a Bambu H2D with PLA at 0.2 mm (about 10 mm³/s
 average plus support overhead). Check them in Bambu Studio. Everything fits
-the H2D bed. The cranium back is the largest part at 134 × 147 × 132.
+the H2D bed. The cranium back is the largest part at 134 × 145 × 123.
 
 **Settings:** PLA (PETG if it will sit in sun or heat). 0.2 mm layers;
 0.16 mm on the face for the teeth if you like. 4 walls, 25 % gyroid. Tree
 supports (auto), threshold 30°, *on build plate only* (every support region
 inside the parts is open to the bed through the cut face). Brim on the jaw.
-The minimum designed wall is 1.6 mm. The shell is 2.6 mm, and the eye
-plates/bezels and nasal wall are about 1.9 mm after the inner skin.
+The minimum designed wall is 1.6 mm. The shell is 2.6 mm, the socket bowls
+2.0 mm and the nasal window 1.8 mm.
 
-**Paint:** the eye plates (round the screens) and the nasal wall black, like
-a prop skull. The radar sees through the nasal wall. Use paint without metal
-flakes there.
+**Paint:** the socket bowls and the nose bowl black, like a prop skull. The
+radar sees through the nasal window. Use paint without metal flakes there.
 
 ## Mechanism
 
 ### Eyes
-- The eye bar is `../eye_mount.scad` in `mount_style = "skull"`. Each module
-  is turned 90° so its tip points at the nose, because the skull narrows
-  quickly behind the orbits. **Rotate the picture 90° in firmware.**
-- **Glass face: 6.0 mm behind the orbit rim plane.** That is 0.6 mm behind
-  an eye plate whose Ø19.2 bezel frames the 18 mm active circle.
-- Behind the plate, the orbit walls and the inner cavity are cleared for the
-  modules (0.75 mm all round), the bar, the M2 heads, the connectors and their
-  cables (a 16 mm channel behind each window), and screwdriver access to the
-  bar bolts.
-- The bar back face is at Y = 17.85 and the face/back cut at Y = 24. With the
-  back off, all three bar bolts face you.
+- **Glass face: 15.0 mm behind the orbit rim plane** (`EYE_DEPTH`).
+  - Each socket is a smooth black bowl from the rim outline down to a flat
+    2 mm bezel with a Ø18.5 opening (the active circle is 18 mm). The glass
+    sits 0.6 mm behind it.
+  - I tried 12–18 mm. At 16 mm and deeper the module or bar clearance breaks
+    through the skull wall just behind the lower outer orbit, so 15 is the
+    deepest clean value.
+  - The eyes sit 2 mm above the measured orbit centres (`EYE_DZ`) for the
+    same reason. That also helps the look.
+- **The eye bar is `../eye_mount.scad` (`mount_style = "skull"`).** Each
+  module is turned 90° so its tip points at the nose.
+  - Even with the filled temples, the outer M2 screws of the unrotated layout
+    (x = ±35.4) would break through the temple wall at the bar's depth
+    (y = 21–27). **The firmware has to rotate the picture 90°.**
+  - The bar plate is now ±10.4 mm tall with its lower outer corners chamfered
+    by 4 mm. That corner of the skull is the tightest spot.
+- Behind the bowls, everything is cleared with 0.75 mm round it: the
+  modules, the bar, the M2 heads, the connectors and their cables (a 16 mm
+  channel behind each window), and screwdriver access to the bar bolts.
+- The bar back face is at Y = 26.85. The face/back cut is placed 6 mm
+  behind it (Y = 32.9, `Y_SPLIT = None` means automatic). With the back off,
+  all three bar bolts face you.
 - Three posts on the inside of the face carry M3 inserts at (0, 0) and
-  (±27.5, +16). The bar's slots are Ø3.6 with 3 mm vertical travel, so you can
-  centre the screens in the bezels.
+  (±27.5, +16). The bar's slots are Ø3.6 with 3 mm vertical travel, so you
+  can centre the screens in the bezels.
 
 ### Jaw: direct drive
-- The hinge axis is the condyle axis (Y = 65.1, Z = −27.4), parallel to X.
+- The hinge axis is the condyle axis (Y = 65.1, Z = −29.4 in the eye frame), parallel to X.
 - An MG90S sits in a closed cup in the cranium floor on the +X side, its
   output shaft on the hinge axis. The cup is part of the shell, so nothing
   inside is visible.
@@ -155,15 +180,19 @@ flakes there.
   There are no linkages to set up.
 
 ### Face/back joint
-- The cut is a coronal plane at Y = 24, about 6 mm behind the eye bar.
-- There are 4 **bracket joints**: two at the temples (screws from the side)
-  and two in the base (screws from below).
+- The cut is a coronal plane at Y = 32.9, 6 mm behind the eye bar.
+- There are 4 **bracket joints**: two at the temples (screws from the side,
+  9 mm behind the cut) and two in the base at x = ±27 (screws from below,
+  12 mm behind the cut).
+  - The script picks each position from a short list. A position is accepted
+    when the bracket, trimmed so the back slides on without catching, still
+    has solid material round its insert and its screw.
   - Each bracket is a separate L-part. It bolts to an insert boss on the face
     with an M3×12 along Y (head toward the back, so you reach it while the back
     is off).
   - The back then slides on, and an M3×12 goes from outside through a
-    counterbored pad in the back shell into an insert in the bracket.
-  - The brackets are trimmed so the back slides on without catching (checked).
+    counterbored pad in the back shell into an insert in the bracket. The
+    counterbore leaves 3 mm under the head.
   - Every part prints with its cut face on the bed, which is why nothing
     sticks out of the cut.
 - **2 dowels** (printed, Ø4 in Ø5 holes) at the top of the seam help line it
@@ -180,8 +209,8 @@ flakes there.
 - **USB exit:** a Ø13 hole in the floor at Y = 112, behind the neck boss, big
   enough for a micro-USB plug.
 - **HLK-LD2410C** (35 × 7 mm, no holes) lies horizontal and faces forward
-  behind the **1.9 mm nasal wall**. The wall is recessed 5 mm behind the
-  piriform rim and sits between the radar and the room.
+  behind the **1.8 mm nasal window**: the flat bottom of the nose bowl, 6 mm
+  behind the piriform rim.
   - It sits in a frame pocket (0.6 mm clearance), open at the back for the
     header and cable.
   - Fix it with a dab of hot glue or tape. Antenna side to the wall.
@@ -226,15 +255,15 @@ flakes there.
      (2× M3×8).
    - Bolt the tray with the ESP32 to the rear posts (3× M3×8) and route the
      USB cable out of the floor hole.
-4. **Jaw:**
+4. **Join** (before the jaw, so the base screws are easy to reach):
+   - Put the dowels in.
+   - Slide the back onto the face brackets and fit the 4 M3×12 from outside
+     (two at the temples, two underneath).
+5. **Jaw:**
    - Centre the servo at the closed angle and push the horn on, pointing down
      the ramus.
    - Offer up the jaw, screw the horn to the jaw pad, then put the M3×20 pivot
      bolt (with a washer) through the other condyle into the pivot boss.
-5. **Join:**
-   - Put the dowels in.
-   - Slide the back onto the face brackets and fit the 4 M3×12 from outside
-     (two at the temples, two underneath).
 6. Bolt the skull onto the stand (M5×16 from inside the column).
 
 ## Parameters you are likely to touch (top of `build.py`)
@@ -242,16 +271,19 @@ flakes there.
 | Parameter | Default | Effect |
 |---|---|---|
 | `EYE_SPACING` | 55.0 | screen spacing, and so the overall scale |
-| `EYE_PLATE_DEPTH`, `SCREEN_GAP` | 2.8, 0.6 | eye plate depth behind the rim; glass = plate + 2.6 + gap |
-| `BEZEL_D` | 19.2 | bezel opening |
-| `EYE_DZ` | 0 | move the eyes up/down in the orbits |
+| `EYE_DEPTH` | 15 | glass depth behind the rim plane (the bowl depth) |
+| `SOCKET_WALL`, `SCREEN_GAP`, `APERTURE_D` | 2.0, 0.6, 18.5 | bowl wall, bezel to glass gap, bezel opening |
+| `ORBIT_SHRINK` | 0 | pull the socket rim outline in (fraction) |
+| `EYE_DZ` | 2 | eyes this far above the measured orbit centres |
 | `STANDOFF_H`, `MODULE_T` | 3.0, 3.2 | **measure your modules**; they set the bar depth |
 | `SHELL_T` | 2.6 | wall thickness |
 | `WEB_CLOSE_R`, `BASE_CLOSE_R`, `TEMPLE_CLOSE_R`, `WEB_RECESS` | 7, 15, 22, 3.5 | how big a gap gets webbed, and how deep the web sits |
-| `NASAL_RECESS`, `NASAL_T` | 5, 1.8 | nasal wall / radar window |
+| `FOSSA_CLOSE_R`, `FOSSA_RECESS` | 30, 0 | temple fill (flush) |
+| `SMOOTH_SIGMA`, `MC_SIGMA` | 1.5, 1.2 | smoothing of web and inner surfaces |
+| `NASAL_RECESS`, `NASAL_T`, `NASAL_BOTTOM` | 6, 1.8, 0.72 | nose bowl depth, window thickness, window size |
 | `JAW_OPEN_DEG`, `JAW_STOP_MARGIN`, `JAW_CLOSE_STOP`, `TEETH_GAP` | 18, 2, −0.5, 0.8 | jaw range and stops |
 | `SERVO`, `SERVO_SIDE`, `HORN_FACE_X` | MG90S | servo dimensions and side |
-| `Y_SPLIT`, `JOINTS`, `DOWELS` | 24 | cut plane and joint positions |
+| `Y_SPLIT`, `JOINTS`, `DOWELS` | auto (32.9) | cut plane and candidate joint positions |
 | `RADAR`, `ESP32`, `TRAY`, `TRAY_POSTS`, `USB_EXIT` | | electronics |
 | `NECK`, `STAND` | M5 | neck insert and stand size |
 | `FIT` | 0.75 | clearance round dropped-in parts |
@@ -261,22 +293,22 @@ flakes there.
 - **Scale is 0.932×, not ~0.89×.** Measured at the rim crest as described
   above, the source orbit centres are 59 mm apart, not 62. The skull is
   therefore close to life size (134 × 184 × 162 mm).
-- **The modules are rotated 90° and need a firmware rotation.** Behind the
-  orbits the skull narrows to about ±31 mm at the bar depth. With the original
-  layout, the outer M2 screws (x = ±35.4) would go through the temple wall.
-- **The eye plates are flat bezels**, coronal round the screen and bent back
-  toward the lateral rim. The sockets are therefore only about 3 mm deep before
-  the plate. Paint them black.
-- **The arches are webbed, not free.** The temple and infratemporal gaps are
-  closed by a recessed web, so the zygomatic arches read in relief rather than
-  as free bars.
+- **Eye depth is 15 mm, not deeper.** The skull narrows behind the orbits,
+  and at 16 mm and deeper the eye hardware would break through the wall
+  behind the lower outer orbit.
+- **The modules are still rotated 90° and need a firmware rotation.**
+  Unrotated, the outer M2 screws would come through the temple wall.
+- **The temples are filled flush and the arches are webbed**, so the
+  zygomatic arches read in relief rather than as free bars. This is closer to
+  a prop skull than to real anatomy.
 - **The servo cup and the jaw-pivot boss show from below.** They hang 10–15 mm
   under the skull base between the jaw rami. The tip of the servo horn shows
   just behind the ramus.
+- **Some surfaces show faint faceting.** The underside webs and parts of the
+  temple fill are marching cubes, smoothed, at 1 mm. The bowls are exact.
 - The jaw is a pure hinge about the condyle axis; a real jaw also slides
   forward.
 - **The module stack is estimated.** `STANDOFF_H` and `MODULE_T` are
   estimates from photos. If your modules differ, change them and rebuild.
-- The inner surfaces are marching cubes at 1 mm. They are hidden, but faceted.
 - A few pinch edges (where two surfaces touch at a line) are filled with
   1 mm blobs so every STL is strictly watertight.

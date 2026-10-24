@@ -78,9 +78,10 @@ slot_len         = 6.0;    // travel (centre-to-centre of slot ends)
 slot_w           = 3.2;    // + hole_comp
 
 /* [Skull plate (mount_style = "skull")] */
-skull_plate_half_h = 11.6; // plate half height round the eyes
+skull_plate_half_h = 10.4; // plate half height round the eyes (M2 heads at +-7.9)
 skull_plate_lat    = 4.0;  // plate edge outside the standoff line
 skull_plate_r      = 4.0;  // corner radius
+skull_plate_chamfer = 4.0; // extra chamfer on the lower outer corners
 // M3 mounting slots: bolt from the back face into inserts on the skull posts
 skull_mount_holes  = [[0, 0], [-27.5, 16], [27.5, 16]];
 skull_mount_boss_d = 9.0;
@@ -138,8 +139,13 @@ module outline2d() {
     if (mount_style == "skull") {
         xo = eye_spacing/2 + abs(hole_dy) + skull_plate_lat;
         union() {
-            offset(r = skull_plate_r) offset(delta = -skull_plate_r)
-                square([2*xo, 2*skull_plate_half_h], center = true);
+            // rounded rectangle with the two lower outer corners chamfered (the skull is tight there)
+            hull() for (sx = [-1, 1]) {
+                cx = xo - skull_plate_r; cy = skull_plate_half_h - skull_plate_r;
+                translate([sx*cx, cy]) circle(r = skull_plate_r);
+                translate([sx*(cx - skull_plate_chamfer), -cy]) circle(r = skull_plate_r);
+                translate([sx*cx, -cy + skull_plate_chamfer]) circle(r = skull_plate_r);
+            }
             for (p = skull_mount_holes) hull() {
                 translate(p) circle(d = skull_mount_boss_d + skull_slot_len);
                 translate([p[0], 0]) circle(d = skull_mount_boss_d);
