@@ -122,10 +122,11 @@ BAR_T = 5.65            # bar thickness = M2x8 screw stack
 STANDOFF_H = 3.0        # module standoff height (estimate, see hardware/README.md)
 MODULE_T = 3.2          # PCB back to glass front (estimate)
 BAR_HOLES = [(-27.5, 16.0), (27.5, 16.0)]   # = skull_mount_holes in the scad
+BAR_BOLTS = [0]         # which holes get a bolt + insert post; the others get a printed key peg (Ø3 in the 3.6 slot)
 BAR_PLATE = dict(half_w=27.5 + 0.14 + 4.0, half_h=10.4, corner_r=4.0, chamfer=4.0, boss_d=9.0, slot=3.0)
 MODULE_ROT = 90         # tip toward the nose (scad module_rot)
 FIT = 0.75              # general clearance round parts that drop in
-EYE_BAR_BACKOFF = 9.0   # the bar + LCDs come off the posts this far back, then lift out of the open top
+EYE_BAR_BACKOFF = 12.0  # the bar + LCDs come straight back off the posts this far, then lift out
 TOOL_D = 8.0            # tool-access check: driver shaft + hand
 TOOL_TIP_D = 5.5        # ... the first few mm (bit in a counterbore)
 TOOL_TIP_L = 8.0        # ... over the first this many mm past the counterbore
@@ -137,16 +138,16 @@ TOOL_LEN = 100.0
 # chassis (face, orbits, cranial base, hinge, servo, ESP32, neck); above it is
 # the cap, a cover with no load that lifts off along the plane normal and opens
 # the whole top for hands and tools.
-SEAM = dict(y0=-5.0, z0=32.0, slope=0.13)
-JOINT_H = 12.0          # radial cover screws this far above the seam
-JOINTS = [  # (name, candidate y positions along the seam to try in order, radial direction)
-    ('front_L', (35.0, 25.0, 45.0, 15.0), (-1, 0, 0)),
-    ('front_R', (35.0, 25.0, 45.0, 15.0), (1, 0, 0)),
-    ('rear_L', (110.0, 100.0, 120.0, 90.0), (-1, 0, 0)),
-    ('rear_R', (110.0, 100.0, 120.0, 90.0), (1, 0, 0)),
-]
-JOINT_Y = 12.0          # radial screw this far behind the seam
-DOWELS = [(0.0, -1), (0.0, 1)]    # (x, -1 front / +1 back of the seam ring): pins along the seam normal
+SEAM = dict(y0=-5.0, z0=32.0, slope=0.04)
+# Back cover: everything below the cap, behind Y_BACK and above Z_FLOOR. It
+# lifts off upward (after the cap) and opens the space right behind the eye bar.
+Y_BACK = 32.0           # front/back cut, just behind the eye bar and its screw heads
+Z_FLOOR = -14.0          # the chassis keeps the cranial floor below this behind Y_BACK
+JOINT_H = 12.0          # radial cover screws this far above their seam
+JOINTS = []             # no separate brackets: covers hook / sit on lips and take one screw each
+LIP = dict(h=5.0, t=2.0, gap=0.5, chamfer=1.5)   # chassis lip inside the back cover's lower edge
+CAP_HOOK = dict(w=20.0, slide=6.0, gap=0.5)      # cap hooks under a forehead ledge after a 6 mm slide forward
+DOWELS = []
 DOWEL_D = 4.0
 DOWEL_HOLE_D = 5.0      # loose
 INSERT_D = 4.1          # M3 heat-set insert hole
@@ -156,13 +157,16 @@ INSERT_L = 5.7
 RADAR = dict(L=35.0, W=7.0, T=1.2, comp=3.0, z=-27.5)    # HLK-LD2410C 35 x 7 mm
 # ESP32 tray: horizontal plate on three insert posts over the foramen magnum,
 # between the servo and the cut; board lies flat, pins down, USB end at +X
-TRAY = dict(x0=-43.0, x1=43.0, y0=77.5, y1=105.0, z_top=-6.0, t=3.0)
-TRAY_POSTS = [(-37.5, 82.0), (37.5, 82.0), (-37.5, 100.0), (37.5, 100.0)]   # (x, y), outside the board: screws from above
+TRAY = dict(x0=-43.0, x1=43.0, y0=77.5, y1=105.0, z_top=-7.0, t=3.0)
+TRAY_POSTS = [(-37.5, 82.0), (37.5, 82.0), (37.5, 100.0)]   # (x, y): two front hook posts + one screw post
+TRAY_HOOKS = 2          # the first posts are hooks (stem + cap over an open slot); the tray slides forward under them
 ESP32 = dict(L=55.0, W=28.0, T=1.6, standoff=16.0)       # ESP32-DevKitC V4 (no mounting holes)
-USB_NOTCH = dict(x=0.0, w=9.0, depth=14.0)    # open notch in the cap's lower edge at the back of the head
-TIE_BAR = dict(y=128.0, w=12.0, t=4.0, h=10.0, tunnel_w=7.0, tunnel_h=5.0)  # zip-tie arch on the floor near the back
-NECK = dict(y=90.0, r=14.0, z_bottom=-42.0, insert_d=6.4, insert_l=10.0)   # M5 heat-set insert
-STAND = dict(base_d=110.0, base_t=6.0, col_d=28.0, col_id=16.0, h=78.0, top_t=6.0)
+TIE_BAR = dict(y=114.0, w=12.0, t=4.0, h=10.0, tunnel_w=7.0, tunnel_h=5.0)  # zip-tie arch on the floor behind the neck
+# USB cable leaves through the neck: hollow neck boss (Ø14 bore, passes a USB-A
+# plug), into the stand column, which has an open slot down its full length and
+# across the base, so the cable drops in sideways.
+NECK = dict(y=90.0, r=15.0, z_bottom=-58.0, bore=14.0, screw_z=6.0)   # stand screw: M3 along +Y into an insert
+STAND = dict(base_d=110.0, base_t=6.0, col_d=38.0, bore=18.0, h=78.0, socket=10.0, slot=8.0, fit=0.4)
 
 # =============================================================== utilities
 CACHE = os.path.join(HERE, 'cache'); os.makedirs(CACHE, exist_ok=True)
@@ -750,7 +754,7 @@ def mechanism(hinge):
     xs0 = o * (PIVOT_FACE_X - 0.5)
     out['skull_pivot'] = union([m_cyl([xs0, *hinge], [o * 22.0, *hinge], 15.0),
                                 m_box([min(xs0, o * 22.0), hinge[0] - 9, hinge[1]],
-                                      [max(xs0, o * 22.0), hinge[0] + 9, hinge[1] + 22])])
+                                      [max(xs0, o * 22.0), hinge[0] + 9, hinge[1] + 15])])
     out['skull_pivot_holes'] = union([m_cyl([xs0 + o * 0.01, *hinge], [xs0 - o * 5.7, *hinge], 2.05),
                                       m_cyl([xs0, *hinge], [xs0 - o * 9.5, *hinge], 1.75)])
     # hard-stop finger on the jaw pivot pad, running in a slot in the skull boss
@@ -845,9 +849,27 @@ def seam_z(y):
     return SEAM['z0'] - SEAM['slope'] * (y - SEAM['y0'])
 
 
-def halfspace(upper, offset=0.0):
-    """Big solid on one side of the seam plane (shifted by offset along n)."""
-    n, p0 = seam()
+def plane(name):
+    if name == 'cap':
+        return seam()
+    return np.array([0.0, 0.0, 1.0]), np.array([0.0, 0.0, Z_FLOOR])
+
+
+def region(name):
+    """Solid regions of the three parts."""
+    big = 500.0
+    below = halfspace(False)
+    behind = m_box([-big, Y_BACK, Z_FLOOR], [big, big, big])
+    if name == 'cap':
+        return halfspace(True)
+    if name == 'back':
+        return below ^ behind
+    return below - behind
+
+
+def halfspace(upper, offset=0.0, pl=None):
+    """Big solid on one side of a seam plane (shifted by offset along n)."""
+    n, p0 = seam() if pl is None else pl
     B = mf.Manifold.cube([1000.0, 1000.0, 500.0]).translate([-500.0, -500.0, 0.0 if upper else -500.0])
     a = -np.arctan2(n[1], n[2])                     # rotate +Z onto n about X
     c, s_ = np.cos(a), np.sin(a)
@@ -864,17 +886,19 @@ def obox_n(o, er, en, et, r, h, t):
 
 
 def joints(G, sd, inside, cavity, corridor):
-    """Bracket joints across the seam. Each bracket bolts onto a chassis boss
-    just below the seam (screw along the seam normal, driven from above with the
-    cap off) and reaches up into the cap, where a radial M3 from outside goes
-    through a counterbored pad in the cap into an insert in the bracket."""
-    n, p0 = seam()
-    res = dict(face_add=[], face_cut=[], back_add=[], back_cut=[], brackets=[], info=[], fasteners=[])
+    """Bracket joints across the seams. Each bracket bolts onto a boss on the
+    lower part just below its seam (screw along the seam normal, driven from
+    above while the upper part is off) and reaches up into the upper part,
+    where a radial M3 from outside goes through a counterbored pad into an
+    insert in the bracket."""
+    res = dict(add=dict(face=[], back=[], cap=[]), cut=dict(face=[], back=[], cap=[]), brackets=[], info=[], fasteners=[])
     PAD_IN = 3.0
-    below = halfspace(False, 0.3)
 
-    def attempt(yc, d, jh, sg):
-        qs = np.array([0.0, yc, seam_z(yc)])
+    def attempt(seam_name, yc, d, jh, sg):
+        n, p0 = plane(seam_name)
+        below = halfspace(False, 0.3, (n, p0))
+        zs = seam_z(yc) if seam_name == 'cap' else Z_FLOOR
+        qs = np.array([0.0, yc, zs])
         qj = qs + n * jh
         p_in = inner_point(G, sd, qj, d, SHELL_T)
         p_out = inner_point(G, sd, p_in, d, 0.0)
@@ -884,32 +908,31 @@ def joints(G, sd, inside, cavity, corridor):
             rr.append(float(np.dot(inner_point(G, sd, qs + n * hh, d, SHELL_T), er)))
         r_face = min(min(rr), float(np.dot(p_in, er)) - PAD_IN) - 0.4
         q0 = p_in + er * (r_face - float(np.dot(p_in, er)))
-        o = q0 - n * float(np.dot(q0 - p0, n))          # on the seam plane
-        qi = o + n * jh                                  # radial insert axis point
+        o = q0 - n * float(np.dot(q0 - p0, n))
+        qi = o + n * jh
         arm = obox_n(o, er, en, et, (-8.0, 0.0), (0.3, jh + 7.0), (-6.0, 6.0))
         fl = obox_n(o, er, en, et, (-8.0, 0.0), (0.3, 6.3), tuple(sorted((-6.0 * sg, 18.0 * sg))))
-        ns = o - er * 4.0 + et * 12.0 * sg               # flange screw axis point (on the seam)
+        ns = o - er * 4.0 + et * 12.0 * sg
         br = (arm + fl) ^ (cavity + below)
         bb = np.array(br.bounding_box())
         local = (cavity ^ m_box(bb[:3] - 40, bb[3:] + 40)) + below
-        for dd in np.arange(0.5, jh + 10.01, 0.5):      # the cap comes down along -n onto it
+        for dd in np.arange(0.5, jh + 10.01, 0.5):      # the upper part comes down along -n onto it
             br = br ^ local.translate(list(n * dd))
         need = [m_cyl(qi, qi - er * (INSERT_L + 1.0), 3.9), m_cyl(ns + n * 0.3, ns + n * 6.3, 3.4)]
         ok = min(vol(br ^ q) / vol(q) for q in need)
         boss = (m_cyl(ns - n * 10.0, ns, 5.5) +
                 obox_n(o, er, en, et, (-4.0, 12.0), (-10.0, 0.0), (12.0 * sg - 5.5, 12.0 * sg + 5.5))) ^ inside
-        cv = vol(boss ^ corridor)
-        if cv > 0.005:
+        if vol(boss ^ corridor) > 0.005:
             ok = 0.0
-        return ok, dict(boss=boss, br=br, er=er, o=o, qi=qi, ns=ns, p_in=p_in, p_out=p_out, qj=qj)
+        return ok, dict(boss=boss, br=br, er=er, n=n, o=o, qi=qi, ns=ns, p_in=p_in, p_out=p_out)
 
-    for name, hints, d in JOINTS:
+    for name, seam_name, lower, upper, hints, d in JOINTS:
         d = np.asarray(d, float)
         best = None
         for yc in hints:
             for sg in (1, -1):
                 try:
-                    ok, J = attempt(yc, d, JOINT_H, sg)
+                    ok, J = attempt(seam_name, yc, d, JOINT_H, sg)
                 except RuntimeError:
                     continue
                 if best is None or ok > best[0]:
@@ -919,24 +942,27 @@ def joints(G, sd, inside, cavity, corridor):
             if best and best[0] > 0.97:
                 break
         ok, J, yc = best
-        log('joint %s: y=%.0f, material round insert/screw %.0f %%' % (name, yc, 100 * ok))
+        log('joint %s (%s seam, %s -> %s): y=%.0f, material round insert/screw %.0f %%' % (name, seam_name, lower, upper, yc, 100 * ok))
         assert ok > 0.95, 'no room for joint ' + name
-        er, qi, ns, p_in, p_out = J['er'], J['qi'], J['ns'], J['p_in'], J['p_out']
+        er, n, qi, ns, p_in, p_out = J['er'], J['n'], J['qi'], J['ns'], J['p_in'], J['p_out']
         pad_face = qi + er * 0.4
         D = float(np.dot(p_out - pad_face, er))
         cb = max(3.0, D - 3.0)
-        res['back_add'].append(m_cyl(p_out + er * 1.0, pad_face, 6.5) ^ inside)
-        res['back_cut'] += [m_cyl(p_out + er * 12, p_out - er * cb, 3.25),
-                            m_cyl(p_out + er * 2, pad_face - er * 1.0, 1.7)]
+        res['add'][upper].append(m_cyl(p_out + er * 1.0, pad_face, 6.5) ^ inside)
+        res['cut'][upper] += [m_cyl(p_out + er * 12, p_out - er * cb, 3.25), m_cyl(p_out + er * 2, pad_face - er * 1.0, 1.7)]
         hole_r = [m_cyl(qi + er * 0.01, qi - er * INSERT_L, INSERT_D / 2), m_cyl(qi, qi - er * (INSERT_L + 3.5), 1.6)]
         hole_n = m_cyl(ns - n * 1.0, ns + n * 8.0, 1.75)
         res['brackets'].append((name, J['br'] - union(hole_r + [hole_n])))
-        res['face_add'].append(J['boss'])
-        res['face_cut'] += [m_cyl(ns + n * 0.01, ns - n * INSERT_L, INSERT_D / 2), m_cyl(ns, ns - n * (INSERT_L + 3.5), 1.6)]
-        res['fasteners'] += [dict(name='bracket %s to chassis (M3x12)' % name, head=ns + n * 6.3, axis=n, stage='brackets', cb=0.0),
-                             dict(name='cap to bracket %s (M3x12)' % name, head=p_out - er * cb, axis=er, stage='cover', cb=cb)]
-        res['info'].append(dict(name=name, y=yc, screw_point=np.round(p_out, 1).tolist(), dir=d.tolist()))
-    # dowels along the seam normal, at the front and back of the seam ring
+        res['add'][lower].append(J['boss'])
+        res['cut'][lower] += [m_cyl(ns + n * 0.01, ns - n * INSERT_L, INSERT_D / 2), m_cyl(ns, ns - n * (INSERT_L + 3.5), 1.6)]
+        st_b = 'brackets_floor' if seam_name == 'floor' else 'brackets_cap'
+        st_c = 'back' if upper == 'back' else 'cap'
+        res['fasteners'] += [dict(name='bracket %s to %s (M3x12)' % (name, lower), head=ns + n * 6.3, axis=n, stage=st_b, cb=0.0, opening='top'),
+                             dict(name='%s to bracket %s (M3x12)' % (upper, name), head=p_out - er * cb, axis=er, stage=st_c, cb=cb,
+                                  opening='outside')]
+        res['info'].append(dict(name=name, seam=seam_name, y=yc, screw_point=np.round(p_out, 1).tolist(), dir=d.tolist()))
+    # dowels along the cap seam normal, front (chassis) and back (back cover)
+    n, p0 = seam()
     for x, side in DOWELS:
         yc = 50.0
         qs = np.array([x, yc, seam_z(yc)]) - n * 3.0
@@ -944,16 +970,80 @@ def joints(G, sd, inside, cavity, corridor):
         q = inner_point(G, sd, qs, dirv, SHELL_T)
         c0 = q - dirv * 5.0
         c0 = c0 - n * float(np.dot(c0 - p0, n))
+        lower = 'back' if (c0[1] > Y_BACK and c0[2] > Z_FLOOR) else 'face'
         fb = m_cyl(c0 - n * 10, c0, 5.5) ^ inside
         if vol(fb ^ corridor) > 0.005:
             log('dowel %s skipped (in an insertion path)' % ('front' if side < 0 else 'back'))
             continue
-        res['face_add'].append(fb)
-        res['back_add'].append(m_cyl(c0, c0 + n * 10, 5.5) ^ inside)
+        res['add'][lower].append(fb)
+        res['add']['cap'].append(m_cyl(c0, c0 + n * 10, 5.5) ^ inside)
         hcut = m_cyl(c0 - n * 7, c0 + n * 7, DOWEL_HOLE_D / 2)
-        res['face_cut'].append(hcut); res['back_cut'].append(hcut)
-        log('dowel at %s' % np.round(c0, 1))
+        res['cut'][lower].append(hcut); res['cut']['cap'].append(hcut)
+        log('dowel (%s / cap) at %s' % (lower, np.round(c0, 1)))
     return res
+
+
+def cover_joints(G, sd, inside):
+    """Cover joints without brackets.
+    Back cover: its lower edge drops over a lip on the chassis floor; one M3 from
+    behind, low at the back, into an insert post on the chassis.
+    Cap: a hook on its front edge slides forward under a ledge on the chassis
+    forehead (lower the cap 6 mm back, slide forward); one M3 from behind
+    through the cap into an insert boss on the back cover."""
+    t = SHELL_T; L = LIP
+    out = dict(face=[], back=[], cap=[], cut_face=[], cut_back=[], cut_cap=[], fasteners=[])
+
+    def band(lo, hi):
+        return mc_mesh(np.minimum(sd - lo, hi - sd), G, 0.0, step=1, sigma=0.8)
+    perim = m_box([-200, Y_BACK + 1.0, -200], [200, 400, 200]) - m_box([-40, Y_BACK, -200], [40, 120, 200])
+    lip = (band(t - 0.5, t + L['gap'] + L['t']) ^ m_box([-200, -200, Z_FLOOR - 4], [200, 400, Z_FLOOR]) +
+           band(t + L['gap'], t + L['gap'] + L['t']) ^ m_box([-200, -200, Z_FLOOR], [200, 400, Z_FLOOR + L['h'] - L['chamfer']]) +
+           band(t + L['gap'] + 1.0, t + L['gap'] + L['t']) ^ m_box([-200, -200, Z_FLOOR + L['h'] - L['chamfer']], [200, 400, Z_FLOOR + L['h']]))
+    out['lip'] = lip ^ perim
+    # back cover screw: low at the back, into a chassis post
+    zb = Z_FLOOR + 4.0
+    p_bw = inner_point(G, sd, [0.0, 100.0, zb], [0, 1.0, 0], t)
+    p_bo = inner_point(G, sd, p_bw, [0, 1.0, 0], 0.0)
+    yb = p_bw[1] - L['gap']
+    out['lip'] = out['lip'] + (m_box([-6.0, yb - 12.0, Z_FLOOR - 30.0], [6.0, yb, Z_FLOOR + 8.0]) ^ inside)
+    out['cut_face'] += [m_cyl([0, yb + 0.01, zb], [0, yb - INSERT_L, zb], INSERT_D / 2), m_cyl([0, yb, zb], [0, yb - INSERT_L - 3.5, zb], 1.6)]
+    out['cut_back'].append(m_cyl([0, yb - 1.0, zb], [0, p_bo[1] + 10.0, zb], 1.7))
+    out['fasteners'].append(dict(name='back cover screw (M3x12)', head=p_bo, axis=np.array([0, 1.0, 0]), stage='back', cb=0.0,
+                                 opening='outside'))
+    # cap: forehead ledge (chassis) + hook (cap)
+    n, p0 = seam()
+    tb = np.array([0.0, 1.0, -SEAM['slope']]); tb /= np.linalg.norm(tb)          # along the seam, backward
+    xh = np.array([1.0, 0, 0])
+    q = np.array([0.0, 40.0, seam_z(40.0)]) - n * 2.0
+    pp = q.copy()
+    for _ in range(1000):                       # walk forward to the forehead's inner surface
+        if sd[G.idx(pp)] <= t:
+            break
+        pp = pp - tb * 0.2
+    o_f = pp - n * float(np.dot(pp - p0, n))
+    hw = CAP_HOOK['w'] / 2; g = CAP_HOOK['gap']
+    ledge = obox_n(o_f, tb, n, xh, (-1.5, 4.0), (-3.0, 0.0), (-hw - 2, hw + 2))
+    out['face'].append(ledge)
+    hook = union([obox_n(o_f, tb, n, xh, (-1.5, 7.0), (g, 4.0), (-hw, hw)),                  # bridge over the ledge
+                  obox_n(o_f, tb, n, xh, (4.0 + g, 7.0), (-6.0, 4.0), (-hw, hw)),             # stem behind it
+                  obox_n(o_f, tb, n, xh, (g, 7.0), (-6.0, -3.0 - g), (-hw, hw))])             # foot under it
+    out['cap'].append(hook)
+    # cap screw: through the cap at the back, into a boss on the back cover
+    yq = 120.0
+    qb = np.array([0.0, yq, seam_z(yq)]) + n * 6.0
+    pc = inner_point(G, sd, qb, tb, t)
+    pco = inner_point(G, sd, pc, tb, 0.0)
+    o_b = pc - n * float(np.dot(pc - p0, n))
+    boss = obox_n(o_b, tb, n, xh, (-11.0, -g), (0.0, 10.0), (-6.0, 6.0)) + \
+        obox_n(o_b, tb, n, xh, (-11.0, 1.5), (-8.0, 0.0), (-6.0, 6.0))
+    out['back'].append(boss ^ inside)
+    c6 = o_b + n * 6.0
+    out['cut_back'] += [m_cyl(c6 - tb * (g - 0.01), c6 - tb * (g + INSERT_L), INSERT_D / 2), m_cyl(c6 - tb * g, c6 - tb * (g + INSERT_L + 3.5), 1.6)]
+    out['cut_cap'].append(m_cyl(c6 - tb * 1.0, c6 + tb * 15.0, 1.7))
+    out['fasteners'].append(dict(name='cap screw (M3x12)', head=pco, axis=tb, stage='cap', cb=0.0, opening='outside'))
+    out['slide_dir'] = tb
+    log('cap hook at %s, cap screw at %s, back screw at %s' % (np.round(o_f, 1), np.round(pco, 1), np.round(p_bo, 1)))
+    return out
 
 
 def dowel():
@@ -989,8 +1079,11 @@ def tray_parts():
         parts += [wall, ledge]
     tray = union(parts)
     cuts = [m_box([xb1 - 0.1, yc - 6.5, zb - 2.0], [xb1 + 10, yc + 6.5, zt + 10])]       # USB plug
-    for hx, hy in TRAY_POSTS:
-        cuts.append(m_cyl([hx, hy, z0 - 1], [hx, hy, z1 + 1], 1.9))
+    for i_, (hx, hy) in enumerate(TRAY_POSTS):
+        if i_ < TRAY_HOOKS:          # open slot from the front edge: the tray slides forward onto the hook stem
+            cuts.append(m_box([hx - 2.9, T['y0'] - 1, z0 - 1], [hx + 2.9, hy + 2.9, z1 + 1]))
+        else:
+            cuts.append(m_cyl([hx, hy, z0 - 1], [hx, hy, z1 + 1], 1.9))
     for sy in (-1, 1):
         cuts.append(m_box([-14.0, yc + sy * 17 - 1.0, z0 - 1], [-10.0, yc + sy * 17 + 1.0, z1 + 1]))  # zip tie
     tray = tray - union(cuts)
@@ -1001,13 +1094,19 @@ def tray_parts():
 
 
 def stand():
+    """Base + column. The neck boss drops into a socket at the top and is held by one
+    radial M3. An open slot runs down the column and across the base for the USB cable."""
     S = STAND; N = NECK
-    zt = N['z_bottom']; zb = zt - S['h']
-    col = m_cyl([0, N['y'], zb], [0, N['y'], zt], S['col_d'] / 2)
-    base = m_cyl([0, N['y'], zb], [0, N['y'], zb + S['base_t']], S['base_d'] / 2, seg=96)
-    bore = m_cyl([0, N['y'], zb - 1], [0, N['y'], zt - S['top_t']], S['col_id'] / 2)
-    bolt = m_cyl([0, N['y'], zt - S['top_t'] - 1], [0, N['y'], zt + 1], 2.8)
-    return (col + base) - bore - bolt
+    zt = N['z_bottom']; zb = zt - S['h']; y = N['y']
+    col = m_cyl([0, y, zb], [0, y, zt + S['socket']], S['col_d'] / 2, seg=72)
+    base = m_cyl([0, y, zb], [0, y, zb + S['base_t']], S['base_d'] / 2, seg=96)
+    socket = m_cyl([0, y, zt], [0, y, zt + S['socket'] + 1], N['r'] + S['fit'], seg=72)
+    bore = m_cyl([0, y, zb - 1], [0, y, zt + 1], S['bore'] / 2)
+    slot = m_box([-S['col_d'], y - S['slot'] / 2, zb - 1], [0.0, y + S['slot'] / 2, zt + S['socket'] + 1])     # open toward -X
+    slot_b = m_box([-S['base_d'], y - S['slot'] / 2, zb - 1], [0.0, y + S['slot'] / 2, zb + S['base_t'] + 1])
+    screw = m_cyl([0, y, zt + N['screw_z']], [0, y + S['col_d'], zt + N['screw_z']], 1.7) + \
+        m_cyl([0, y + S['col_d'] / 2 - 1.5, zt + N['screw_z']], [0, y + S['col_d'], zt + N['screw_z']], 3.0)     # M3 + head seat
+    return (col + base) - union([socket, bore, slot, slot_b, screw])
 
 
 # =============================================================== assembly
@@ -1031,7 +1130,7 @@ def clean(M, name):
         blobs = [mf.Manifold.cube([1.0, 1.0, 1.0], True).rotate(list(rng.uniform(0, 90, 3))).translate(list(p))
                  for p in pts]
         M = union([M] + blobs) if it % 2 == 0 else M - union(blobs)
-    return M
+    return max(M.decompose(), key=lambda m: m.volume())
 
 
 def build():
@@ -1079,8 +1178,11 @@ def build():
     modules = place_modules(module_local()).transform(T)
     eye_clear = (place_modules(module_local(FIT, True)) + bar_clearance_local()).transform(T)
     posts = union([m_cyl([hx, y_front, hz], [hx, y_front - 45, hz], 4.5) for hx, hz in BAR_HOLES]) ^ inside
-    post_holes = union([m_cyl([hx, y_front + 0.01, hz], [hx, y_front - INSERT_L, hz], INSERT_D / 2) for hx, hz in BAR_HOLES]
-                       + [m_cyl([hx, y_front, hz], [hx, y_front - INSERT_L - 3.5, hz], 1.6) for hx, hz in BAR_HOLES])
+    bolts_ = [BAR_HOLES[i] for i in BAR_BOLTS]
+    post_holes = union([m_cyl([hx, y_front + 0.01, hz], [hx, y_front - INSERT_L, hz], INSERT_D / 2) for hx, hz in bolts_]
+                       + [m_cyl([hx, y_front, hz], [hx, y_front - INSERT_L - 3.5, hz], 1.6) for hx, hz in bolts_])
+    pegs = [BAR_HOLES[i] for i in range(len(BAR_HOLES)) if i not in BAR_BOLTS]
+    peg = union([m_cyl([hx, y_front - 0.5, hz], [hx, y_front + 4.0, hz], 1.5) for hx, hz in pegs]) if pegs else None
     socket_air = union([sk['air'] for sk in sockets.values()])
     socket_wall = union([sk['wall'] for sk in sockets.values()])
     apert = union([m_cyl([xe, y_glass - SCREEN_GAP - SOCKET_WALL - 1, 0], [xe, y_glass - 0.05, 0], APERTURE_D / 2)
@@ -1092,32 +1194,31 @@ def build():
     y_wall_back = NASAL_RIM_Y + NASAL_RECESS + NASAL_T
     radar, radar_clear, radar_frame = radar_parts(y_wall_back)
     n_seam, p_seam = seam()
-    info['seam'] = dict(SEAM, normal=np.round(n_seam, 4).tolist())
-    cap_hs = halfspace(True); base_hs = halfspace(False)
+    info['seam'] = dict(SEAM, normal=np.round(n_seam, 4).tolist(), y_back=Y_BACK, z_floor=Z_FLOOR)
     # insertion paths. Fixed chassis features must stay out of them.
-    # Eye bar with both modules and their cables: back EYE_BAR_BACKOFF, then straight up
-    # out of the open top (along the seam normal).
-    path = [(0, dy, 0) for dy in np.arange(0, EYE_BAR_BACKOFF + 0.01, 1.5)] + \
-        [tuple(np.array([0, EYE_BAR_BACKOFF, 0]) + n_seam * h_) for h_ in np.arange(0, 90.01, 2.0)]
-    corridor = union([eye_clear.translate(list(map(float, t_))) for t_ in path])
-    corridor_back = union([eye_clear.translate([0, dy, 0]) for dy in np.arange(0, EYE_BAR_BACKOFF + 0.01, 1.5)])
+    # Eye bar with both modules and their cables: straight back out of the back
+    # opening (60 mm). Radar: out of its frame, then on edge up the slot between
+    # the bowls and out of the top.
+    corridor = union([eye_clear.translate([0, dy, 0]) for dy in np.arange(0, EYE_BAR_BACKOFF + 0.01, 1.5)] +
+                     [eye_clear.translate([0, EYE_BAR_BACKOFF, dz]) for dz in np.arange(0, 70.01, 2.0)])
+    corridor_back = corridor ^ m_box([-300, -300, -300], [300, Y_BACK + 2.0, 300])
     R_ = RADAR
     radar_path = m_box([-R_['L'] / 2 - 0.6, y_wall_back + 0.2, R_['z'] - R_['W'] / 2 - 0.6],
                        [R_['L'] / 2 + 0.6, 14.0, R_['z'] + R_['W'] / 2 + 0.6])
-    # past its frame the radar is turned on edge and goes up the slot between the
-    # bowls (in front of the eye bar) and out of the open top
     radar_lift = m_box([-R_['W'] / 2 - 0.7, 9.0, R_['z'] - R_['W'] / 2 - 0.6], [R_['W'] / 2 + 0.7, 9.0 + 4.8, seam_z(11.0) + 30.0])
     # clearance cuts must stay inside the skull, or they would open holes in the surface
     skin = mc_mesh(np.where(sh['env'] | (sd > 0), 1.0, -1.0).astype(np.float32), G, 0.0, step=2) + socket_air
+    inner_reg = region('face')
     pierce = dict(eyes=vol(eye_clear - skin), radar=vol(radar_clear - skin),
-                  eye_bar_path=vol((corridor ^ base_hs) - skin), radar_path=vol((radar_path + radar_lift) ^ base_hs - skin))
+                  eye_bar_path=vol((corridor ^ inner_reg) - skin), radar_path=vol(((radar_path + radar_lift) ^ inner_reg) - skin))
     info['clearance_outside_skull_cm3'] = {k: round(v, 3) for k, v in pierce.items()}
     log('clearance volume outside the skull surface (cm3):', info['clearance_outside_skull_cm3'])
     radar_frame = (radar_frame ^ inside) - radar_clear
 
-    # ---- joints (chassis bosses must stay out of the insertion paths)
+    # ---- joints (bosses must stay out of the insertion paths)
     J = joints(G, sd, inside, cavity, corridor + radar_path + radar_lift)
     info['joints'] = J['info']
+    CJ = cover_joints(G, sd, inside)
 
     # ---- chassis features: servo cup bosses, jaw pivot, tray posts, neck, tie bar
     slot = union([mech['finger_clear'].transform(rot_x_about(*hinge, a))
@@ -1128,40 +1229,48 @@ def build():
                     + [m_cyl(p, p - [0, 0, INSERT_L + 3.5], 1.6) for p in mech['bracket_bolts']])
     tz0 = TRAY['z_top'] - TRAY['t']
     tposts = union([m_cyl([x, y, tz0], [x, y, tz0 - 45], 4.5) for x, y in TRAY_POSTS]) ^ inside
-    tposts_h = union([m_cyl([x, y, tz0 + 0.01], [x, y, tz0 - INSERT_L], INSERT_D / 2) for x, y in TRAY_POSTS]
-                     + [m_cyl([x, y, tz0], [x, y, tz0 - INSERT_L - 3.5], 1.6) for x, y in TRAY_POSTS])
+    # hook posts: Ø4.6 stem through the tray's open slot and a Ø9 cap 0.5 mm above the plate
+    tposts += union([m_cyl([x, y, tz0 - 0.01], [x, y, TRAY['z_top'] + 0.5], 2.3) +
+                     m_cyl([x, y, TRAY['z_top'] + 0.5], [x, y, TRAY['z_top'] + 2.5], 4.5, 3.5)
+                     for x, y in TRAY_POSTS[:TRAY_HOOKS]])
+    scr_ = TRAY_POSTS[TRAY_HOOKS:]
+    tposts_h = union([m_cyl([x, y, tz0 + 0.01], [x, y, tz0 - INSERT_L], INSERT_D / 2) for x, y in scr_]
+                     + [m_cyl([x, y, tz0], [x, y, tz0 - INSERT_L - 3.5], 1.6) for x, y in scr_])
     N = NECK
     neck = m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], -12.0], N['r'])
-    neck_h = m_cyl([0, N['y'], N['z_bottom'] - 0.01], [0, N['y'], N['z_bottom'] + N['insert_l']], N['insert_d'] / 2) + \
-        m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], N['z_bottom'] + N['insert_l'] + 4], 2.75)
-    U = USB_NOTCH; Tb = TIE_BAR; ty = Tb['y']
+    zs_ = N['z_bottom'] + N['screw_z']
+    neck_h = m_cyl([0, N['y'], N['z_bottom'] - 1], [0, N['y'], 5.0], N['bore'] / 2) + \
+        m_cyl([0, N['y'] + N['r'] + 0.01, zs_], [0, N['y'] + N['r'] - INSERT_L, zs_], INSERT_D / 2)      # cable bore + stand-screw insert
+    U = dict(x=0.0); Tb = TIE_BAR; ty = Tb['y']
     zf2 = inner_point(G, sd, [U['x'], ty, 0.0], [0, 0, -1.0], SHELL_T)[2]
     tie = m_box([U['x'] - Tb['w'] / 2, ty - Tb['t'] / 2, zf2 - 3], [U['x'] + Tb['w'] / 2, ty + Tb['t'] / 2, zf2 + Tb['h']]) - \
         m_box([U['x'] - Tb['tunnel_w'] / 2, ty - Tb['t'], zf2 + 1.0], [U['x'] + Tb['tunnel_w'] / 2, ty + Tb['t'], zf2 + 1.0 + Tb['tunnel_h']])
-    # USB notch: open slot in the cap's lower edge at the back of the head
-    yb_out = inner_point(G, sd, [U['x'], 100.0, seam_z(100.0) - 2.0], [0, 1.0, -SEAM['slope']], 0.0)
-    qn = yb_out - n_seam * float(np.dot(yb_out - p_seam, n_seam))
-    usb = mf.Manifold.batch_hull([m_cyl(qn + [0, -12.0, 0] - n_seam * 2, qn + [0, 12.0, 0] - n_seam * 2, U['w'] / 2),
-                                  m_cyl(qn + [0, -12.0, 0] + n_seam * U['depth'], qn + [0, 12.0, 0] + n_seam * U['depth'], U['w'] / 2)])
-    info['usb_notch'] = dict(centre=np.round(qn, 1).tolist(), width=U['w'], depth=U['depth'])
-    log('USB notch %g wide x %g deep in the cap edge at %s; tie bar at y=%.0f' % (U['w'], U['depth'], np.round(qn, 1), ty))
+    # ---- split: chassis / back cover / cap
+    face = crm ^ region('face')
+    backc = crm ^ region('back')
+    cap = crm ^ region('cap')
 
-    # ---- split along the seam plane
-    face = crm ^ base_hs
-    back = crm ^ cap_hs
-
-    # chassis (face part)
+    # chassis
     face = face - socket_air - eye_clear - radar_clear
-    face = union([face, socket_wall, posts, radar_frame, pivot, sboss, tposts, neck, tie ^ inside] + J['face_add']) ^ base_hs
+    face = union([face, socket_wall, posts, radar_frame, pivot, sboss, tposts, neck, tie ^ inside] + J['add']['face'] + CJ['face'])
     face = face - union([post_holes, apert, radar_clear, socket_air, mech['cup_env'], mech['cup_slot'],
-                         mech['skull_pivot_holes'], slot, sboss_h, tposts_h, neck_h] + J['face_cut'])
+                         mech['skull_pivot_holes'], slot, sboss_h, tposts_h, neck_h] + J['cut']['face'] + CJ['cut_face'])
     face = face - eye_clear - corridor_back
+    if peg is not None:
+        face = face + peg
     face = clean(face, 'face')
-
-    # cap (cover)
-    back = union([back] + J['back_add']) ^ cap_hs
-    back = back - union([usb] + J['back_cut'])
-    back = clean(back, 'back')
+    # back cover
+    backc = union([backc ^ region('back')] + J['add']['back'] + CJ['back']) - union(J['cut']['back'] + CJ['cut_back'])
+    back = clean(backc, 'back')
+    # floor lip: whatever of it the back cover would hit on its way down is trimmed off
+    dropzone = union([back.translate([0, 0, h_]) for h_ in np.arange(0.0, 30.01, 0.5)])
+    lip = CJ['lip'] - dropzone
+    info['floor_lip_cm3'] = round(vol(lip), 2)
+    log('floor lip after trimming to the drop path: %.2f cm3 (before %.2f)' % (vol(lip), vol(CJ['lip'])))
+    face = clean(face + lip, 'face')
+    # cap
+    cap = union([cap ^ region('cap')] + J['add']['cap'] + CJ['cap']) - union(J['cut']['cap'] + CJ['cut_cap'])
+    cap = clean(cap, 'cap')
 
     # ---- fasteners (head point, outward tool axis, stage) for the tool-access check
     Tm = scad_to_skull(y_back)
@@ -1172,36 +1281,39 @@ def build():
             lx, ly = sx * 7.875, -0.14
             px, py = xe + lx * np.cos(a_) - ly * np.sin(a_), lx * np.sin(a_) + ly * np.cos(a_)
             fast.append(dict(name='M2 module screw (x=%.0f)' % px, head=Tm[:, :3] @ [px, py, 0.0] + Tm[:, 3],
-                             axis=np.array([0, 1.0, 0]), stage='bench_bar', cb=0.0))
-    for hx, hz in BAR_HOLES:
-        fast.append(dict(name='eye-bar bolt (x=%.0f)' % hx, head=np.array([hx, y_back, hz]), axis=np.array([0, 1.0, 0]), stage='eyebar', cb=0.0))
+                             axis=np.array([0, 1.0, 0]), stage='eyebar', cb=0.0, opening='back'))
+    for hx, hz in bolts_:
+        fast.append(dict(name='eye-bar bolt (x=%.0f)' % hx, head=np.array([hx, y_back, hz]), axis=np.array([0, 1.0, 0]), stage='eyebar',
+                         cb=0.0, opening='back', hand=True))
     Ps = servo_frame(hinge); S_ = SERVO; u_ax = np.array([float(SERVO_SIDE), 0, 0])
     vmid = (-S_['shaft_off'] + S_['L'] - S_['shaft_off']) / 2
     for v in (vmid - S_['hole_sp'] / 2, vmid + S_['hole_sp'] / 2):
         fast.append(dict(name='servo tab screw (v=%.0f)' % v, head=Ps(S_['tab_top'], v, 0), axis=u_ax, stage='bench_servo', cb=0.0))
     fast.append(dict(name='horn screw', head=Ps(S_['spline_top'] + 1.0, 0, 0), axis=u_ax, stage='bench_horn', cb=0.0))
     for p_ in mech['bracket_bolts']:
-        fast.append(dict(name='servo bracket bolt (y=%.0f)' % p_[1], head=p_ + [0, 0, BRACKET_T], axis=np.array([0, 0, 1.0]), stage='servo', cb=0.0))
-    for x, y in TRAY_POSTS:
-        fast.append(dict(name='tray bolt (%.0f, %.0f)' % (x, y), head=np.array([x, y, TRAY['z_top']]), axis=np.array([0, 0, 1.0]), stage='tray', cb=0.0))
+        fast.append(dict(name='servo bracket bolt (y=%.0f)' % p_[1], head=p_ + [0, 0, BRACKET_T], axis=np.array([0, 0, 1.0]), stage='servo',
+                         cb=0.0, opening='top'))
+    for x, y in TRAY_POSTS[TRAY_HOOKS:]:
+        fast.append(dict(name='tray bolt (%.0f, %.0f)' % (x, y), head=np.array([x, y, TRAY['z_top']]), axis=np.array([0, 0, 1.0]), stage='tray',
+                         cb=0.0, opening='top'))
     for r_ in HORN_JAW_HOLES[::2]:
         fast.append(dict(name='horn-to-jaw screw (r=%.0f)' % r_, head=np.array([SERVO_SIDE * HORN_SCREW_CB_X, hinge[0], hinge[1] - r_]),
-                         axis=u_ax, stage='jaw', cb=2.0))
+                         axis=u_ax, stage='jaw', cb=2.0, opening='outside'))
     fast.append(dict(name='jaw pivot bolt', head=np.array([-SERVO_SIDE * (PIVOT_FACE_X + 14.5), hinge[0], hinge[1]]),
-                     axis=-u_ax, stage='jaw', cb=3.0))
+                     axis=-u_ax, stage='jaw', cb=3.0, opening='outside'))
     fast += J['fasteners']
-    fast.append(dict(name='neck bolt (M5x16)', head=np.array([0, N['y'], N['z_bottom'] - STAND['top_t']]), axis=np.array([0, 0, -1.0]),
-                     stage='stand', cb=0.0))
-    hand = dict(eye_bar=corridor, eye_bar_hand=m_box([-22.0, y_back, 0.0], [22.0, y_back + 35.0, seam_z(y_back) + 60.0]),
-                radar=radar_path + radar_lift)
+    fast += CJ['fasteners']
+    fast.append(dict(name='stand screw (M3x12)', head=np.array([0.0, N['y'] + STAND['col_d'] / 2 - 1.5, N['z_bottom'] + N['screw_z']]),
+                     axis=np.array([0, 1.0, 0]), stage='stand', cb=0.0, opening='outside'))
+    hand = dict(eye_bar=corridor, radar=radar_path + radar_lift)
+    skin_v = (sh['env'] | (sd > 0))
 
     # jaw
     jaw_part = clean(jaw_moving - mech['jaw_pad_holes'] - mech['jaw_pivot_holes'], 'jaw')
 
     tray, board = tray_parts()
     tray = clean(tray ^ cavity, 'tray')
-    parts = dict(face=face, back=back, jaw=jaw_part, servo_bracket=mech['bracket'], tray=tray,
-                 stand=stand(), dowel=dowel())
+    parts = dict(face=face, back=back, cap=cap, jaw=jaw_part, servo_bracket=mech['bracket'], tray=tray, stand=stand())
     for name, br in J['brackets']:
         parts['joint_bracket_' + name] = br
     P = servo_frame(hinge); St = SERVO
@@ -1215,7 +1327,7 @@ def build():
     paint = union([paint] + [m_cyl([xe, yb_ - 0.05, 0], [xe, y_glass - 0.1, 0], APERTURE_D / 2 + 0.15) -
                              m_cyl([xe, yb_ - 1, 0], [xe, y_glass, 0], APERTURE_D / 2 - 0.2) for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
     return dict(parts=parts, hardware=hardware, display=dict(paint=paint, screens=screens), info=info,
-                fasteners=fast, hand=hand, hinge=hinge, mech=mech, jaw_moving=jaw_moving,
+                fasteners=fast, hand=hand, skin_v=skin_v, peg=peg, cap_slide=CJ['slide_dir'], hinge=hinge, mech=mech, jaw_moving=jaw_moving,
                 G=G, sh=sh, inside=inside, crm=crm)
 
 
@@ -1241,6 +1353,9 @@ def verify(R):
             v = vol(A ^ B_)
             if v > 0.005:
                 rep['collisions'].append((a, b, round(v, 3)))
+                for q in (A ^ B_).decompose():
+                    if q.volume() > 2:
+                        log('  clash %s/%s %.1f mm3 at %s' % (a, b, q.volume(), np.round(q.bounding_box(), 1)))
     others = union([P['face'], P['back'], H['servo'], P['servo_bracket'], P['stand']])
     jm = P['jaw']
     for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 1.0):
@@ -1249,53 +1364,93 @@ def verify(R):
     # stop check: one step past each stop must collide (finger in the slot end)
     for a in (JAW_CLOSE_STOP - 1.5, JAW_OPEN_DEG + JAW_STOP_MARGIN + 1.5):
         rep.setdefault('beyond_stops', []).append((float(a), round(vol(jm.transform(rot_x_about(*hinge, a)) ^ P['face']), 3)))
-    # cover: slides on along -Y last, with the jaw (closed), chassis and all electronics in place
-    onface = union([P['face'], P['jaw'], P['servo_bracket'], P['tray'], H['servo'], H['horn'], H['esp32'],
-                    H['bar'], H['modules'], H['radar']] + [m for k, m in P.items() if k.startswith('joint_bracket')])
-    n_seam, _ = seam()
-    rep['cover_slide'] = max(vol(P['back'].translate(list(n_seam * d)) ^ onface) for d in np.arange(1.0, 121.0, 2.0))
     # ---- tool access: every fastener needs a straight tool path when it is driven
-    STAGES = ['bench_bar', 'bench_servo', 'bench_horn', 'eyebar', 'radar', 'servo', 'tray', 'esp32', 'jaw', 'brackets', 'cover', 'stand']
+    STAGES = ['bench_servo', 'bench_horn', 'eyebar', 'radar', 'tray', 'esp32', 'servo', 'jaw', 'brackets_floor', 'back',
+              'brackets_cap', 'cap', 'stand']
     FITTED = dict(eyebar=['bar', 'modules'], radar=['radar'], servo=['servo', 'servo_bracket', 'horn'], tray=['tray'],
-                  esp32=['esp32'], jaw=['jaw'], brackets=[k for k in P if k.startswith('joint_bracket')], cover=['back'],
-                  stand=['stand'])
+                  esp32=['esp32'], jaw=['jaw'], brackets_floor=[k for k in P if k.startswith('joint_bracket_back')], back=['back'],
+                  brackets_cap=[k for k in P if k.startswith('joint_bracket_cap')], cap=['cap'], stand=['stand'])
     allp = dict(P); allp.update(H)
 
     def present(stage):
-        if stage == 'bench_bar':
-            return ['bar', 'modules']
         if stage == 'bench_servo':
             return ['servo', 'servo_bracket']
         if stage == 'bench_horn':
             return ['servo', 'servo_bracket', 'horn']
         out = ['face']
-        for st in STAGES[3:STAGES.index(stage) + 1]:
+        for st in STAGES[2:STAGES.index(stage) + 1]:
             out += FITTED.get(st, [])
         return out
     rep['tool_access'] = []
-    tools = []
+    tools = []; hands = []
+    G = R['G']; n_seam, p_seam = seam()
     for f in R['fasteners']:
         h0 = np.asarray(f['head'], float); ax = np.asarray(f['axis'], float); ax /= np.linalg.norm(ax)
         a_len = f.get('cb', 0.0) + TOOL_TIP_L
         tool = m_cyl(h0 + ax * 0.2, h0 + ax * a_len, TOOL_TIP_D / 2) + m_cyl(h0 + ax * a_len, h0 + ax * TOOL_LEN, TOOL_D / 2)
-        tools.append(tool)
+        tools.append((f.get('opening', 'bench'), tool))
         obst = union([allp[k] for k in present(f['stage'])])
         v = vol(tool ^ obst)
         blockers = [k for k in present(f['stage']) if vol(tool ^ allp[k]) > 0.005] if v > 0.005 else []
-        rep['tool_access'].append(dict(name=f['name'], stage=f['stage'], blocked_cm3=round(v, 3), blocked_by=blockers))
-    R['display']['tools'] = union(tools)
+        # which opening does the tool leave through?
+        pres = present(f['stage'])
+        exit_ = 'bench'
+        if not f['stage'].startswith('bench'):
+            exit_ = None; last = None
+            for tt in np.arange(3.0, TOOL_LEN + 0.01, 1.0):
+                q = h0 + ax * tt
+                ii = G.idx(q)
+                inside_ = all(0 <= ii[k_] < G.shape[k_] for k_ in range(3)) and R['skin_v'][ii]
+                reg = 'cap' if np.dot(q - p_seam, n_seam) > 0 else ('back' if (q[1] > Y_BACK and q[2] > Z_FLOOR) else 'face')
+                if not inside_:
+                    break
+                last = reg
+            exit_ = 'outside' if last is None else {'cap': 'top', 'back': 'back', 'face': 'face'}[last]
+            exit_ = exit_ or 'none'
+        want = f.get('opening', 'bench')
+        hand_v = 0.0
+        if f.get('hand'):
+            c_ = h0 + ax * 85.0
+            hb = m_box([c_[0] - 30, c_[1] - 25, c_[2] - 20], [c_[0] + 30, c_[1] + 25, c_[2] + 20])
+            hands.append(hb)
+            hand_v = vol(hb ^ obst)
+        rep['tool_access'].append(dict(name=f['name'], stage=f['stage'], blocked_cm3=round(v, 3), blocked_by=blockers,
+                                       exits=exit_, wanted=want, hand_blocked_cm3=round(hand_v, 3),
+                                       ok=(v <= 0.005 and (want == 'bench' or exit_ == want) and hand_v <= 0.005)))
+    for op in ('back', 'top', 'outside'):
+        sel = [t_ for o_, t_ in tools if o_ == op]
+        if sel:
+            R['display']['tools_' + op] = union(sel)
+    if hands:
+        R['display']['hands'] = union(hands)
     # ---- hand access for the eye bar and the radar (the cap off, earlier parts fitted)
     hd = R['hand']
     rep['hand_access'] = dict(
-        eye_bar_path=round(vol(hd['eye_bar'] ^ P['face']), 3),
-        eye_bar_hand=round(vol(hd['eye_bar_hand'] ^ union([P['face'], H['bar'], H['modules']])), 3),
+        eye_bar_path=round(vol(hd['eye_bar'] ^ (P['face'] - R['peg'] if R['peg'] is not None else P['face'])), 3),
         radar_path=round(vol(hd['radar'] ^ union([P['face'], H['bar'], H['modules']])), 3))
+    # covers: the back lifts straight up (cap already off), the cap along its normal
+    under = union([P['face'], P['jaw'], P['servo_bracket'], P['tray'], H['servo'], H['horn'], H['esp32'], H['bar'], H['modules'],
+                   H['radar']] + [m for k, m in P.items() if k.startswith('joint_bracket_back')])
+    bl = [(vol(P['back'].translate([0, 0, d]) ^ under), d) for d in np.arange(1.0, 121.0, 2.0)]
+    rep['back_lift'] = max(bl)[0]
+    if rep['back_lift'] > 0.005:
+        d = max(bl)[1]
+        for q in (P['back'].translate([0, 0, d]) ^ under).decompose():
+            if q.volume() > 1:
+                log('  back drop-in clash at lift %g: %.1f mm3 at %s' % (d, q.volume(), np.round(q.bounding_box(), 1)))
+    under2 = union([under, P['back']] + [m for k, m in P.items() if k.startswith('joint_bracket_cap')])
+    sl = CAP_HOOK['slide'] + 0.5
+    cap_path = [R['cap_slide'] * d for d in np.arange(0.5, sl + 0.01, 0.5)] + \
+        [R['cap_slide'] * sl + n_seam * d for d in np.arange(1.0, 121.0, 2.0)]
+    rep['cap_lift'] = max(vol(P['cap'].translate(list(v)) ^ under2) for v in cap_path)
     # joint brackets: the back part slides on along Y; nothing may catch on the way
     rep['bracket_slide'] = []
     for k, m in P.items():
         if k.startswith('joint_bracket'):
-            n_s, _ = seam()
-            worst = max(vol(m.translate(list(-n_s * d)) ^ P['back']) for d in np.arange(0.5, JOINT_H + 10, 1.0))
+            fl_ = 'back' in k[len('joint_bracket_'):].split('_')[0]
+            n_s = np.array([0, 0, 1.0]) if fl_ else seam()[0]
+            upper_ = P['back'] if fl_ else P['cap']
+            worst = max(vol(m.translate(list(-n_s * d)) ^ upper_) for d in np.arange(0.5, JOINT_H + 10, 1.0))
             rep['bracket_slide'].append((k, round(worst, 3)))
     return rep
 
@@ -1312,8 +1467,9 @@ def ry(deg):
 
 
 PRINT_ORIENT = {   # rotation into print orientation (then dropped onto z = 0, centred)
-    'face': 'seam_down',        # cut face on the bed, chassis upside down
-    'back': 'seam_up',          # cut face on the bed, crown up
+    'face': rx(0),              # upright (it has two cut faces at right angles; supports needed)
+    'back': rx(0),              # lower cut (z = Z_FLOOR) on the bed
+    'cap': 'seam_up',           # cut face on the bed, crown up
     'jaw': rx(0),               # upright, as in the skull
     'servo_bracket': ry(90 * SERVO_SIDE),   # mounting plate on the bed
     'tray': rx(-90),            # plate on the bed, cradle up
@@ -1355,7 +1511,7 @@ def export(R):
 
 
 SCAD = '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD'
-COLORS = dict(face='ivory', back='wheat', jaw='tan', servo_bracket='seagreen', tray='mediumpurple',
+COLORS = dict(face='ivory', back='wheat', cap='navajowhite', jaw='tan', servo_bracket='seagreen', tray='mediumpurple',
               stand='gray', bar='dimgray', modules='black', servo='royalblue', horn='crimson', radar='red',
               esp32='teal', paint='#1a1a1a', screens='gold', tools='deepskyblue')
 
@@ -1384,7 +1540,7 @@ def render(R):
     def asm(skip=(), explode=None, jaw_deg=0.0, extra=''):
         lines = []
         for k in items:
-            if k in skip or k == 'tools':
+            if k in skip or k.startswith('tools') or k == 'hands':
                 continue
             tr = ''
             if explode and k in explode:
@@ -1407,28 +1563,33 @@ def render(R):
     # come out of its back, then the servo, the tray + ESP32, the jaw, the cover
     n_, _ = seam()
     lift = lambda d: tuple(float(v) for v in n_ * d)
-    ex = dict(bar=lift(70), modules=lift(70), radar=(0, 0, 95), servo=lift(110), servo_bracket=lift(110),
-              horn=lift(110), tray=lift(150), esp32=lift(150), jaw=(0, 0, -70), back=lift(230),
-              stand=(0, 0, -120))
+    ex = dict(bar=(0, 70, 0), modules=(0, 70, 0), radar=(0, 40, 60), tray=(0, 0, 90), esp32=(0, 0, 115),
+              servo=(0, 0, 70), servo_bracket=(0, 0, 70), horn=(0, 0, 70), jaw=(0, 0, -70),
+              back=(0, 150, 60), cap=lift(250), stand=(0, 0, -120))
     for k in items:
-        if k.startswith('joint_bracket'):
+        if k.startswith('joint_bracket_back'):
+            ex[k] = (0, 110, 60)
+        elif k.startswith('joint_bracket'):
             ex[k] = lift(190)
     e = scad('expl.scad', asm(explode=ex))
-    jobs.append(('skull_exploded.png', e, '0,50,90,72,0,300,1150'))
-    top = ('bar', 'modules', 'radar', 'screens', 'servo', 'servo_bracket', 'horn', 'tray', 'esp32', 'jaw', 'paint')
-    fb = scad('chassis.scad', 'color("ivory") import("face.stl");')
-    jobs.append(('skull_chassis_top.png', fb, '0,40,-10,25,0,200,330'))
-    fh = scad('chassis_hw.scad', 'color("ivory") import("face.stl");\n' + '\n'.join(
-        'color("%s") import("%s.stl");' % (col(k), k) for k in items if k in top or k.startswith('joint_bracket')))
-    jobs.append(('skull_chassis_top_hw.png', fh, '0,40,-10,25,0,200,330'))
-    jobs.append(('skull_chassis_34_hw.png', fh, '0,40,-10,55,0,140,360'))
-    ft = scad('chassis_tools.scad', 'color("ivory") import("face.stl");\n' + '\n'.join(
-        'color("%s") import("%s.stl");' % (col(k), k) for k in items if k in top or k.startswith('joint_bracket'))
-        + '\ncolor("deepskyblue", 0.45) import("tools.stl");')
-    jobs.append(('skull_tool_paths.png', ft, '0,40,0,30,0,200,520'))
-    jobs.append(('skull_tool_paths_side.png', ft, '0,40,0,75,0,110,560'))
-    bk = scad('cap.scad', 'color("wheat") import("back.stl");')
-    jobs.append(('skull_cap_inside.png', bk, '0,70,45,150,0,20,470'))
+    jobs.append(('skull_exploded.png', e, '0,90,90,70,0,300,1250'))
+    eyes_hw = ('bar', 'modules', 'radar', 'screens', 'paint')
+    allhw = eyes_hw + ('servo', 'servo_bracket', 'horn', 'tray', 'esp32', 'jaw')
+
+    def imp(keys, extra=''):
+        return 'color("ivory") import("face.stl");\n' + '\n'.join(
+            'color("%s") import("%s.stl");' % (col(k), k) for k in items if k in keys) + extra
+    fb = scad('chassis_back_tools.scad', imp(eyes_hw, '\ncolor("deepskyblue", 0.5) import("tools_back.stl");'
+                                                    '\ncolor("orange", 0.25) import("hands.stl");'))
+    jobs.append(('skull_chassis_from_behind.png', fb, '0,60,10,90,0,180,360'))
+    jobs.append(('skull_chassis_from_behind_34.png', fb, '0,60,10,70,0,215,420'))
+    ft = scad('chassis_top_tools.scad', imp(allhw + tuple(k for k in items if k.startswith('joint_bracket_back')),
+                                             '\ncolor("deepskyblue", 0.5) import("tools_top.stl");'))
+    jobs.append(('skull_chassis_from_above.png', ft, '0,60,0,20,0,200,420'))
+    fo = scad('chassis_open.scad', imp(allhw))
+    jobs.append(('skull_chassis_34_hw.png', fo, '0,50,-10,55,0,140,380'))
+    bk = scad('covers.scad', 'color("wheat") import("back.stl");\ntranslate([0,0,60]) color("navajowhite") import("cap.stl");')
+    jobs.append(('skull_covers.png', bk, '0,90,40,60,0,140,520'))
     procs = []
     for fn, f, cam in jobs:
         procs.append(subprocess.Popen([SCAD, '-o', os.path.join(HERE, fn), '--preview', '--imgsize=1400,1100',
@@ -1436,8 +1597,9 @@ def render(R):
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     for p in procs:
         p.wait()
-    if os.path.exists(os.path.join(tmp, 'tools.stl')):    # keep the viewer to real parts
-        os.remove(os.path.join(tmp, 'tools.stl'))
+    for f in os.listdir(tmp):                         # keep the viewer to real parts
+        if f.startswith('tools') or f == 'hands.stl':
+            os.remove(os.path.join(tmp, f))
     sections(R, items)
     log('rendered %d previews + sections' % len(jobs))
 
@@ -1451,7 +1613,7 @@ def sections(R, items):
     from matplotlib.path import Path
     cols = dict(face='#f2e6c4', back='#d9b87c', jaw='#b88a4a', bar='#666666', modules='#111111',
                 servo='#3355cc', servo_bracket='#2e8b57', horn='#cc2233', radar='#ee2222', esp32='#119999',
-                tray='#9370db', stand='#999999', paint='#111111', screens='#e0b000')
+                tray='#9370db', stand='#999999', paint='#111111', screens='#e0b000', cap='#f5deb3')
     maps = dict(z=(np.eye(4)[:3], ('x', 'y'), 1), x=(np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0]], float), ('y', 'z'), 1),
                 y=(np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0]], float), ('x', 'z'), -1))
 
@@ -1459,6 +1621,8 @@ def sections(R, items):
         T, lab, sg = maps[axis]
         used = set()
         for n, m in items.items():
+            if n.startswith('tools') or n == 'hands':
+                continue
             pol = m.transform(T).slice(sg * c).to_polygons()
             if not pol:
                 continue
@@ -1480,6 +1644,15 @@ def sections(R, items):
     section(ax[0], 'x', 12.0, (20, 120), (-60, 20), 'Section x = +12 (servo, neck boss, tray)')
     section(ax[1], 'y', R['hinge'][0], (-60, 60), (-60, 10), 'Section through the hinge axis (y = %.1f)' % R['hinge'][0])
     fig.tight_layout(); fig.savefig(os.path.join(HERE, 'skull_section_jaw.png'), dpi=90); plt.close(fig)
+    fig, ax = plt.subplots(1, 3, figsize=(24, 8))
+    section(ax[0], 'x', 0.0, (-25, 15), (12, 48), 'Cap front: hook under the chassis ledge (x = 0)')
+    section(ax[1], 'x', 0.0, (110, 165), (-30, 40), 'Back: cover screw into chassis post (low), cap screw into back-cover boss (high)')
+    section(ax[2], 'x', -52.0, (30, 140), (-30, 40), 'Side (x = -52): back cover on the floor lip')
+    fig.tight_layout(); fig.savefig(os.path.join(HERE, 'skull_cover_joints.png'), dpi=90); plt.close(fig)
+    fig, ax = plt.subplots(1, 2, figsize=(18, 9))
+    section(ax[0], 'x', 0.0, (40, 140), (-140, 0), 'Cable path (x = 0): neck bore -> stand column -> base')
+    section(ax[1], 'z', NECK['z_bottom'] - 30.0, (-60, 60), (40, 140), 'Stand column (z = %.0f): open cable slot toward -X' % (NECK['z_bottom'] - 30))
+    fig.tight_layout(); fig.savefig(os.path.join(HERE, 'skull_stand_cable.png'), dpi=90); plt.close(fig)
 
 
 def main():
@@ -1490,13 +1663,21 @@ def main():
         log('%-24s %6.1f cm3  %s mm  watertight=%s bodies=%d' % (k, v['volume_cm3'], v['size'], v['watertight'], v['bodies']))
     log('collisions (> 0.005 cm3):', rep['collisions'] or 'none')
     log('bracket slide-on interference (cm3):', rep['bracket_slide'])
-    log('cap lift-off interference (cm3, jaw and electronics fitted): %.3f' % rep['cover_slide'])
-    bad = [t for t in rep['tool_access'] if t['blocked_cm3'] > 0.005]
+    log('back cover drop-in (straight down, cap off): %.3f cm3; cap (lower 6.5 mm back, slide forward under the hook): %.3f cm3'
+        % (rep['back_lift'], rep['cap_lift']))
+    bad = [t for t in rep['tool_access'] if not t['ok']]
     for t in rep['tool_access']:
-        log('  tool path %-34s %-11s %s' % (t['name'], t['stage'], 'clear' if t['blocked_cm3'] <= 0.005 else
-                                              'BLOCKED by %s (%.3f cm3)' % (', '.join(t['blocked_by']), t['blocked_cm3'])))
+        msg = 'OK ' if t['ok'] else 'FAIL'
+        det = 'exits %-7s (wanted %s)' % (t['exits'], t['wanted'])
+        if t['blocked_cm3'] > 0.005:
+            det += ', BLOCKED by %s' % ', '.join(t['blocked_by'])
+        if t['hand_blocked_cm3'] > 0.005:
+            det += ', hand space blocked %.2f cm3' % t['hand_blocked_cm3']
+        log('  %s %-34s %-14s %s' % (msg, t['name'], t['stage'], det))
     log('hand access (blocked cm3):', rep['hand_access'])
-    rep['failures'] = [t['name'] for t in bad] + [k for k, v in rep['hand_access'].items() if v > 0.005]
+    rep['failures'] = [t['name'] for t in bad] + [k for k, v in rep['hand_access'].items() if v > 0.005] + \
+        (['back lift-off'] if rep['back_lift'] > 0.005 else []) + (['cap lift-off'] if rep['cap_lift'] > 0.005 else []) + \
+        ['collision %s/%s' % (a, b) for a, b, v in rep['collisions']]
     log('jaw sweep overlaps:', [a for a in rep['jaw_sweep'] if a[1] > 0.005] or 'none',
         '| past the stops:', rep['beyond_stops'])
     export(R)
