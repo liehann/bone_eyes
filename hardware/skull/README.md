@@ -29,6 +29,8 @@ Everything comes from `build.py` and is reproducible.
 | `skull_chassis_34_hw.png` | the chassis with everything fitted, covers off |
 | `skull_covers.png` | the back cover and the cap (cap lifted 60 mm) |
 | `skull_cover_joints.png` | sections through the cover joints: cap hook under the forehead ledge; the back cover screw and the cap screw; the floor lip |
+| `out/closeup_back_cover_screw.png`, `out/closeup_cap_screw.png` | sections through the two cover screws: screw (red), head, insert (gold) in its bore |
+| `out/closeup_jaw_horn_pad.png`, `out/closeup_jaw_pivot.png` | sections through the jaw attachments: servo-side pad and horn screws, pivot pad and bolt |
 | `skull_stand_cable.png` | USB cable path: neck bore, then the stand column and its open slot |
 | `skull_section_orbits.png` | sections through the orbit centres and through one eye (socket bowls, modules, bar) |
 | `skull_section_jaw.png` | sections through the servo/neck and along the hinge axis |
@@ -113,6 +115,13 @@ union in `cache/`.
    them opens a hole in the surface.
    - **Assembly paths, tool access and cover fitting** are checked too (see
      *Tool access* below).
+   - **Fasteners** (every screw, assembled): the head seat is found where
+     the head first touches the clamped part and must bear on a flat ring;
+     the clearance hole is empty from the seat to the joint face; an insert
+     has an empty Ø4.0 × 6.7 bore from the joint face with at least 1.6 mm
+     of wall round it; the tip has room past the bore; and the screw
+     engages at least 4 mm of insert (self-tapping screws must pass right
+     through a thin part). See *Fasteners*.
    - The current build reports no collisions, a clear jaw sweep, and stops
      that engage 1.5° past each end.
 
@@ -125,10 +134,10 @@ with the jaw. The stand adds 78 mm.
 
 | STL (`out/`) | Size (mm, x × y × z) | Volume | Print orientation | Supports | Time (rough) |
 |---|---|---|---|---|---|
-| `face.stl` (chassis) | 115 × 171 × 95 | 133 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts, tray hooks and pivot boss | ~7 h |
-| `back.stl` (back cover) | 134 × 124 × 45 | 38 cm³ | lower cut (z = −14) on the bed | none to little | ~2 h |
+| `face.stl` (chassis) | 115 × 171 × 95 | 134 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts, tray hooks and pivot boss | ~7 h |
+| `back.stl` (back cover) | 134 × 124 × 50 | 40 cm³ | lower cut (z = −14) on the bed | none to little | ~2 h |
 | `cap.stl` | 134 × 172 × 74 | 95 cm³ | cut face on the bed, crown up | under the front hook only | ~4 h |
-| `jaw.stl` | 99 × 97 × 69 | 49 cm³ | upright | tree under the lower border and the two hinge pads | ~2 h |
+| `jaw.stl` | 99 × 97 × 72 | 51 cm³ | upright | tree under the lower border and the two hinge pads | ~2 h |
 | `stand.stl` | Ø110 × 88 | 114 cm³ | base on the bed | none (the cable slot is open) | ~3 h |
 | `tray.stl` | 86 × 35 × 24 | 13 cm³ | plate on the bed, cradle up | none | 30 min |
 | `servo_bracket.stl` | 40 × 18 × 27 | 2.4 cm³ | mounting plate on the bed | none | 15 min |
@@ -169,8 +178,10 @@ radar sees through the nasal window. Use paint without metal flakes there.
   - Even with the filled temples, the outer M2 screws of the unrotated layout
     (x = ±35.4) would break through the temple wall at the bar's depth
     (y = 21–27). **The firmware has to rotate the picture 90°.**
-  - The bar plate is now ±10.4 mm tall with its lower outer corners chamfered
-    by 4 mm. That corner of the skull is the tightest spot.
+  - The bar plate is ±10.4 mm tall with its lower outer corners chamfered
+    by 1 mm. That corner of the skull is the tightest spot. (A 4 mm chamfer
+    cut through the lower M2 holes; the heads only bore on about half their
+    ring.)
 - Behind the bowls, everything is cleared with 0.75 mm round it: the
   modules, the bar, the M2 heads, the connectors and their cables (a 16 mm
   channel behind each window), and screwdriver access to the bar bolts.
@@ -208,11 +219,23 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - The horn (single or double arm, pointing down the ramus) is screwed to the
   spline on the bench.
   - The jaw then fixes to the horn with two M2×16 self-tapping screws from
-    **outside** the ramus. They go through Ø2.2 holes, at 10, 12 and 14 mm
-    from the axis, into the horn arm. The heads sit in counterbores on the
-    ramus.
+    **outside** the ramus. They go through Ø2.2 pilots at 10 and 14 mm from
+    the axis along the horn arm, which points 20° forward of straight down,
+    along the condyle neck (`HORN_ARM_DEG`). The heads sit on a shallow Ø6
+    spot face on the ramus; each screw reaches 4–6 mm past the horn arm.
   - Screwing from outside is the only straight tool path once the jaw is
     on.
+- **Pads.** Each condyle neck carries a pad on its inside, grown out of the
+  bone: inside the pad outline the ramus is filled solid from the pad face to
+  0.8 mm under the outer surface, with a 3 mm fillet where the pad meets the
+  ramus (`jaw_pads()`).
+  - Servo side: the hull of a Ø24 disc on the axis and an Ø11 lobe round the
+    far horn screw, 8 mm thick from the horn face (was a Ø24 × 8 disc that
+    the r = 14 screw sat outside of).
+  - Pivot side: a Ø22 disc, 8 mm thick (was Ø16 × 8), plus a Ø15 boss on the
+    axis out to |x| = 48.5 that is kept above the condyle trim. It leaves
+    4.2 mm of wall round the Ø6.6 head counterbore and 5.7 mm of material
+    over the bolt (the trim used to leave a 1.7 mm bridge there).
 - The other side pivots on an **M3×20** shoulder of the bolt. The head sits
   in a counterbore on the outside of the condyle, and the bolt runs into an
   insert in a boss hanging from the skull base, with a 0.5 mm gap. Add a
@@ -252,15 +275,22 @@ radar sees through the nasal window. Use paint without metal flakes there.
   - Its lower edge goes outside a 5 mm lip on the chassis (0.5 mm
     clearance, 1.5 mm lead-in step). The lip is trimmed wherever the cover
     would brush it on the way down.
-  - One M3×12 from behind, low at the back of the head, goes through the
-    cover into an insert post on the chassis.
+  - One M3×12 from behind, low at the back of the head (z = −9), goes
+    through the cover into an insert post on the chassis.
+  - The back of the head overhangs there, and the cover drops straight
+    down, so the post face (y ≈ 139.5) must stay in front of all cover wall
+    below it. The cover therefore has a Ø10 pad out to the post face (0.5 mm
+    gap), and the slanted outside gets a Ø6.5 spot face so the head sits
+    flat.
 - **Cap:**
   - A hook on its front edge (bridge, stem and foot, 20 mm wide, 0.5 mm
     clearances) goes under a ledge on the chassis forehead.
   - Fitting: lower the cap 6.5 mm behind its place, then slide it forward
     along the cut; the foot slides under the ledge.
   - One M3×12 from behind, high at the back of the head, goes through the
-    cap into an insert boss on the back cover. The back cover is then trapped
+    cap into an insert boss on the back cover. The boss reaches up across the
+    cap cut to the screw axis (6 mm above it), with a flat face square to the
+    screw about 1 mm inside the cap wall. The back cover is then trapped
     under the cap, and screwed to the chassis at its bottom.
 - **Checked:**
   - The back cover drops in with everything fitted.
@@ -285,7 +315,7 @@ radar sees through the nasal window. Use paint without metal flakes there.
   region it is in.
 - **Hand space.** The eye-bar bolt also needs a 60 × 40 × 50 mm empty hand
   space round the handle, from 60 mm behind the screw.
-- **Result in this build:** all 17 screws OK, and the hand space is clear.
+- **Result in this build:** all 17 screws OK (tool access and the fastener check), and the hand space is clear.
   The eye-bar insertion path and the radar path (on edge up the slot between
   the bowls) are clear too.
 
@@ -316,7 +346,7 @@ radar sees through the nasal window. Use paint without metal flakes there.
   bore into the skull.
   - It drops into a 10 mm socket on top of the stand column (0.4 mm
     clearance).
-  - One M3×12 from behind (+Y) goes through the socket wall into an insert
+  - One M3×8 from behind (+Y) goes through the socket wall into an insert
     in the neck.
 - The column is Ø38 with an Ø18 bore. An **open 8 mm slot** runs down its
   whole length (toward −X) and across the base, so the USB cable drops in
@@ -329,10 +359,10 @@ radar sees through the nasal window. Use paint without metal flakes there.
 
 | Item | Qty | Where |
 |---|---|---|
-| M3 heat-set insert (Ø4.1 × 5.7 hole) | 8 | eye-bar post, 2 servo-bracket bosses, tray post, jaw pivot boss, back-cover post (chassis), cap boss (back cover), neck |
-| M3×12 | 4 | eye bar, back cover, cap, stand |
+| M3 heat-set insert (5.7 long; Ø4.0 × 6.7 pilot bore, Ø3.2 relief past it) | 8 | eye-bar post, 2 servo-bracket bosses, tray post, jaw pivot boss, back-cover post (chassis), cap boss (back cover), neck |
+| M3×12 | 3 | eye bar (+ Ø9 M3 washer, DIN 9021, over the slot), back cover, cap |
 | M3×20 | 1 | jaw pivot (+ M3 washer) |
-| M3×8 | 3 | 2 servo bracket, 1 tray |
+| M3×8 | 4 | 2 servo bracket, 1 tray, stand (an M3×12 there would reach into the cable bore) |
 | M2×8 | 4 | LCD modules to the eye bar |
 | M2×16 self-tapping | 2 | jaw to horn arm, from outside the ramus |
 | servo tab screws (supplied) | 2 | servo to bracket |
@@ -361,8 +391,8 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
    - Plug the cables into the LCDs.
    - Bring the eye bar in from behind and push it onto the left post and the
      right key peg.
-   - Screw the M2×8s and the M3×12 bar bolt straight from behind. Centre the
-     screens.
+   - Screw the M2×8s and the M3×12 bar bolt (with a Ø9 washer) straight from
+     behind. Centre the screens.
 3. **Radar:** on edge down the slot between the bowls, then flat and forward
    into its frame.
 4. **ESP32** (from above): slide the tray forward under the two hooks, fit
@@ -382,7 +412,7 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
 8. **Stand:**
    - Feed the cable down the neck bore and lay it in the column slot.
    - Push the stand's socket onto the neck.
-   - Fit 1× M3×12 from behind.
+   - Fit 1× M3×8 from behind.
 
 ## Parameters you are likely to touch (top of `build.py`)
 

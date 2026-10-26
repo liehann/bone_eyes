@@ -81,7 +81,7 @@ slot_w           = 3.2;    // + hole_comp
 skull_plate_half_h = 10.4; // plate half height round the eyes (M2 heads at +-7.9)
 skull_plate_lat    = 4.0;  // plate edge outside the standoff line
 skull_plate_r      = 4.0;  // corner radius
-skull_plate_chamfer = 4.0; // extra chamfer on the lower outer corners
+skull_plate_chamfer = 1.0; // extra chamfer on the lower outer corners
 // M3 mounting slots: bolt from the back face into inserts on the skull posts
 skull_mount_holes  = [[-27.5, 16], [27.5, 16]]; // no centre hole: keeps the space behind the nose free
 skull_mount_boss_d = 9.0;

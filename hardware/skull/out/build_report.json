@@ -3,8 +3,8 @@
   "face": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 133.35,
-   "tris": 337040,
+   "volume_cm3": 134.2,
+   "tris": 335040,
    "size": [
     114.5,
     171.1,
@@ -14,19 +14,19 @@
   "back": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 38.26,
-   "tris": 85038,
+   "volume_cm3": 40.18,
+   "tris": 85894,
    "size": [
     134.1,
     123.7,
-    44.5
+    50.3
    ]
   },
   "cap": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 95.24,
-   "tris": 178662,
+   "volume_cm3": 95.22,
+   "tris": 178862,
    "size": [
     134.2,
     171.9,
@@ -36,12 +36,12 @@
   "jaw": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 48.77,
-   "tris": 19760,
+   "volume_cm3": 51.22,
+   "tris": 61112,
    "size": [
     99.2,
     97.4,
-    69.3
+    72.4
    ]
   },
   "servo_bracket": {
@@ -82,97 +82,97 @@
  "jaw_sweep": [
   [
    -0.5,
-   0.0
+   0.002
   ],
   [
    0.5,
-   0.0
+   0.002
   ],
   [
    1.5,
-   0.0
+   0.002
   ],
   [
    2.5,
-   0.0
+   0.002
   ],
   [
    3.5,
-   0.0
+   0.002
   ],
   [
    4.5,
-   0.0
+   0.002
   ],
   [
    5.5,
-   0.0
+   0.002
   ],
   [
    6.5,
-   0.0
+   0.002
   ],
   [
    7.5,
-   0.0
+   0.002
   ],
   [
    8.5,
-   0.0
+   0.002
   ],
   [
    9.5,
-   0.0
+   0.002
   ],
   [
    10.5,
-   0.0
+   0.002
   ],
   [
    11.5,
-   0.001
+   0.002
   ],
   [
    12.5,
-   0.001
+   0.002
   ],
   [
    13.5,
-   0.001
+   0.002
   ],
   [
    14.5,
-   0.001
+   0.002
   ],
   [
    15.5,
-   0.001
+   0.002
   ],
   [
    16.5,
-   0.001
+   0.002
   ],
   [
    17.5,
-   0.001
+   0.002
   ],
   [
    18.5,
-   0.001
+   0.002
   ],
   [
    19.5,
-   0.002
+   0.003
   ]
  ],
  "beyond_stops": [
   [
    -2.0,
-   0.015
+   0.016
   ],
   [
    21.5,
-   0.012
+   0.013
   ]
  ],
  "tool_access": [
@@ -217,7 +217,7 @@
    "ok": true
   },
   {
-   "name": "eye-bar bolt (x=-28)",
+   "name": "eye-bar bolt (M3x12, x=-28)",
    "stage": "eyebar",
    "blocked_cm3": 0.0,
    "blocked_by": [],
@@ -257,7 +257,7 @@
    "ok": true
   },
   {
-   "name": "servo bracket bolt (y=60)",
+   "name": "servo bracket bolt (M3x8, y=60)",
    "stage": "servo",
    "blocked_cm3": 0.0,
    "blocked_by": [],
@@ -267,7 +267,7 @@
    "ok": true
   },
   {
-   "name": "servo bracket bolt (y=70)",
+   "name": "servo bracket bolt (M3x8, y=70)",
    "stage": "servo",
    "blocked_cm3": 0.0,
    "blocked_by": [],
@@ -277,7 +277,7 @@
    "ok": true
   },
   {
-   "name": "tray bolt (38, 100)",
+   "name": "tray bolt (M3x8)",
    "stage": "tray",
    "blocked_cm3": 0.0,
    "blocked_by": [],
@@ -289,7 +289,7 @@
   {
    "name": "horn-to-jaw screw (r=10)",
    "stage": "jaw",
-   "blocked_cm3": 0.002,
+   "blocked_cm3": 0.0,
    "blocked_by": [],
    "exits": "outside",
    "wanted": "outside",
@@ -307,7 +307,7 @@
    "ok": true
   },
   {
-   "name": "jaw pivot bolt",
+   "name": "jaw pivot bolt (M3x20)",
    "stage": "jaw",
    "blocked_cm3": 0.0,
    "blocked_by": [],
@@ -319,7 +319,7 @@
   {
    "name": "back cover screw (M3x12)",
    "stage": "back",
-   "blocked_cm3": 0.005,
+   "blocked_cm3": 0.0,
    "blocked_by": [],
    "exits": "outside",
    "wanted": "outside",
@@ -329,7 +329,7 @@
   {
    "name": "cap screw (M3x12)",
    "stage": "cap",
-   "blocked_cm3": 0.001,
+   "blocked_cm3": 0.0,
    "blocked_by": [],
    "exits": "outside",
    "wanted": "outside",
@@ -337,7 +337,7 @@
    "ok": true
   },
   {
-   "name": "stand screw (M3x12)",
+   "name": "stand screw (M3x8)",
    "stage": "stand",
    "blocked_cm3": 0.0,
    "blocked_by": [],
@@ -351,9 +351,232 @@
   "eye_bar_path": 0.0,
   "radar_path": -0.0
  },
- "back_lift": 8.642392357316453e-18,
- "cap_lift": 8.879659441068644e-16,
+ "back_lift": 8.675352103360013e-18,
+ "cap_lift": 8.546978953142264e-16,
  "bracket_slide": [],
+ "fastener_check": [
+  {
+   "name": "M2 module screw (x=-27)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 5.65,
+   "clamp": 5.6,
+   "engage": 2.4,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "ok": true
+  },
+  {
+   "name": "M2 module screw (x=-27)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 5.65,
+   "clamp": 5.6,
+   "engage": 2.4,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "ok": true
+  },
+  {
+   "name": "M2 module screw (x=27)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 5.65,
+   "clamp": 5.6,
+   "engage": 2.4,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "ok": true
+  },
+  {
+   "name": "M2 module screw (x=27)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 5.65,
+   "clamp": 5.6,
+   "engage": 2.4,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "ok": true
+  },
+  {
+   "name": "eye-bar bolt (M3x12, x=-28)",
+   "problems": [],
+   "L": 12.0,
+   "s_head": 0.05,
+   "s_joint": 5.65,
+   "clamp": 5.6,
+   "engage": 6.4,
+   "seat_flat": 0.67,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 1.0,
+   "ok": true
+  },
+  {
+   "name": "servo tab screw (v=-8)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 2.55,
+   "clamp": 2.5,
+   "engage": 5.5,
+   "seat_flat": 1.0,
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 0.976,
+   "receiver_thickness": 2.95,
+   "ok": true
+  },
+  {
+   "name": "servo tab screw (v=19)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 2.55,
+   "clamp": 2.5,
+   "engage": 5.5,
+   "seat_flat": 1.0,
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 0.976,
+   "receiver_thickness": 2.95,
+   "ok": true
+  },
+  {
+   "name": "horn screw",
+   "problems": [],
+   "ok": true,
+   "note": "supplied; horn onto the spline, not modelled",
+   "s_head": 0.0
+  },
+  {
+   "name": "servo bracket bolt (M3x8, y=60)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 3.05,
+   "clamp": 3.0,
+   "engage": 5.0,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 1.0,
+   "ok": true
+  },
+  {
+   "name": "servo bracket bolt (M3x8, y=70)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 3.05,
+   "clamp": 3.0,
+   "engage": 5.0,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 1.0,
+   "ok": true
+  },
+  {
+   "name": "tray bolt (M3x8)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 3.05,
+   "clamp": 3.0,
+   "engage": 5.0,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 1.0,
+   "ok": true
+  },
+  {
+   "name": "horn-to-jaw screw (r=10)",
+   "problems": [],
+   "L": 16.0,
+   "s_head": -0.0,
+   "s_joint": 11.15,
+   "clamp": 11.15,
+   "engage": 4.85,
+   "seat_flat": 0.79,
+   "clearance_blocked_mm3": {},
+   "receiver_thickness": 1.8,
+   "ok": true
+  },
+  {
+   "name": "horn-to-jaw screw (r=14)",
+   "problems": [],
+   "L": 16.0,
+   "s_head": 0.05,
+   "s_joint": 10.15,
+   "clamp": 10.1,
+   "engage": 5.9,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "receiver_thickness": 1.8,
+   "ok": true
+  },
+  {
+   "name": "jaw pivot bolt (M3x20)",
+   "problems": [],
+   "L": 20.0,
+   "s_head": 0.05,
+   "s_joint": 15.05,
+   "clamp": 15.0,
+   "engage": 5.0,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 1.0,
+   "ok": true
+  },
+  {
+   "name": "back cover screw (M3x12)",
+   "problems": [],
+   "L": 12.0,
+   "s_head": 0.05,
+   "s_joint": 5.1,
+   "clamp": 5.05,
+   "engage": 6.95,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 0.0,
+   "wall_frac": 1.0,
+   "ok": true
+  },
+  {
+   "name": "cap screw (M3x12)",
+   "problems": [],
+   "L": 12.0,
+   "s_head": -0.0,
+   "s_joint": 2.65,
+   "clamp": 2.65,
+   "engage": 9.35,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": -0.0,
+   "wall_frac": 0.992,
+   "ok": true
+  },
+  {
+   "name": "stand screw (M3x8)",
+   "problems": [],
+   "L": 8.0,
+   "s_head": 0.05,
+   "s_joint": 2.65,
+   "clamp": 2.6,
+   "engage": 5.4,
+   "seat_flat": 1.0,
+   "clearance_blocked_mm3": {},
+   "bore_blocked_mm3": 1.19,
+   "wall_frac": 0.991,
+   "ok": true
+  }
+ ],
  "info": {
   "scale": 0.9322033898305084,
   "src_orbit_spacing": 59.0,
@@ -442,7 +665,7 @@
    "radar_path": 0.0
   },
   "joints": [],
-  "floor_lip_cm3": 1.83
+  "floor_lip_cm3": 0.2
  },
  "failures": []
 }
