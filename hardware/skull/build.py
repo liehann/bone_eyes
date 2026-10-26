@@ -163,12 +163,21 @@ M3_WASHER = dict(d=9.0, h=3.8)   # M3 head on a Ø9 (DIN 9021) washer: the seat 
 
 # --- electronics / base --------------------------------------------------------------
 RADAR = dict(L=35.0, W=7.0, T=1.2, comp=3.0, z=-27.5)    # HLK-LD2410C 35 x 7 mm
-# ESP32 tray: horizontal plate on three insert posts over the foramen magnum,
-# between the servo and the cut; board lies flat, pins down, USB end at +X
-TRAY = dict(x0=-43.0, x1=43.0, y0=77.5, y1=105.0, z_top=-7.0, t=3.0)
-TRAY_POSTS = [(-37.5, 82.0), (37.5, 82.0), (37.5, 100.0)]   # (x, y): two front hook posts + one screw post
-TRAY_HOOKS = 2          # the first posts are hooks (stem + cap over an open slot); the tray slides forward under them
-ESP32 = dict(L=55.0, W=28.0, T=1.6, standoff=16.0)       # ESP32-DevKitC V4 (no mounting holes)
+# Servo tray: ONE printed part (servo_tray.stl) = the servo L-bracket (its flange takes the 2x M3x8
+# into the two insert bosses; no other screws) + a bridge slab + two deep ribs + a narrow ESP32
+# cradle plate between the header rows. It drops in from above (cap off) with the servo already
+# screwed to it on the bench. The board lies flat, pins down, long axis along X, centred on the
+# neck-bore line (y = NECK y), USB end at +X (servo side), high enough that the cable can loop
+# down into the neck bore; it lifts out of the cradle without touching the servo.
+ESP32 = dict(L=55.0, W=28.0, T=1.6, x_usb=5.5, y=90.0, z=30.0)   # DevKitC-VIE (no holes); x of the USB end, PCB bottom z
+TRAY = dict(t=3.0, half_w=9.5, standoff=16.0, wall=2.0, fit=0.5, ledge=5.0, rib_y=7.0, rib_t=2.0,
+            bridge_y0=70.0, notch=3.5, tie_w=16.2, far_wall_w=7.0)   # cradle plate between the header rows; ribs at y +-rib_y; cable notch in the bridge
+# keep-outs: DuPont housings on both header rows (pins down), their wires (out of the bottom, then
+# sideways), the micro-USB plug, its insertion path and grip, the cable to the neck bore, EN/BOOT
+DUPONT = dict(row_y=11.4, w=2.6, h=14.0, inset=3.4, wire=15.0)   # 19-pin rows, 48.3 mm long
+USB = dict(plug_w=11.0, plug_h=8.0, plug_l=20.0, boot_l=10.0, boot_d=7.0, z_up=1.5, path_l=36.0, clear=0.5,
+           grip=9.0, grip_up=30.0, cable_d=4.5, bend_r=15.0)
+BUTTONS = dict(dx=4.0, dy=10.0, finger_d=8.0, reach=45.0)   # EN / BOOT beside the USB: dx in from the end, +-dy
 TIE_BAR = dict(y=114.0, w=12.0, t=4.0, h=10.0, tunnel_w=7.0, tunnel_h=5.0)  # zip-tie arch on the floor behind the neck
 # USB cable leaves through the neck: hollow neck boss (Ø14 bore, passes a USB-A
 # plug), into the stand column, which has an open slot down its full length and
@@ -1172,36 +1181,173 @@ def radar_parts(y_wall_back):
     return box, clear, frame
 
 
-def tray_parts():
-    """Electronics tray (separate part) with the ESP32 cradle; skull coordinates.
-    Flat plate over the foramen magnum; the board lies flat, pins down, on two
-    end ledges 16 mm up (room for DuPont housings), USB end at +X."""
-    T = TRAY; E = ESP32; c = FIT
-    z1 = T['z_top']; z0 = z1 - T['t']
-    yc = (T['y0'] + T['y1']) / 2
-    plate = m_box([T['x0'], T['y0'], z0], [T['x1'], T['y1'], z1])
-    zb = z1 + E['standoff']; zt = zb + E['T']          # board bottom / top
-    xb0 = -E['L'] / 2; xb1 = E['L'] / 2
-    parts = [plate]
-    for sg, xend in ((-1, xb0), (1, xb1)):
-        wall = m_box([min(xend + sg * c, xend + sg * (c + 2.5)), yc - E['W'] / 2 - c - 2.5, z1 - 0.01],
-                     [max(xend + sg * c, xend + sg * (c + 2.5)), yc + E['W'] / 2 + c + 2.5, zt + 3.0])
-        ledge = m_box([min(xend, xend - sg * 5.0), yc - 9.0, z1 - 0.01], [max(xend, xend - sg * 5.0), yc + 9.0, zb])
-        parts += [wall, ledge]
-    tray = union(parts)
-    cuts = [m_box([xb1 - 0.1, yc - 6.5, zb - 2.0], [xb1 + 10, yc + 6.5, zt + 10])]       # USB plug
-    for i_, (hx, hy) in enumerate(TRAY_POSTS):
-        if i_ < TRAY_HOOKS:          # open slot from the front edge: the tray slides forward onto the hook stem
-            cuts.append(m_box([hx - 2.9, T['y0'] - 1, z0 - 1], [hx + 2.9, hy + 2.9, z1 + 1]))
-        else:
-            cuts.append(m_cyl([hx, hy, z0 - 1], [hx, hy, z1 + 1], 1.9))
+def esp32_frame():
+    """Board placement: x ends, centre y, PCB bottom/top z, USB plug axis (x, y, z)."""
+    E = ESP32
+    xb1 = E['x_usb']; xb0 = xb1 - E['L']; zb = E['z']; zt = zb + E['T']
+    return dict(xb0=xb0, xb1=xb1, yc=E['y'], zb=zb, zt=zt, zp=zt + USB['z_up'])
+
+
+def servo_tray_parts(mech):
+    """The servo bracket and the ESP32 cradle as ONE part (skull coordinates).
+
+    mech['bracket'] (servo plate under the tabs + flange onto the two insert
+    bosses) is unchanged, so the shaft stays on the hinge axis. Added to it:
+    two gussets in the flange/plate corner (beside the servo case), a bridge
+    slab continuing the flange toward +Y (with an open notch for the USB cable),
+    two deep ribs (y = yc +- rib_y) carrying a narrow cradle plate that sits
+    between the DuPont rows, end ledges, end walls (USB cut at +X) and a zip-tie
+    pair at the far end. Returns (part, board) where board is the ESP32 with
+    its header rows + DuPont housings (hardware, for the collision checks)."""
+    T = TRAY; E = ESP32; F = esp32_frame(); c = T['fit']; D = DUPONT
+    xb0, xb1, yc, zb, zt = F['xb0'], F['xb1'], F['yc'], F['zb'], F['zt']
+    br = mech['bracket']
+    bb = np.array(br.bounding_box())
+    zf0 = float(mech['bracket_bolts'][0][2]); zf1 = zf0 + BRACKET_T      # flange bottom / top
+    assert SERVO_SIDE == 1, 'servo_tray_parts assumes the servo on +X'
+    xp_in = bb[3] - BRACKET_T                                             # inner face of the servo plate (x)
+    sv = np.array(mech['servo'].bounding_box())                          # servo case y range: sv[1] .. sv[4]
+    z1 = zb - T['standoff']; z0 = z1 - T['t']                             # cradle plate top / bottom
+    xw0 = xb0 - c - T['wall']; xw1 = xb1 + c + T['wall']                  # outer faces of the end walls
+    hw = E['W'] / 2 + c + T['wall']
+    parts = [br]
+    # gussets in the flange / servo-plate corner, outside the servo case (w = +-W/2 + 0.6)
+    for y_a, y_b in ((bb[1], sv[1] - 0.6), (sv[4] + 0.6, bb[4])):
+        parts.append(mf.Manifold.batch_hull([m_box([xp_in - 12.0, y_a, zf0 - 0.5], [xp_in + 0.01, y_b, zf0 + 0.01]),
+                                             m_box([xp_in - 0.5, y_a, zf0 - 24.0], [xp_in + 0.01, y_b, zf0 + 0.01])]))
+    # bridge slab: the flange continued toward +Y, from the flange's -X edge to the USB end wall
+    parts.append(m_box([bb[0], T['bridge_y0'], zf0], [xw1, yc + T['rib_y'] + T['rib_t'] / 2, zf1]))
+    # two ribs: full depth (slab to cradle plate) over the bridge, tapering toward the far end
     for sy in (-1, 1):
-        cuts.append(m_box([-14.0, yc + sy * 17 - 1.0, z0 - 1], [-10.0, yc + sy * 17 + 1.0, z1 + 1]))  # zip tie
-    tray = tray - union(cuts)
+        y_a = yc + sy * T['rib_y'] - T['rib_t'] / 2; y_b = y_a + T['rib_t']
+        parts.append(mf.Manifold.batch_hull([m_box([bb[0], y_a, zf0], [xw1, y_b, z1]),
+                                             m_box([xw0, y_a, z0 - 3.0], [xw0 + 3.0, y_b, z1])]))
+    parts.append(m_box([xw0, yc - T['half_w'], z0], [xw1, yc + T['half_w'], z1]))        # cradle plate
+    # far end: zip-tie tab under the board end (between the board edge and the first header pin)
+    # and a short end wall; both kept inside the back cover's drop footprint, which narrows there
+    parts.append(m_box([xb0, yc - T['tie_w'], z0], [xb0 + D['inset'] - 0.5, yc + T['tie_w'], z1]))
+    for sg, xend in ((-1, xb0), (1, xb1)):
+        hw_ = T['far_wall_w'] if sg < 0 else hw
+        parts.append(m_box([min(xend + sg * c, xend + sg * (c + T['wall'])), yc - hw_, z0],
+                           [max(xend + sg * c, xend + sg * (c + T['wall'])), yc + hw_, zt + 3.0]))     # end wall
+        parts.append(m_box([min(xend, xend - sg * T['ledge']), yc - 9.0, z1 - 0.01],
+                           [max(xend, xend - sg * T['ledge']), yc + 9.0, zb]))                       # ledge
+    part = union(parts)
+    cuts = [m_box([xb1 - 0.1, yc - 6.5, zb - 2.0], [xw1 + 1, yc + 6.5, zt + 10]),                   # USB plug
+            m_box([-2.0, yc - T['notch'], zf0 - 1], [xw1 + 1, yc + T['notch'], zf1 + 1])] + \
+        [m_cyl(p - [0, 0, 1.0], p + [0, 0, BRACKET_T + 1.0], 1.9) for p in mech['bracket_bolts']]   # bracket bolt holes (re-cut through the slab)
+    for sy in (-1, 1):
+        cuts.append(m_box([xb0 + 0.2, min(yc + sy * (E['W'] / 2 + 0.2), yc + sy * (E['W'] / 2 + 1.4)), z0 - 1], [xb0 + D['inset'] - 0.7, max(yc + sy * (E['W'] / 2 + 0.2), yc + sy * (E['W'] / 2 + 1.4)), z1 + 1]))  # zip tie
+    part = part - union(cuts)
+    D = DUPONT
     board = union([m_box([xb0, yc - E['W'] / 2, zb], [xb1, yc + E['W'] / 2, zt])] +
-                  [m_box([xb0 + 3, yc + sy * 11.4 - (1.3 if sy > 0 else 1.3), zb - 14.0],
-                         [xb1 - 3, yc + sy * 11.4 + 1.3, zb]) for sy in (-1, 1)])      # header rows + DuPont housings
-    return tray, board
+                  [m_box([xb0 + D['inset'], yc + sy * D['row_y'] - D['w'] / 2, zb - D['h']],
+                         [xb1 - D['inset'], yc + sy * D['row_y'] + D['w'] / 2, zb]) for sy in (-1, 1)])   # header rows + DuPont housings
+    return part, board
+
+
+def usb_keepouts():
+    """Keep-out volumes round the ESP32 (skull coordinates), see USB / DUPONT / BUTTONS.
+
+    plug:   micro-USB overmold + strain-relief boot, plugged in;
+    path:   straight insertion path along the connector axis (overmold section + clearance);
+    grip:   finger room either side of the plug and up to the open top (cap off);
+    cable:  Ø cable_d (+ clearance) from the boot: a 180° loop down (bend_r) in the plane
+            y = yc, back toward the neck, a 90° bend down onto the bore axis, then down the bore;
+    dupont: per row, the housings (w x h) and their wires (out of the bottom, then sideways);
+    buttons: a fingertip column from above onto EN and BOOT."""
+    U = USB; F = esp32_frame(); D = DUPONT; Bt = BUTTONS; N = NECK
+    xr, yc, zp = F['xb1'], F['yc'], F['zp']
+    cl = U['clear']; R = U['bend_r']; rc = U['cable_d'] / 2 + cl
+    x_om = xr + 0.5 + U['plug_l']; x_bt = x_om + U['boot_l']
+    out = {}
+    out['plug'] = m_box([xr + 0.5, yc - U['plug_w'] / 2, zp - U['plug_h'] / 2], [x_om, yc + U['plug_w'] / 2, zp + U['plug_h'] / 2]) + \
+        m_cyl([x_om - 0.01, yc, zp], [x_bt, yc, zp], U['boot_d'] / 2)
+    out['path'] = m_box([xr + 0.2, yc - U['plug_w'] / 2 - cl, zp - U['plug_h'] / 2 - cl],
+                        [xr + U['path_l'], yc + U['plug_w'] / 2 + cl, zp + U['plug_h'] / 2 + cl])
+    out['grip'] = m_box([xr + 3.5, yc - U['plug_w'] / 2 - U['grip'], zp - U['plug_h'] / 2 - 2.0],
+                        [x_bt, yc + U['plug_w'] / 2 + U['grip'], zp + U['grip_up']])
+    # cable centre line in the plane y = yc: (x, z) points
+    pts = [(xr + U['plug_l'], zp), (x_bt, zp)]
+    for a in np.radians(np.arange(90, -90.1, -10)):                       # loop down, away from the board
+        pts.append((x_bt + R * np.cos(a), zp - R + R * np.sin(a)))
+    zl = zp - 2 * R                                                       # leg back toward the bore
+    for a in np.radians(np.arange(90, 180.1, 10)):                        # bend down onto the bore axis
+        pts.append((N.get('x', 0.0) + R + R * np.cos(a), zl - R + R * np.sin(a)))
+    z_mouth = zl - R
+    pts.append((0.0, N['z_bottom'] - 5.0))
+    P3 = [np.array([x, yc, z]) for x, z in pts]
+    out['cable_line'] = P3
+    out['cable_bare'] = union([m_cyl(a, b, U['cable_d'] / 2, seg=24) for a, b in zip(P3[:-1], P3[1:]) if np.linalg.norm(b - a) > 1e-6] +
+                              [mf.Manifold.sphere(U['cable_d'] / 2, 24).translate(list(p)) for p in P3[1:-1]])
+    out['cable_mouth_z'] = z_mouth
+    out['cable'] = union([m_cyl(a, b, rc, seg=24) for a, b in zip(P3[:-1], P3[1:]) if np.linalg.norm(b - a) > 1e-6] +
+                         [mf.Manifold.sphere(rc, 24).translate(list(p)) for p in P3[1:-1]])
+    # DuPont rows: housings + wires (down out of the housing, then sideways outward)
+    hb = F['zb'] - D['h']
+    xs = (F['xb0'] + D['inset'], F['xb1'] - D['inset'])
+    rows = []
+    for sy in (-1, 1):
+        yi = yc + sy * (D['row_y'] - D['w'] / 2); yo = yc + sy * (D['row_y'] + D['w'] / 2)
+        house = m_box([xs[0], min(yi, yo), hb], [xs[1], max(yi, yo), F['zb']])
+        wire = m_box([xs[0], min(yi, yo + sy * D['wire']), hb - D['wire']], [xs[1], max(yi, yo + sy * D['wire']), hb + 0.01])
+        rows.append(house + wire)
+    out['dupont'] = rows
+    out['buttons'] = union([m_cyl([xr - Bt['dx'], yc + sy * Bt['dy'], F['zt'] + 1.0],
+                                  [xr - Bt['dx'], yc + sy * Bt['dy'], F['zt'] + 1.0 + Bt['reach']], Bt['finger_d'] / 2)
+                            for sy in (-1, 1)])
+    return out
+
+
+def usb_checks(R):
+    """ESP32 / USB / DuPont / button / servo-tray checks. Volumes in cm3 (> 0.005 fails)."""
+    P, H, hinge = R['parts'], R['hardware'], R['hinge']
+    K = usb_keepouts()
+    jm = P['jaw']
+    jaw_sw = union([jm.transform(rot_x_about(*hinge, a))
+                    for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 1.0)])
+    horn = R['mech']['horn']                                  # swept horn disc
+    fixed = dict(face=P['face'], back=P['back'], servo_tray=P['servo_tray'], servo=H['servo'], horn_sweep=horn,
+                 jaw_sweep=jaw_sw, bar=H['bar'], modules=H['modules'], radar=H['radar'])
+    cap_on = dict(fixed, cap=P['cap'], stand=P['stand'])
+    res = {}
+
+    def hits(M, obst):
+        d = {}
+        for k, o in obst.items():
+            v = vol(M ^ o)
+            if v > 0.005:
+                d[k] = round(v, 3)
+        return d
+    res['plug_plugged'] = hits(K['plug'], dict(cap_on, esp32=H['esp32']))
+    res['insertion_path'] = hits(K['path'], dict(fixed, esp32=H['esp32']))
+    res['grip'] = hits(K['grip'], dict(fixed, esp32=H['esp32']))
+    res['cable'] = hits(K['cable'], dict(cap_on, esp32=H['esp32']))
+    # covers on/off with the cable plugged in: the back cover lifts straight up, the cap along its path
+    n_s, _ = seam()
+    back_sw = union([P['back'].translate([0, 0, d]) for d in np.arange(0.0, 60.01, 2.0)])
+    sl = CAP_HOOK['slide'] + 0.5
+    cap_sw = union([P['cap'].translate(list(R['cap_slide'] * d)) for d in np.arange(0.0, sl + 0.01, 1.0)] +
+                   [P['cap'].translate(list(R['cap_slide'] * sl + n_s * d)) for d in np.arange(1.0, 40.01, 3.0)])
+    res['cable_cover_seams'] = hits(K['cable_bare'] + K['plug'], dict(back_on_off=back_sw, cap_on_off=cap_sw))
+    for i, sy in enumerate(('front', 'back')):
+        res['dupont_' + sy] = hits(K['dupont'][i], cap_on)
+    res['buttons'] = hits(K['buttons'], dict(fixed, plug=K['plug']))
+    # servo tray drops in from above (cap off, back cover off) with the servo and horn on it
+    grp = union([P['servo_tray'], H['servo'], H['horn']])
+    early = union([P['face'], H['bar'], H['modules'], H['radar']])
+    res['servo_tray_drop'] = round(max(vol(grp.translate([0, 0, d]) ^ early) for d in np.arange(0.5, 100.01, 1.5)), 3)
+    # the ESP32 lifts out of the cradle with the servo tray in place (cap off)
+    rest = union([P['face'], P['back'], P['servo_tray'], H['servo'], H['horn'], H['bar'], H['modules'], H['radar']])
+    res['esp32_lift_out'] = round(max(vol(H['esp32'].translate([0, 0, d]) ^ rest) for d in np.arange(0.5, 60.01, 1.5)), 3)
+    F = esp32_frame()
+    res['layout'] = dict(board_x=(F['xb0'], F['xb1']), board_y=F['yc'], pcb_bottom_z=F['zb'], usb_axis_z=round(F['zp'], 2),
+                         usb_faces='+X', cable_mouth_z=round(K['cable_mouth_z'], 2), neck_top_z=-12.0)
+    res['failures'] = ['usb/' + k for k, v in res.items() if (isinstance(v, dict) and v and k != 'layout') or
+                       (isinstance(v, float) and v > 0.005)]
+    if K['cable_mouth_z'] < -12.0 - 0.01:
+        res['failures'].append('usb/cable bend below the neck bore mouth')
+    return res, K
 
 
 def stand():
@@ -1336,20 +1482,12 @@ def build():
     info['joints'] = J['info']
     CJ = cover_joints(G, sd, inside, cavity)
 
-    # ---- chassis features: servo cup bosses, jaw pivot, tray posts, neck, tie bar
+    # ---- chassis features: servo cup bosses, jaw pivot, neck, tie bar (the servo tray needs no posts of its own)
     slot = union([mech['finger_clear'].transform(rot_x_about(*hinge, a))
                   for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 0.5)])
     pivot = mech['skull_pivot'] - slot - mech['skull_pivot_holes']
     sboss = union([m_cyl(p, p - np.array([0, 0, 40.0]), 4.5) for p in mech['bracket_bolts']]) ^ inside
     sboss_h = union([insert_bore(p, [0, 0, -1.0]) for p in mech['bracket_bolts']])
-    tz0 = TRAY['z_top'] - TRAY['t']
-    tposts = union([m_cyl([x, y, tz0], [x, y, tz0 - 45], 4.5) for x, y in TRAY_POSTS]) ^ inside
-    # hook posts: Ø4.6 stem through the tray's open slot and a Ø9 cap 0.5 mm above the plate
-    tposts += union([m_cyl([x, y, tz0 - 0.01], [x, y, TRAY['z_top'] + 0.5], 2.3) +
-                     m_cyl([x, y, TRAY['z_top'] + 0.5], [x, y, TRAY['z_top'] + 2.5], 4.5, 3.5)
-                     for x, y in TRAY_POSTS[:TRAY_HOOKS]])
-    scr_ = TRAY_POSTS[TRAY_HOOKS:]
-    tposts_h = union([insert_bore([x, y, tz0], [0, 0, -1.0]) for x, y in scr_])
     N = NECK
     neck = m_cyl([0, N['y'], N['z_bottom']], [0, N['y'], -12.0], N['r'])
     zs_ = N['z_bottom'] + N['screw_z']
@@ -1366,9 +1504,9 @@ def build():
 
     # chassis
     face = face - socket_air - eye_clear - radar_clear
-    face = union([face, socket_wall, posts, radar_frame, pivot, sboss, tposts, neck, tie ^ inside] + J['add']['face'] + CJ['face'])
+    face = union([face, socket_wall, posts, radar_frame, pivot, sboss, neck, tie ^ inside] + J['add']['face'] + CJ['face'])
     face = face - union([post_holes, apert, radar_clear, socket_air, mech['cup_env'], mech['cup_slot'],
-                         mech['skull_pivot_holes'], slot, sboss_h, tposts_h, neck_h] + J['cut']['face'] + CJ['cut_face'])
+                         mech['skull_pivot_holes'], slot, sboss_h, neck_h] + J['cut']['face'] + CJ['cut_face'])
     face = face - eye_clear - corridor_back
     if peg is not None:
         face = face + peg
@@ -1409,18 +1547,14 @@ def build():
     vmid = (-S_['shaft_off'] + S_['L'] - S_['shaft_off']) / 2
     for v in (vmid - S_['hole_sp'] / 2, vmid + S_['hole_sp'] / 2):
         fast.append(dict(name='servo tab screw (v=%.0f)' % v, head=Ps(S_['tab_top'], v, 0), axis=u_ax, stage='bench_servo', cb=0.0,
-                         spec=dict(kind='selftap', L=8.0, d=2.0, clamped=['servo'], receiver='servo_bracket', head=M2_HEAD,
+                         spec=dict(kind='selftap', L=8.0, d=2.0, clamped=['servo'], receiver='servo_tray', head=M2_HEAD,
                                    clear_d=None, pilot_d=1.8, through=True, note='supplied servo screw, length assumed 8 mm')))
     fast.append(dict(name='horn screw', head=Ps(S_['spline_top'] + 1.0, 0, 0), axis=u_ax, stage='bench_horn', cb=0.0,
                      spec=dict(kind='hw', clamped=['horn'], receiver='servo', note='supplied; horn onto the spline, not modelled')))
     for p_ in mech['bracket_bolts']:
-        fast.append(dict(name='servo bracket bolt (M3x8, y=%.0f)' % p_[1], head=p_ + [0, 0, BRACKET_T], axis=np.array([0, 0, 1.0]), stage='servo',
+        fast.append(dict(name='servo tray bolt (M3x8, y=%.0f)' % p_[1], head=p_ + [0, 0, BRACKET_T], axis=np.array([0, 0, 1.0]), stage='servo_tray',
                          cb=0.0, opening='top',
-                         spec=dict(kind='insert', L=8.0, d=3.0, clamped=['servo_bracket'], receiver='face', head=M3_HEAD, clear_d=3.8)))
-    for x, y in TRAY_POSTS[TRAY_HOOKS:]:
-        fast.append(dict(name='tray bolt (M3x8)', head=np.array([x, y, TRAY['z_top']]), axis=np.array([0, 0, 1.0]), stage='tray',
-                         cb=0.0, opening='top',
-                         spec=dict(kind='insert', L=8.0, d=3.0, clamped=['tray'], receiver='face', head=M3_HEAD, clear_d=3.8)))
+                         spec=dict(kind='insert', L=8.0, d=3.0, clamped=['servo_tray'], receiver='face', head=M3_HEAD, clear_d=3.8)))
     # horn-to-jaw screws (M2x16 self-tapping) from outside the ramus: Ø2.2 pilot,
     # and a Ø4.8 counterbore only where the ramus is thicker than the screw allows
     hd = horn_dir(); sg_ = SERVO_SIDE; tj = to_tri(jaw_moving); horn_cut = []
@@ -1454,9 +1588,9 @@ def build():
     # jaw
     jaw_part = clean(jaw_moving - mech['jaw_pad_holes'] - mech['jaw_pivot_holes'] - horn_holes, 'jaw')
 
-    tray, board = tray_parts()
-    tray = clean(tray ^ cavity, 'tray')
-    parts = dict(face=face, back=back, cap=cap, jaw=jaw_part, servo_bracket=mech['bracket'], tray=tray, stand=stand())
+    servo_tray, board = servo_tray_parts(mech)
+    servo_tray = clean(servo_tray, 'servo_tray')
+    parts = dict(face=face, back=back, cap=cap, jaw=jaw_part, servo_tray=servo_tray, stand=stand())
     for name, br in J['brackets']:
         parts['joint_bracket_' + name] = br
     P = servo_frame(hinge); St = SERVO
@@ -1636,7 +1770,7 @@ def verify(R):
                 for q in (A ^ B_).decompose():
                     if q.volume() > 2:
                         log('  clash %s/%s %.1f mm3 at %s' % (a, b, q.volume(), np.round(q.bounding_box(), 1)))
-    others = union([P['face'], P['back'], H['servo'], P['servo_bracket'], P['stand']])
+    others = union([P['face'], P['back'], H['servo'], P['servo_tray'], P['stand']])
     jm = P['jaw']
     for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 1.0):
         v = vol(jm.transform(rot_x_about(*hinge, a)) ^ others)
@@ -1645,18 +1779,18 @@ def verify(R):
     for a in (JAW_CLOSE_STOP - 1.5, JAW_OPEN_DEG + JAW_STOP_MARGIN + 1.5):
         rep.setdefault('beyond_stops', []).append((float(a), round(vol(jm.transform(rot_x_about(*hinge, a)) ^ P['face']), 3)))
     # ---- tool access: every fastener needs a straight tool path when it is driven
-    STAGES = ['bench_servo', 'bench_horn', 'eyebar', 'radar', 'tray', 'esp32', 'servo', 'jaw', 'brackets_floor', 'back',
+    STAGES = ['bench_servo', 'bench_horn', 'eyebar', 'radar', 'servo_tray', 'esp32', 'jaw', 'brackets_floor', 'back',
               'brackets_cap', 'cap', 'stand']
-    FITTED = dict(eyebar=['bar', 'modules'], radar=['radar'], servo=['servo', 'servo_bracket', 'horn'], tray=['tray'],
+    FITTED = dict(eyebar=['bar', 'modules'], radar=['radar'], servo_tray=['servo', 'servo_tray', 'horn'],
                   esp32=['esp32'], jaw=['jaw'], brackets_floor=[k for k in P if k.startswith('joint_bracket_back')], back=['back'],
                   brackets_cap=[k for k in P if k.startswith('joint_bracket_cap')], cap=['cap'], stand=['stand'])
     allp = dict(P); allp.update(H)
 
     def present(stage):
         if stage == 'bench_servo':
-            return ['servo', 'servo_bracket']
+            return ['servo', 'servo_tray']
         if stage == 'bench_horn':
-            return ['servo', 'servo_bracket', 'horn']
+            return ['servo', 'servo_tray', 'horn']
         out = ['face']
         for st in STAGES[2:STAGES.index(stage) + 1]:
             out += FITTED.get(st, [])
@@ -1709,7 +1843,7 @@ def verify(R):
         eye_bar_path=round(vol(hd['eye_bar'] ^ (P['face'] - R['peg'] if R['peg'] is not None else P['face'])), 3),
         radar_path=round(vol(hd['radar'] ^ union([P['face'], H['bar'], H['modules']])), 3))
     # covers: the back lifts straight up (cap already off), the cap along its normal
-    under = union([P['face'], P['jaw'], P['servo_bracket'], P['tray'], H['servo'], H['horn'], H['esp32'], H['bar'], H['modules'],
+    under = union([P['face'], P['jaw'], P['servo_tray'], H['servo'], H['horn'], H['esp32'], H['bar'], H['modules'],
                    H['radar']] + [m for k, m in P.items() if k.startswith('joint_bracket_back')])
     bl = [(vol(P['back'].translate([0, 0, d]) ^ under), d) for d in np.arange(1.0, 121.0, 2.0)]
     rep['back_lift'] = max(bl)[0]
@@ -1752,8 +1886,7 @@ PRINT_ORIENT = {   # rotation into print orientation (then dropped onto z = 0, c
     'back': rx(0),              # lower cut (z = Z_FLOOR) on the bed
     'cap': 'seam_up',           # cut face on the bed, crown up
     'jaw': rx(0),               # upright, as in the skull
-    'servo_bracket': ry(90 * SERVO_SIDE),   # mounting plate on the bed
-    'tray': rx(-90),            # plate on the bed, cradle up
+    'servo_tray': ry(90 * SERVO_SIDE),   # servo mounting plate on the bed; slab, ribs and cradle stand up
     'stand': rx(0),
     'dowel': rx(0),
 }
@@ -1792,7 +1925,7 @@ def export(R):
 
 
 SCAD = '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD'
-COLORS = dict(face='ivory', back='wheat', cap='navajowhite', jaw='tan', servo_bracket='seagreen', tray='mediumpurple',
+COLORS = dict(face='ivory', back='wheat', cap='navajowhite', jaw='tan', servo_tray='mediumpurple',
               stand='gray', bar='dimgray', modules='black', servo='royalblue', horn='crimson', radar='red',
               esp32='teal', paint='#1a1a1a', screens='gold', tools='deepskyblue')
 
@@ -1844,8 +1977,8 @@ def render(R):
     # come out of its back, then the servo, the tray + ESP32, the jaw, the cover
     n_, _ = seam()
     lift = lambda d: tuple(float(v) for v in n_ * d)
-    ex = dict(bar=(0, 70, 0), modules=(0, 70, 0), radar=(0, 40, 60), tray=(0, 0, 90), esp32=(0, 0, 115),
-              servo=(0, 0, 70), servo_bracket=(0, 0, 70), horn=(0, 0, 70), jaw=(0, 0, -70),
+    ex = dict(bar=(0, 70, 0), modules=(0, 70, 0), radar=(0, 40, 60), esp32=(0, 0, 115),
+              servo=(0, 0, 70), servo_tray=(0, 0, 70), horn=(0, 0, 70), jaw=(0, 0, -70),
               back=(0, 150, 60), cap=lift(250), stand=(0, 0, -120))
     for k in items:
         if k.startswith('joint_bracket_back'):
@@ -1855,7 +1988,7 @@ def render(R):
     e = scad('expl.scad', asm(explode=ex))
     jobs.append(('skull_exploded.png', e, '0,90,90,70,0,300,1250'))
     eyes_hw = ('bar', 'modules', 'radar', 'screens', 'paint')
-    allhw = eyes_hw + ('servo', 'servo_bracket', 'horn', 'tray', 'esp32', 'jaw')
+    allhw = eyes_hw + ('servo', 'servo_tray', 'horn', 'esp32', 'jaw')
 
     def imp(keys, extra=''):
         return 'color("ivory") import("face.stl");\n' + '\n'.join(
@@ -1885,6 +2018,49 @@ def render(R):
     log('rendered %d previews + sections' % len(jobs))
 
 
+def render_usb(R, K):
+    """skull_esp32_usb.png: the chassis with the cap off, the servo tray, the ESP32 and the
+    keep-outs (DuPont housings + wires orange, plug + boot red, insertion path and grip yellow,
+    cable blue, EN/BOOT fingertips green). Left: from above, back cover on; right: from behind
+    and above with the back cover off, showing the cable loop down into the neck bore."""
+    import subprocess
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    tmp = os.path.join(CACHE, 'render_usb'); os.makedirs(tmp, exist_ok=True)
+    P, H = R['parts'], R['hardware']
+    items = dict(face=P['face'], back=P['back'], servo_tray=P['servo_tray'], jaw=P['jaw'], servo=H['servo'], horn=H['horn'],
+                 esp32=H['esp32'], bar=H['bar'], modules=H['modules'], radar=H['radar'],
+                 ko_dupont=union(K['dupont']), ko_plug=K['plug'], ko_path=K['path'] - K['plug'], ko_grip=K['grip'] - K['path'],
+                 ko_cable=K['cable'], ko_buttons=K['buttons'])
+    for k, m in items.items():
+        to_tri(m).export(os.path.join(tmp, k + '.stl'))
+    cols = dict(COLORS, ko_dupont='"orange", 0.55', ko_plug='"red"', ko_path='"yellow", 0.35', ko_grip='"gold", 0.2',
+                ko_cable='"dodgerblue"', ko_buttons='"lime", 0.5', back='"wheat", 0.9')
+
+    def body(skip):
+        return '\n'.join('color(%s) import("%s.stl");' % (cols[k] if cols.get(k, '').startswith('"') else '"%s"' % cols.get(k, 'orange'), k)
+                         for k in items if k not in skip)
+    shots = [('a.scad', body(()), '0,90,0,0,0,0,330'), ('b.scad', body(('back', 'jaw')), '5,85,0,62,0,160,330')]
+    pngs = []
+    procs = []
+    for fn, b, cam in shots:
+        with open(os.path.join(tmp, fn), 'w') as f:
+            f.write(b)
+        png = os.path.join(tmp, fn.replace('.scad', '.png')); pngs.append(png)
+        procs.append(subprocess.Popen([SCAD, '-o', png, '--preview', '--imgsize=1100,1100', '--camera=' + cam, '--projection=o',
+                                       '--colorscheme=Tomorrow', os.path.join(tmp, fn)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    for p in procs:
+        p.wait()
+    fig, ax = plt.subplots(1, 2, figsize=(22, 11.5))
+    titles = ['From above, cap off (back cover on)', 'From behind and above, cap and back cover off: cable loop into the neck bore']
+    for a, png, t in zip(ax, pngs, titles):
+        a.imshow(plt.imread(png)); a.set_axis_off(); a.set_title(t, fontsize=13)
+    fig.suptitle('ESP32 on the servo tray: DuPont housings + wires (orange), USB plug + boot (red), insertion path (yellow), '
+                 'grip (gold), cable (blue), EN/BOOT fingertips (green)', fontsize=13, y=0.99)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(os.path.join(OUT, 'skull_esp32_usb.png'), dpi=80); plt.close(fig)
+
+
 def sections(R, items):
     """Filled cross-sections (matplotlib) through the orbits and the jaw mechanism."""
     import matplotlib
@@ -1893,8 +2069,7 @@ def sections(R, items):
     from matplotlib.patches import PathPatch, Patch
     from matplotlib.path import Path
     cols = dict(face='#f2e6c4', back='#d9b87c', jaw='#b88a4a', bar='#666666', modules='#111111',
-                servo='#3355cc', servo_bracket='#2e8b57', horn='#cc2233', radar='#ee2222', esp32='#119999',
-                tray='#9370db', stand='#999999', paint='#111111', screens='#e0b000', cap='#f5deb3')
+                servo='#3355cc', servo_tray='#9370db', horn='#cc2233', radar='#ee2222', esp32='#119999', stand='#999999', paint='#111111', screens='#e0b000', cap='#f5deb3')
     maps = dict(z=(np.eye(4)[:3], ('x', 'y'), 1), x=(np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0]], float), ('y', 'z'), 1),
                 y=(np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0]], float), ('x', 'z'), -1))
 
@@ -2048,7 +2223,10 @@ def main():
     for t in rep['fastener_check']:
         log('  %s %-34s clamp %5s  e %5s  wall %5s  %s' % ('OK ' if t['ok'] else 'FAIL', t['name'], t.get('clamp', '-'), t.get('engage', '-'),
                                                          t.get('wall_frac', '-'), '; '.join(t['problems']) or t.get('note', '')))
-    rep['failures'] = [t['name'] for t in bad] + [k for k, v in rep['hand_access'].items() if v > 0.005] + \
+    rep['usb'], usb_k = usb_checks(R)
+    for k, v in rep['usb'].items():
+        log('  usb/esp32 %-18s %s' % (k, v if v != {} else 'clear'))
+    rep['failures'] = rep['usb']['failures'] + [t['name'] for t in bad] + [k for k, v in rep['hand_access'].items() if v > 0.005] + \
         (['back lift-off'] if rep['back_lift'] > 0.005 else []) + (['cap lift-off'] if rep['cap_lift'] > 0.005 else []) + \
         ['collision %s/%s' % (a, b) for a, b, v in rep['collisions']] + \
         ['fastener %s' % t['name'] for t in rep['fastener_check'] if not t['ok']]
@@ -2059,6 +2237,7 @@ def main():
         json.dump(rep, f, indent=1, default=lambda o: float(o) if np.isscalar(o) else str(o))
     if '--no-render' not in sys.argv:
         render(R)
+        render_usb(R, usb_k)
     if rep['failures']:
         log('FAILED access checks:', rep['failures'])
         sys.exit(1)

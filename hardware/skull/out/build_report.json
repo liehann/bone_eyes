@@ -3,8 +3,8 @@
   "face": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 134.2,
-   "tris": 335040,
+   "volume_cm3": 130.73,
+   "tris": 334804,
    "size": [
     114.5,
     171.1,
@@ -44,26 +44,15 @@
     72.4
    ]
   },
-  "servo_bracket": {
+  "servo_tray": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.4,
-   "tris": 838,
+   "volume_cm3": 14.86,
+   "tris": 1242,
    "size": [
-    27.0,
-    18.0,
-    39.5
-   ]
-  },
-  "tray": {
-   "watertight": true,
-   "bodies": 1,
-   "volume_cm3": 13.02,
-   "tris": 368,
-   "size": [
-    86.0,
-    34.5,
-    23.6
+    71.6,
+    50.4,
+    76.9
    ]
   },
   "stand": {
@@ -257,8 +246,8 @@
    "ok": true
   },
   {
-   "name": "servo bracket bolt (M3x8, y=60)",
-   "stage": "servo",
+   "name": "servo tray bolt (M3x8, y=60)",
+   "stage": "servo_tray",
    "blocked_cm3": 0.0,
    "blocked_by": [],
    "exits": "top",
@@ -267,18 +256,8 @@
    "ok": true
   },
   {
-   "name": "servo bracket bolt (M3x8, y=70)",
-   "stage": "servo",
-   "blocked_cm3": 0.0,
-   "blocked_by": [],
-   "exits": "top",
-   "wanted": "top",
-   "hand_blocked_cm3": 0.0,
-   "ok": true
-  },
-  {
-   "name": "tray bolt (M3x8)",
-   "stage": "tray",
+   "name": "servo tray bolt (M3x8, y=70)",
+   "stage": "servo_tray",
    "blocked_cm3": 0.0,
    "blocked_by": [],
    "exits": "top",
@@ -351,8 +330,8 @@
   "eye_bar_path": 0.0,
   "radar_path": -0.0
  },
- "back_lift": 8.675352103360013e-18,
- "cap_lift": 8.546978953142264e-16,
+ "back_lift": 8.703107678975642e-18,
+ "cap_lift": 8.547534064654576e-16,
  "bracket_slide": [],
  "fastener_check": [
   {
@@ -453,13 +432,13 @@
    "s_head": 0.0
   },
   {
-   "name": "servo bracket bolt (M3x8, y=60)",
+   "name": "servo tray bolt (M3x8, y=60)",
    "problems": [],
    "L": 8.0,
    "s_head": 0.05,
-   "s_joint": 3.05,
-   "clamp": 3.0,
-   "engage": 5.0,
+   "s_joint": 3.0,
+   "clamp": 2.95,
+   "engage": 5.05,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "bore_blocked_mm3": 0.0,
@@ -467,27 +446,13 @@
    "ok": true
   },
   {
-   "name": "servo bracket bolt (M3x8, y=70)",
+   "name": "servo tray bolt (M3x8, y=70)",
    "problems": [],
    "L": 8.0,
    "s_head": 0.05,
-   "s_joint": 3.05,
-   "clamp": 3.0,
-   "engage": 5.0,
-   "seat_flat": 1.0,
-   "clearance_blocked_mm3": {},
-   "bore_blocked_mm3": 0.0,
-   "wall_frac": 1.0,
-   "ok": true
-  },
-  {
-   "name": "tray bolt (M3x8)",
-   "problems": [],
-   "L": 8.0,
-   "s_head": 0.05,
-   "s_joint": 3.05,
-   "clamp": 3.0,
-   "engage": 5.0,
+   "s_joint": 3.0,
+   "clamp": 2.95,
+   "engage": 5.05,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "bore_blocked_mm3": 0.0,
@@ -666,6 +631,31 @@
   },
   "joints": [],
   "floor_lip_cm3": 0.2
+ },
+ "usb": {
+  "plug_plugged": {},
+  "insertion_path": {},
+  "grip": {},
+  "cable": {},
+  "cable_cover_seams": {},
+  "dupont_front": {},
+  "dupont_back": {},
+  "buttons": {},
+  "servo_tray_drop": 0.0,
+  "esp32_lift_out": 0.0,
+  "layout": {
+   "board_x": [
+    -49.5,
+    5.5
+   ],
+   "board_y": 90.0,
+   "pcb_bottom_z": 30.0,
+   "usb_axis_z": 33.1,
+   "usb_faces": "+X",
+   "cable_mouth_z": -11.9,
+   "neck_top_z": -12.0
+  },
+  "failures": []
  },
  "failures": []
 }

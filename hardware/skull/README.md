@@ -2,7 +2,7 @@
 
 An animatronic skull built from Peter from Belgium's CC0 anatomical skull
 (Printables 2770). It prints in three skull parts, plus the jaw, the stand
-and two small brackets:
+and the servo tray (servo bracket + ESP32 cradle in one part):
 
 - **chassis**: face, orbits, cranial floor, hinge and neck;
 - **back cover**: behind the eyes, above the floor;
@@ -32,6 +32,7 @@ Everything comes from `build.py` and is reproducible.
 | `out/closeup_back_cover_screw.png`, `out/closeup_cap_screw.png` | sections through the two cover screws: screw (red), head, insert (gold) in its bore |
 | `out/closeup_jaw_horn_pad.png`, `out/closeup_jaw_pivot.png` | sections through the jaw attachments: servo-side pad and horn screws, pivot pad and bolt |
 | `skull_stand_cable.png` | USB cable path: neck bore, then the stand column and its open slot |
+| `out/skull_esp32_usb.png` | the servo tray and ESP32, cap off: DuPont housings + wires, USB plug, insertion path, grip, cable loop into the neck bore, EN/BOOT fingertips |
 | `skull_section_orbits.png` | sections through the orbit centres and through one eye (socket bowls, modules, bar) |
 | `skull_section_jaw.png` | sections through the servo/neck and along the hinge axis |
 
@@ -102,19 +103,20 @@ union in `cache/`.
    - The visible bone surface is Peter's original mesh. Web and inner surfaces
      are marching cubes on a smoothed distance field. The bowls are then cut
      in exactly, so their visible surfaces are smooth.
-5. **Parts and features**: split, posts, joints, servo, pivot, tray, neck. See
+5. **Parts and features**: split, posts, joints, servo, pivot, servo tray, neck. See
    below.
 6. **Checks.** Every STL is re-read after export: each must be watertight and
    a single body. No two placed parts may overlap by more than 0.005 cm³:
-   the face, back, jaw, eye bar, eye modules, servo, servo bracket, ESP32 + pin
-   headers, radar, tray, stand and joint brackets. The jaw is swept from the
+   the face, back, jaw, eye bar, eye modules, servo, servo tray, ESP32 + pin
+   headers + DuPont housings, radar, stand and joint brackets. The jaw is swept from the
    closed stop to the open stop in 1° steps against the face, back, servo,
-   bracket and stand. The joint brackets are slid on along Y to check that the
+   servo tray and stand. The joint brackets are slid on along Y to check that the
    back part can be fitted. Every clearance cut (modules, bar, cables, screw
    access, radar) must stay inside the skull's closed envelope, so none of
    them opens a hole in the surface.
    - **Assembly paths, tool access and cover fitting** are checked too (see
      *Tool access* below).
+   - **ESP32, USB and DuPont keep-outs** (see *Electronics*).
    - **Fasteners** (every screw, assembled): the head seat is found where
      the head first touches the clamped part and must bear on a flat ring;
      the clearance hole is empty from the seat to the joint face; an insert
@@ -134,13 +136,12 @@ with the jaw. The stand adds 78 mm.
 
 | STL (`out/`) | Size (mm, x × y × z) | Volume | Print orientation | Supports | Time (rough) |
 |---|---|---|---|---|---|
-| `face.stl` (chassis) | 115 × 171 × 95 | 134 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts, tray hooks and pivot boss | ~7 h |
+| `face.stl` (chassis) | 115 × 171 × 95 | 134 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts and pivot boss | ~7 h |
 | `back.stl` (back cover) | 134 × 124 × 50 | 40 cm³ | lower cut (z = −14) on the bed | none to little | ~2 h |
 | `cap.stl` | 134 × 172 × 74 | 95 cm³ | cut face on the bed, crown up | under the front hook only | ~4 h |
 | `jaw.stl` | 99 × 97 × 72 | 51 cm³ | upright | tree under the lower border and the two hinge pads | ~2 h |
 | `stand.stl` | Ø110 × 88 | 114 cm³ | base on the bed | none (the cable slot is open) | ~3 h |
-| `tray.stl` | 86 × 35 × 24 | 13 cm³ | plate on the bed, cradle up | none | 30 min |
-| `servo_bracket.stl` | 40 × 18 × 27 | 2.4 cm³ | mounting plate on the bed | none | 15 min |
+| `servo_tray.stl` | 72 × 50 × 77 | 15 cm³ | servo mounting plate on the bed (slab, ribs and cradle stand up) | under the two cradle end walls and the ledges | ~1.5 h |
 
 Times are estimates for a Bambu H2D with PLA at 0.2 mm (about 10 mm³/s
 average plus support overhead). Check them in Bambu Studio. Everything fits
@@ -206,16 +207,18 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - **The face part is the chassis.** The servo cup, the servo-bracket bosses
   and the jaw pivot boss are all part of the face. The jaw hangs from the
   chassis.
-  - Jaw load path: jaw → horn and pivot bolt → servo bracket and pivot boss →
+  - Jaw load path: jaw → horn and pivot bolt → servo tray and pivot boss →
     the face's cranial base → the neck boss → the stand.
   - The face's cranial base is the skull's own base and sides, the stiffest
     part of the skull.
 - An MG90S sits in a closed cup in the cranial floor on the +X side, its
   output shaft on the hinge axis. The cup is part of the shell, so nothing
   inside is visible.
-- The servo screws onto a separate L-bracket with its own tab screws. The
+- The servo screws (tab screws) onto the L-bracket of the **servo tray**, the
+  one printed part that also carries the ESP32 (see *Electronics*). The
   bracket's flange drops in from inside and bolts down onto two insert bosses
-  (M3×8, vertical).
+  (M3×8, vertical): the only two screws of the part. Two gussets fill the
+  corner between the flange and the servo plate beside the servo case.
 - The horn (single or double arm, pointing down the ramus) is screwed to the
   spline on the bench.
   - The jaw then fixes to the horn with two M2×16 self-tapping screws from
@@ -262,7 +265,7 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - **Chassis** (below the cap cut, and in front of y = 32 or below z = −14):
   - the face, socket bowls, nose and radar;
   - the cranial floor with the hinge, servo cup and jaw pivot;
-  - the ESP32 tray posts and the hollow neck.
+  - the hollow neck.
 - **Back cover:** the band of skull wall behind the eyes, from the floor cut
   up to the cap. It carries nothing.
 - **Cap:** the calvaria. It carries nothing.
@@ -308,28 +311,65 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - **Opening.** The tool must also leave through the opening that is meant to
   be open at that step:
   - `back` for the eye screws;
-  - `top` for the tray and servo-bracket bolts;
+  - `top` for the two servo-tray bolts;
   - `outside` for the jaw, cover and stand screws.
 
   The opening is where the tool path leaves the skull, or the last part
   region it is in.
 - **Hand space.** The eye-bar bolt also needs a 60 × 40 × 50 mm empty hand
   space round the handle, from 60 mm behind the screw.
-- **Result in this build:** all 17 screws OK (tool access and the fastener check), and the hand space is clear.
+- **Result in this build:** all 16 screws OK (tool access and the fastener check), and the hand space is clear.
   The eye-bar insertion path and the radar path (on edge up the slot between
   the bowls) are clear too.
 
 ### Electronics
-- **ESP32-DevKitC-VIE** (no mounting holes) sits on a separate flat tray.
-  - The tray slides forward under two hook posts and is held by one M3×8
-    from above at the back right.
-  - The board lies flat with its pins down, on two end ledges 16 mm up, so
-    the DuPont housings fit underneath. A zip-tie slot pair holds it. The USB
-    end points to +X.
+- **Servo tray** (`servo_tray.stl`): the servo L-bracket and the ESP32
+  cradle are one part. It drops in from above (cap and back cover off) with
+  the servo already screwed to it and the horn on, and takes the two
+  bracket M3×8s; there are no tray posts, hooks or tray screw on the chassis.
+  - The bracket flange continues toward +Y as a 3 mm slab (y 70–98). Two
+    20 mm deep ribs (y = 83 and 97, 2 mm) rise from it and carry a narrow
+    cradle plate (y 80.5–99.5, top z = 14) that sits *between* the two header
+    rows, so the DuPont wires hang free outside it. The ribs taper toward the
+    far end.
+  - An open notch (7 mm, from the +X edge) in the slab lets the USB cable
+    pass down to the neck bore.
+- **ESP32-DevKitC-VIE** (55 × 28, no mounting holes) lies flat, pins down,
+  long axis along X, centred on the neck-bore line (y = 90): **x −49.5 to
+  +5.5, PCB bottom z = 30**, USB end at +X. It sits on two end ledges 16 mm
+  above the cradle plate, between end walls (0.5 mm clearance; the far wall is
+  narrow so it stays inside the back cover's path), and one zip tie through
+  the slot pair under its far end, between the board edge and the first pin.
+  It lifts straight out without touching the servo.
 - **Power:** by USB cable from outside (a power bank or the laptop). There is
   no internal battery.
-  - The cable goes down the hollow neck (Ø14 bore, passes a USB-A plug), into
+  - The micro-USB plug points +X at z = 33. The cable loops down (R 15) just
+    past the boot, runs back at z = 3, bends down (R 15) onto the neck axis
+    and enters the bore at its top (z = −12).
+  - It then goes down the hollow neck (Ø14 bore, passes a USB-A plug), into
     the stand column, and out at the base.
+  - **Checked by the build** (`usb/*` in the report; the build fails on any
+    hit):
+    - plug (overmold 11 × 8 × 20 + 10 mm boot) plugged in: clear of every
+      part, covers on;
+    - straight insertion path, 36 mm along the axis, and grip room (9 mm
+      either side of the plug, up 30 mm through the open top), cap off;
+    - cable (Ø4.5 + 0.5, bend radius 15) from the boot to the bore: clear of
+      the chassis, covers, servo, servo tray, horn sweep, jaw sweep and the
+      stand; the back cover lifting off and the cap's fitting path don't
+      catch the cable or the plug;
+    - DuPont housings (2.6 × 14 per row) and their wires (out of the bottom,
+      then 15 mm down and sideways) on both rows: clear of the tray, servo,
+      chassis and covers;
+    - EN and BOOT (4 mm in from the USB end, ±10 mm): an Ø8 fingertip column
+      45 mm up is clear, cap off, plug in;
+    - the servo tray (with servo and horn) drops in from above, and the
+      ESP32 lifts out with the servo tray in place.
+  - The old layout (board centred on x = 0 over a flat tray at z = −7) failed:
+    the insertion path ran into the back cover (only ~3.5 mm past the boot
+    to the wall, so no room to bend the cable), the tray plate covered the
+    neck bore, and the DuPont wires had 2 mm under the housings and ran into
+    the tray, the hook posts, the servo and its bracket.
   - A zip-tie arch on the chassis floor behind the neck (y = 114) gives
     strain relief.
 - **HLK-LD2410C** (35 × 7 mm, no screws) lies horizontal and faces forward
@@ -354,18 +394,18 @@ radar sees through the nasal window. Use paint without metal flakes there.
 
 ## Fasteners
 
-**17 screws** in total, down from 27 in the previous (bracketed) layout, and
-**8 M3 inserts**, down from 17 plus one M5.
+**16 screws** in total, down from 27 in the previous (bracketed) layout, and
+**7 M3 inserts**, down from 17 plus one M5.
 
 | Item | Qty | Where |
 |---|---|---|
-| M3 heat-set insert (5.7 long; Ø4.0 × 6.7 pilot bore, Ø3.2 relief past it) | 8 | eye-bar post, 2 servo-bracket bosses, tray post, jaw pivot boss, back-cover post (chassis), cap boss (back cover), neck |
+| M3 heat-set insert (5.7 long; Ø4.0 × 6.7 pilot bore, Ø3.2 relief past it) | 7 | eye-bar post, 2 servo-tray bosses, jaw pivot boss, back-cover post (chassis), cap boss (back cover), neck |
 | M3×12 | 3 | eye bar (+ Ø9 M3 washer, DIN 9021, over the slot), back cover, cap |
 | M3×20 | 1 | jaw pivot (+ M3 washer) |
-| M3×8 | 4 | 2 servo bracket, 1 tray, stand (an M3×12 there would reach into the cable bore) |
+| M3×8 | 3 | 2 servo tray, stand (an M3×12 there would reach into the cable bore) |
 | M2×8 | 4 | LCD modules to the eye bar |
 | M2×16 self-tapping | 2 | jaw to horn arm, from outside the ramus |
-| servo tab screws (supplied) | 2 | servo to bracket |
+| servo tab screws (supplied) | 2 | servo to the servo tray |
 | horn screw (supplied) | 1 | horn to spline |
 
 What changed:
@@ -374,7 +414,7 @@ What changed:
 |---|---|---|
 | Joint brackets | 8 screws | gone; replaced by hooks/lips + 2 screws |
 | Eye bar | 2 bolts | 1 bolt + a key peg |
-| Tray | 4 bolts | 2 hooks + 1 bolt |
+| Tray | 4 bolts | merged with the servo bracket: no screws of its own |
 | Stand | M5 bolt | M3 radial screw |
 
 The jaw and servo load path keeps its screws.
@@ -385,8 +425,8 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
 
 1. **Bench:**
    - Heat-set the inserts.
-   - Screw the servo into its bracket (tab screws). Centre it and screw the
-     horn on, pointing down the ramus.
+   - Screw the servo into the servo tray (tab screws). Centre it and screw
+     the horn on, pointing down the ramus.
 2. **Eyes** (both covers off, chassis on the bench):
    - Plug the cables into the LCDs.
    - Bring the eye bar in from behind and push it onto the left post and the
@@ -395,11 +435,15 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
      behind. Centre the screens.
 3. **Radar:** on edge down the slot between the bowls, then flat and forward
    into its frame.
-4. **ESP32** (from above): slide the tray forward under the two hooks, fit
-   one M3×8, then clip the board in.
-5. **Servo and jaw:**
-   - Lower the servo and bracket into the cup, with the gear tower down the
-     slot in the cup wall. Bolt the flange (2× M3×8 from above).
+4. **USB cable:** feed the USB-A end down the neck bore from inside and lay
+   the cable in the stand slot later; leave the micro-USB end inside.
+5. **Servo tray, ESP32 and jaw:**
+   - Lower the servo tray (servo and horn on it) into the cup, with the gear
+     tower down the slot in the cup wall; let the cable into the slab's open
+     notch from the +X side. Bolt the flange (2× M3×8 from above).
+   - Set the ESP32 on its ledges, pins down with the DuPont leads on, and
+     zip-tie its far end. Plug the micro-USB in, the cable looping down
+     beside the cradle.
    - Fix the jaw to the horn with 2× M2×16 from outside the ramus.
    - Put the M3×20 pivot bolt (with a washer) through the other condyle.
    - Wire everything and test on the bench.
@@ -410,7 +454,7 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
      ledge.
    - Fit 1× M3×12 from behind, high.
 8. **Stand:**
-   - Feed the cable down the neck bore and lay it in the column slot.
+   - Lay the cable (already down the neck bore) in the column slot.
    - Push the stand's socket onto the neck.
    - Fit 1× M3×8 from behind.
 
@@ -435,7 +479,8 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
 | `LIP`, `CAP_HOOK` | 5 mm / 0.5 gap; 20 mm, 6 mm slide | cover joints |
 | `BAR_BOLTS` | [0] | which eye-bar hole gets the bolt (the other gets a key peg) |
 | `EYE_BAR_BACKOFF`, `TOOL_D`, `TOOL_TIP_D`, `TOOL_TIP_L`, `TOOL_LEN` | 12, 8, 5.5, 8, 100 | insertion and tool-access checks |
-| `RADAR`, `ESP32`, `TRAY`, `TRAY_POSTS`, `TRAY_HOOKS`, `TIE_BAR` | | electronics |
+| `RADAR`, `ESP32`, `TRAY`, `TIE_BAR` | | electronics (board placement, servo tray) |
+| `DUPONT`, `USB`, `BUTTONS` | | ESP32 keep-outs: DuPont rows and wires, plug / path / grip / cable, EN and BOOT |
 | `BEHIND_EYES`, `CHOANA` | | interior sealing (keeps the face open from behind) |
 | `NECK`, `STAND` | | hollow neck, socket, column bore and cable slot |
 | `FIT` | 0.75 | clearance round dropped-in parts |
