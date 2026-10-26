@@ -2,31 +2,31 @@
  "parts": {
   "face": {
    "watertight": true,
-   "bodies": 2,
-   "volume_cm3": 211.42,
-   "tris": 495630,
+   "bodies": 1,
+   "volume_cm3": 162.41,
+   "tris": 409884,
    "size": [
-    134.2,
-    135.9,
-    161.5
+    132.4,
+    182.2,
+    95.8
    ]
   },
   "back": {
    "watertight": true,
    "bodies": 2,
-   "volume_cm3": 56.42,
-   "tris": 106044,
+   "volume_cm3": 104.59,
+   "tris": 197340,
    "size": [
-    121.8,
-    47.7,
-    130.1
+    134.2,
+    172.0,
+    87.8
    ]
   },
   "jaw": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 48.8,
-   "tris": 19858,
+   "volume_cm3": 48.77,
+   "tris": 19760,
    "size": [
     99.2,
     97.4,
@@ -47,10 +47,10 @@
   "tray": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 12.05,
-   "tris": 744,
+   "volume_cm3": 13.18,
+   "tris": 924,
    "size": [
-    72.0,
+    86.0,
     34.5,
     23.6
    ]
@@ -77,48 +77,48 @@
     13.0
    ]
   },
-  "joint_bracket_upper_L": {
+  "joint_bracket_front_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.21,
-   "tris": 706,
+   "volume_cm3": 2.2,
+   "tris": 2272,
    "size": [
     8.0,
-    18.7,
-    24.0
+    24.6,
+    21.6
    ]
   },
-  "joint_bracket_upper_R": {
+  "joint_bracket_front_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.21,
-   "tris": 688,
+   "volume_cm3": 2.18,
+   "tris": 2740,
    "size": [
     8.0,
-    18.7,
-    24.0
+    24.6,
+    21.6
    ]
   },
-  "joint_bracket_lower_L": {
+  "joint_bracket_rear_L": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.17,
-   "tris": 836,
+   "volume_cm3": 2.22,
+   "tris": 654,
    "size": [
     8.0,
-    18.7,
-    24.0
+    26.2,
+    20.1
    ]
   },
-  "joint_bracket_lower_R": {
+  "joint_bracket_rear_R": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 2.17,
-   "tris": 824,
+   "volume_cm3": 2.22,
+   "tris": 660,
    "size": [
     8.0,
-    18.7,
-    24.0
+    26.2,
+    20.1
    ]
   }
  },
@@ -219,23 +219,191 @@
    0.012
   ]
  ],
- "radar_lift_path_blocked_cm3": 0.0,
  "cover_slide": 0.0,
+ "tool_access": [
+  {
+   "name": "M2 module screw (x=-27)",
+   "stage": "bench_bar",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "M2 module screw (x=-27)",
+   "stage": "bench_bar",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "M2 module screw (x=27)",
+   "stage": "bench_bar",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "M2 module screw (x=27)",
+   "stage": "bench_bar",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "eye-bar bolt (x=-28)",
+   "stage": "eyebar",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "eye-bar bolt (x=28)",
+   "stage": "eyebar",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "servo tab screw (v=-8)",
+   "stage": "bench_servo",
+   "blocked_cm3": 0.002,
+   "blocked_by": []
+  },
+  {
+   "name": "servo tab screw (v=19)",
+   "stage": "bench_servo",
+   "blocked_cm3": 0.002,
+   "blocked_by": []
+  },
+  {
+   "name": "horn screw",
+   "stage": "bench_horn",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "servo bracket bolt (y=60)",
+   "stage": "servo",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "servo bracket bolt (y=70)",
+   "stage": "servo",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "tray bolt (-38, 82)",
+   "stage": "tray",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "tray bolt (38, 82)",
+   "stage": "tray",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "tray bolt (-38, 100)",
+   "stage": "tray",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "tray bolt (38, 100)",
+   "stage": "tray",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "horn-to-jaw screw (r=10)",
+   "stage": "jaw",
+   "blocked_cm3": 0.002,
+   "blocked_by": []
+  },
+  {
+   "name": "horn-to-jaw screw (r=14)",
+   "stage": "jaw",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "jaw pivot bolt",
+   "stage": "jaw",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "bracket front_L to chassis (M3x12)",
+   "stage": "brackets",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "cap to bracket front_L (M3x12)",
+   "stage": "cover",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "bracket front_R to chassis (M3x12)",
+   "stage": "brackets",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "cap to bracket front_R (M3x12)",
+   "stage": "cover",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "bracket rear_L to chassis (M3x12)",
+   "stage": "brackets",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "cap to bracket rear_L (M3x12)",
+   "stage": "cover",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "bracket rear_R to chassis (M3x12)",
+   "stage": "brackets",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "cap to bracket rear_R (M3x12)",
+   "stage": "cover",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  },
+  {
+   "name": "neck bolt (M5x16)",
+   "stage": "stand",
+   "blocked_cm3": 0.0,
+   "blocked_by": []
+  }
+ ],
+ "hand_access": {
+  "eye_bar_path": 0.0,
+  "eye_bar_hand": 0.0,
+  "radar_path": -0.0
+ },
  "bracket_slide": [
   [
-   "joint_bracket_upper_L",
+   "joint_bracket_front_L",
    0.0
   ],
   [
-   "joint_bracket_upper_R",
+   "joint_bracket_front_R",
    0.0
   ],
   [
-   "joint_bracket_lower_L",
+   "joint_bracket_rear_L",
    0.0
   ],
   [
-   "joint_bracket_lower_R",
+   "joint_bracket_rear_R",
    0.0
   ]
  ],
@@ -308,7 +476,16 @@
   },
   "y_glass": 15.0,
   "y_bar_back": 26.85,
-  "y_split": 108.0,
+  "seam": {
+   "y0": -5.0,
+   "z0": 32.0,
+   "slope": 0.13,
+   "normal": [
+    0.0,
+    0.1289,
+    0.9917
+   ]
+  },
   "clearance_outside_skull_cm3": {
    "eyes": 0.0,
    "radar": 0.0,
@@ -317,68 +494,71 @@
   },
   "joints": [
    {
-    "name": "upper_L",
+    "name": "front_L",
+    "y": 35.0,
     "screw_point": [
-     -56.4,
-     120.0,
-     30.0
+     -57.4,
+     36.5,
+     38.7
     ],
     "dir": [
      -1.0,
      0.0,
      0.0
-    ],
-    "behind_cut": 12.0
+    ]
    },
    {
-    "name": "upper_R",
+    "name": "front_R",
+    "y": 35.0,
     "screw_point": [
-     56.8,
-     120.0,
-     30.0
+     57.4,
+     36.5,
+     38.7
     ],
     "dir": [
      1.0,
      0.0,
      0.0
-    ],
-    "behind_cut": 12.0
+    ]
    },
    {
-    "name": "lower_L",
+    "name": "rear_L",
+    "y": 110.0,
     "screw_point": [
-     -48.4,
-     120.0,
-     -5.0
+     -59.8,
+     111.5,
+     28.9
     ],
     "dir": [
      -1.0,
      0.0,
      0.0
-    ],
-    "behind_cut": 12.0
+    ]
    },
    {
-    "name": "lower_R",
+    "name": "rear_R",
+    "y": 110.0,
     "screw_point": [
-     48.8,
-     120.0,
-     -5.0
+     59.8,
+     111.5,
+     28.9
     ],
     "dir": [
      1.0,
      0.0,
      0.0
-    ],
-    "behind_cut": 12.0
+    ]
    }
   ],
   "usb_notch": {
-   "x": 24.0,
-   "y": 108.0,
-   "floor_z": -31.4,
+   "centre": [
+    0.0,
+    154.1,
+    11.3
+   ],
    "width": 9.0,
    "depth": 14.0
   }
- }
+ },
+ "failures": []
 }
