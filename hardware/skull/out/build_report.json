@@ -3,8 +3,8 @@
   "face": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 130.73,
-   "tris": 334804,
+   "volume_cm3": 132.04,
+   "tris": 330346,
    "size": [
     114.5,
     171.1,
@@ -14,8 +14,8 @@
   "back": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 40.18,
-   "tris": 85894,
+   "volume_cm3": 40.19,
+   "tris": 85896,
    "size": [
     134.1,
     123.7,
@@ -36,12 +36,12 @@
   "jaw": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 51.22,
-   "tris": 61112,
+   "volume_cm3": 55.67,
+   "tris": 87258,
    "size": [
     99.2,
     97.4,
-    72.4
+    74.4
    ]
   },
   "servo_tray": {
@@ -71,97 +71,97 @@
  "jaw_sweep": [
   [
    -0.5,
-   0.002
+   0.0
   ],
   [
    0.5,
-   0.002
+   0.0
   ],
   [
    1.5,
-   0.002
+   0.0
   ],
   [
    2.5,
-   0.002
+   0.0
   ],
   [
    3.5,
-   0.002
+   0.0
   ],
   [
    4.5,
-   0.002
+   0.0
   ],
   [
    5.5,
-   0.002
+   0.0
   ],
   [
    6.5,
-   0.002
+   0.0
   ],
   [
    7.5,
-   0.002
+   0.0
   ],
   [
    8.5,
-   0.002
+   0.0
   ],
   [
    9.5,
-   0.002
+   0.0
   ],
   [
    10.5,
-   0.002
+   0.0
   ],
   [
    11.5,
-   0.002
+   0.0
   ],
   [
    12.5,
-   0.002
+   0.0
   ],
   [
    13.5,
-   0.002
+   0.0
   ],
   [
    14.5,
-   0.002
+   0.0
   ],
   [
    15.5,
-   0.002
+   0.0
   ],
   [
    16.5,
-   0.002
+   0.0
   ],
   [
    17.5,
-   0.002
+   0.0
   ],
   [
    18.5,
-   0.002
+   0.0
   ],
   [
    19.5,
-   0.003
+   0.0
   ]
  ],
  "beyond_stops": [
   [
    -2.0,
-   0.016
+   0.015
   ],
   [
    21.5,
-   0.013
+   0.008
   ]
  ],
  "tool_access": [
@@ -350,10 +350,10 @@
    "name": "M2 module screw (x=-27)",
    "problems": [],
    "L": 8.0,
-   "s_head": 0.05,
+   "s_head": -0.0,
    "s_joint": 5.65,
-   "clamp": 5.6,
-   "engage": 2.4,
+   "clamp": 5.65,
+   "engage": 2.35,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "ok": true
@@ -436,9 +436,9 @@
    "problems": [],
    "L": 8.0,
    "s_head": 0.05,
-   "s_joint": 3.0,
-   "clamp": 2.95,
-   "engage": 5.05,
+   "s_joint": 3.05,
+   "clamp": 3.0,
+   "engage": 5.0,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "bore_blocked_mm3": 0.0,
@@ -450,9 +450,9 @@
    "problems": [],
    "L": 8.0,
    "s_head": 0.05,
-   "s_joint": 3.0,
-   "clamp": 2.95,
-   "engage": 5.05,
+   "s_joint": 3.05,
+   "clamp": 3.0,
+   "engage": 5.0,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "bore_blocked_mm3": 0.0,
@@ -464,10 +464,10 @@
    "problems": [],
    "L": 16.0,
    "s_head": -0.0,
-   "s_joint": 11.15,
-   "clamp": 11.15,
-   "engage": 4.85,
-   "seat_flat": 0.79,
+   "s_joint": 12.8,
+   "clamp": 12.8,
+   "engage": 3.2,
+   "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "receiver_thickness": 1.8,
    "ok": true
@@ -476,10 +476,10 @@
    "name": "horn-to-jaw screw (r=14)",
    "problems": [],
    "L": 16.0,
-   "s_head": 0.05,
-   "s_joint": 10.15,
-   "clamp": 10.1,
-   "engage": 5.9,
+   "s_head": -0.0,
+   "s_joint": 12.8,
+   "clamp": 12.8,
+   "engage": 3.2,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "receiver_thickness": 1.8,
@@ -539,6 +539,56 @@
    "clearance_blocked_mm3": {},
    "bore_blocked_mm3": 1.19,
    "wall_frac": 0.991,
+   "ok": true
+  }
+ ],
+ "jaw_check": [
+  {
+   "name": "pivot bolt hole (\u00d83.5) in the jaw",
+   "wall": 7.75,
+   "need": 4.0,
+   "ok": true
+  },
+  {
+   "name": "pivot head counterbore (\u00d86.6) in the jaw",
+   "wall": 6.2,
+   "need": 4.0,
+   "ok": true
+  },
+  {
+   "name": "horn-hub counterbore (\u00d87) in the jaw",
+   "wall": 4.5,
+   "need": 4.0,
+   "ok": true
+  },
+  {
+   "name": "horn driver hole (\u00d85) in the jaw",
+   "wall": 4.55,
+   "need": 4.0,
+   "ok": true
+  },
+  {
+   "name": "horn screw pilot (\u00d82.2, r=10) in the jaw",
+   "wall": 6.25,
+   "need": 4.0,
+   "ok": true
+  },
+  {
+   "name": "horn screw pilot (\u00d82.2, r=14) in the jaw",
+   "wall": 6.0,
+   "need": 4.0,
+   "ok": true
+  },
+  {
+   "name": "pivot insert bore (\u00d84) in the skull boss",
+   "wall": 13.0,
+   "need": 2.5,
+   "ok": true
+  },
+  {
+   "name": "knuckle tops to the skull over the sweep",
+   "wall": 1.1,
+   "need": 1.0,
    "ok": true
   }
  ],

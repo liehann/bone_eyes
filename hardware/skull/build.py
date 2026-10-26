@@ -105,6 +105,7 @@ JAW_STOP_MARGIN = 2.0   # open stop this far past JAW_OPEN_DEG
 JAW_CLOSE_STOP = -0.5   # closed stop (teeth still TEETH_GAP - ~0.5 mm apart)
 TEETH_GAP = 0.8         # closed-jaw clearance to the upper teeth
 JAW_SWEEP_CLEAR = 1.2   # clearance of the cranium round the swept jaw
+HINGE_CLEAR_EXTRA = 1.4 # extra carve round the condyles (lost to the shell-mesh smoothing)
 SERVO_SIDE = +1         # servo on +X (your right as you face the skull = the skull's left); pivot bolt on -X
 # MG90S (TowerPro drawing): body 22.8 x 12.2, case height 22.7, tabs 32.5 long x 2.5 thick
 # with their top 18.5 above the case bottom, holes 2.0 at 27.8 centres, output
@@ -711,9 +712,17 @@ HORN_JAW_HOLES = (10.0, 14.0)   # Ø2.2 pilots through the jaw pad and ramus, al
 HORN_ARM_DEG = 20.0     # horn arm direction: this far forward of straight down (along the condyle neck)
 HORN_SCREW_L = 16.0
 HORN_SCREW_SEAT_MAX = 46.5   # |x| of the screw-head seat at most: the M2x16 then reaches 0.5 mm past the horn arm
-JAW_PAD = dict(r=12.0, lobe_r=5.5, t=8.0)      # servo-side pad: Ø24 disc + a lobe round the far horn screw
-PIVOT_PAD = dict(r=11.0, t=8.0, head_r=7.5, head_x=48.5)   # pivot pad Ø22; Ø15 boss round the bolt head out to |x| = 48.5
-PAD_FILLET = 3.0        # fillet radius where the pads meet the ramus
+# Jaw knuckles: on each side a teardrop outline (seen along the axis) -- a disc of
+# radius r round the hinge axis, hulled with a tail disc tail_r at tail mm down the
+# condyle neck (HORN_ARM_DEG forward of straight down) -- solid from the pad face
+# out to the ramus' outer skin and at least t thick. Above the condyle trim only
+# the r disc is kept (it turns in place, so it sweeps only itself); it runs out to
+# |x| = x_end as a solid boss round the axis (pivot side: the bolt-head counterbore).
+JAW_PAD = dict(r=8.0, tail_r=7.0, tail=16.0, t=13.0, x_end=47.0)    # servo side (smaller disc: keeps the carve over it, and the view in to the servo, low)
+PIVOT_PAD = dict(r=9.5, tail_r=7.0, tail=16.0, t=14.0, x_end=48.5)  # pivot side (x_end = the old head_x)
+HORN_HUB_CB = 4.0       # Ø7 counterbore depth in the servo-side knuckle for the horn screw head
+PAD_FILLET = 4.0        # fillet radius where the knuckles meet the ramus
+CONDYLE_TRIM = 3.5      # the condyle heads are trimmed this far above the axis (outside the knuckle discs)
 HORN_FACE_X = 33.0      # |x| of the horn arm face = jaw pad face (servo side)
 PIVOT_FACE_X = 32.0     # |x| of the jaw pivot pad face (other side); skull boss 0.5 further in
 BRACKET_T = 3.0
@@ -773,7 +782,10 @@ def mechanism(hinge):
     side = SERVO_SIDE
     # horn hub / screw-head access through the pad; the horn-screw holes are cut
     # in build() once the pad exists (their counterbores depend on it)
-    out['jaw_pad_holes'] = m_cyl([side * (HORN_FACE_X - 1), hinge[0], hinge[1]], [side * (HORN_FACE_X + 20), hinge[0], hinge[1]], 3.5)
+    # (Ø7 x HORN_HUB_CB for the screw head, then Ø5 through for a driver, so the
+    # horn screw comes out with the jaw on)
+    out['jaw_pad_holes'] = m_cyl([side * (HORN_FACE_X - 1), hinge[0], hinge[1]], [side * (HORN_FACE_X + HORN_HUB_CB), hinge[0], hinge[1]], 3.5) + \
+        m_cyl([side * (HORN_FACE_X - 1), hinge[0], hinge[1]], [side * (HORN_FACE_X + 20), hinge[0], hinge[1]], 2.5)
     # pivot side
     o = -side
     x_head = o * (PIVOT_FACE_X + 14.5)               # bolt head seat (M3x20: 14.5 jaw + 0.5 gap + 5 insert)
@@ -802,34 +814,38 @@ def horn_dir():
     return np.array([-np.sin(a), -np.cos(a)])
 
 
+def knuckle_outline(dy, dz, P):
+    """Teardrop (seen along the axis): the hull of the r disc on the axis and the
+    tail_r disc `tail` mm along horn_dir(). dy, dz: offsets from the axis."""
+    d = horn_dir()
+    t_ = np.clip(dy * d[0] + dz * d[1], 0, P['tail'])        # nearest point on the spine
+    rr = np.hypot(dy - t_ * d[0], dz - t_ * d[1])
+    return rr <= P['r'] + (P['tail_r'] - P['r']) * t_ / P['tail']
+
+
+def knuckle_keep(hinge, side, P, x0):
+    """The part of the knuckle kept above the condyle trim: the r disc round the
+    axis from the pad face to x_end (a cylinder on the axis sweeps only itself)."""
+    return m_cyl([side * x0, *hinge], [side * P['x_end'], *hinge], P['r'])
+
+
 def jaw_pads(jaw, hinge):
-    """Attachment pads on the inside of each condyle neck, as one voxel solid per side.
-    - servo side: a Ø24 disc on the axis plus a lobe round the far horn screw (the
-      outline is their hull), from the horn face |x| = HORN_FACE_X, 8 mm thick;
-    - pivot side: a Ø22 disc from |x| = PIVOT_FACE_X, 8 mm thick.
-    Inside the outline the ramus is filled solid from the pad face out to 0.8 mm
-    under the jaw's outer surface, and the corner between the pad and the ramus
-    gets a PAD_FILLET fillet (a morphological closing), so the pad is grown out of
-    the bone rather than butted onto it. Returns {side: manifold}."""
+    """Knuckles on the inside of each condyle neck, as one voxel solid per side
+    (see JAW_PAD / PIVOT_PAD): inside the teardrop outline the jaw is filled solid
+    from the pad face |x| = x0 out to 0.8 mm under the ramus' outer skin, and at
+    least t thick where there is no ramus outside; the corner where the knuckle
+    meets the ramus gets a PAD_FILLET (Euclidean closing), so the knuckle is grown
+    out of the bone rather than butted onto it. Returns {side: manifold}."""
     h = 0.3; out = {}
-    for name, sg, x0, t, win in (('servo', SERVO_SIDE, HORN_FACE_X, JAW_PAD['t'], 'lobe'),
-                                 ('pivot', -SERVO_SIDE, PIVOT_FACE_X, PIVOT_PAD['t'], 'disc')):
-        lo = np.array([min(sg * (x0 - 2), sg * (x0 + 26)), hinge[0] - 26, hinge[1] - 26])
-        hi = np.array([max(sg * (x0 - 2), sg * (x0 + 26)), hinge[0] + 26, hinge[1] + 6])
+    for name, sg, x0, P in (('servo', SERVO_SIDE, HORN_FACE_X, JAW_PAD), ('pivot', -SERVO_SIDE, PIVOT_FACE_X, PIVOT_PAD)):
+        t = P['t']
+        lo = np.array([min(sg * (x0 - 2), sg * (x0 + 26)), hinge[0] - 32, hinge[1] - 36])
+        hi = np.array([max(sg * (x0 - 2), sg * (x0 + 26)), hinge[0] + 26, hinge[1] + 14])
         G = Grid(lo, hi, h, pad=1.0)
         J = G.vox(jaw)
         X, Y, Z = G.coords()
         s_ = sg * X                                              # |x| measured outward from the midline
-        dy, dz = Y - hinge[0], Z - hinge[1]
-        if win == 'lobe':
-            d = horn_dir(); r_far = max(HORN_JAW_HOLES)
-            t_ = np.clip(dy * d[0] + dz * d[1], 0, r_far)        # nearest point on the arm segment
-            rr = np.hypot(dy - t_ * d[0], dz - t_ * d[1])
-            rad = JAW_PAD['r'] + (JAW_PAD['lobe_r'] - JAW_PAD['r']) * t_ / r_far
-            W = rr <= rad                                        # tapered slot = hull of the two discs
-        else:
-            W = np.hypot(dy, dz) <= PIVOT_PAD['r']
-        W = W & (Z <= hinge[1] + 3.5)
+        W = knuckle_outline(Y - hinge[0], Z - hinge[1], P)
         if sg > 0:                                               # outer surface: largest |x| with bone in the column
             last = np.where(J.any(0), J.shape[0] - 1 - np.argmax(J[::-1], axis=0), -1)
             x_out = np.where(last >= 0, G.o[0] + last * h, -1e9)
@@ -837,18 +853,18 @@ def jaw_pads(jaw, hinge):
             first = np.where(J.any(0), np.argmax(J, axis=0), -1)
             x_out = np.where(first >= 0, -(G.o[0] + first * h), -1e9)
         x_out = x_out[None]
-        slab = W & (s_ >= x0) & (s_ <= x0 + t)
-        fill = W & (s_ >= x0) & (s_ <= x_out - 0.8)
+        xa = x0 - 2.0                                            # voxel solid starts past the face; cut flat at x0 below
+        slab = W & (s_ >= xa) & (s_ <= x0 + t)
+        fill = W & (s_ >= xa) & (s_ <= x_out - 0.8)
         S = J | slab | fill
-        k = int(round(PAD_FILLET / h))
-        st = ndimage.generate_binary_structure(3, 1)
-        Sc = ndimage.binary_erosion(ndimage.binary_dilation(S, st, k), st, k)
-        Wd = ndimage.binary_dilation(W, iterations=k)
-        fil = Sc & Wd & (s_ >= x0) & ((s_ <= x_out - 0.8) | ((x_out < -1e8) & (s_ <= x0 + t + PAD_FILLET)))
+        R_ = PAD_FILLET
+        Sc = edt(~(edt(S, h) <= R_), h) > R_                      # closing with a ball of radius PAD_FILLET
+        Wd = edt(W, h) <= R_ + 1.0
+        fil = Sc & Wd & (s_ >= xa) & ((s_ <= x_out - 0.8) | (s_ <= x0 + t + R_))
         pad = slab | fill | fil
-        M = mc_mesh(ndimage.gaussian_filter(pad.astype(np.float32), 0.7) - 0.5, G, 0.0, step=1)
+        M = mc_mesh(ndimage.gaussian_filter(pad.astype(np.float32), 1.0) - 0.5, G, 0.0, step=1)
         face_cut = m_box([sg * x0 if sg > 0 else -200, -200, -200], [200 if sg > 0 else sg * x0, 200, 200])
-        out[name] = M ^ face_cut                                 # keep the pad face flat at x0
+        out[name] = (M ^ face_cut) + knuckle_keep(hinge, sg, P, x0)   # pad face flat at x0
     return out
 
 
@@ -1401,13 +1417,16 @@ def build():
     mech = mechanism(hinge)
     pads = jaw_pads(jaw, hinge)
     o_ = -SERVO_SIDE
-    piv_head = m_cyl([o_ * PIVOT_FACE_X, *hinge], [o_ * PIVOT_PAD['head_x'], *hinge], PIVOT_PAD['head_r'])
-    jaw_moving = union([jaw, pads['servo'], pads['pivot'], mech['finger']])
-    # trim the condyle heads just above the axis (they only rotate in place); on
-    # the pivot side a round boss about the axis is kept above the trim, so the
-    # bolt hole has material over it (a cylinder on the axis sweeps only itself)
-    jaw_moving = jaw_moving - m_box([-80, hinge[0] - 15, hinge[1] + 3.5], [80, hinge[0] + 15, hinge[1] + 30]) + piv_head
-    log('jaw pads: servo side %.1f cm3, pivot side %.1f cm3' % (vol(pads['servo']), vol(pads['pivot'] + piv_head)))
+    # nothing of the condyles inboard of the pad faces (the medial poles would rub
+    # on the skull boss and the horn)
+    inboard = union([m_box([min(sg * x0, sg * 20.0), hinge[0] - 22, hinge[1] - 26], [max(sg * x0, sg * 20.0), hinge[0] + 16, hinge[1] + 30])
+                     for sg, x0 in ((SERVO_SIDE, HORN_FACE_X), (o_, PIVOT_FACE_X))])
+    jaw_moving = union([jaw - inboard, pads['servo'], pads['pivot'], mech['finger']])
+    # trim the condyle heads just above the axis (outside the knuckle discs they
+    # would sweep into the skull); the knuckle discs round the axis are kept
+    keep = union([knuckle_keep(hinge, SERVO_SIDE, JAW_PAD, HORN_FACE_X), knuckle_keep(hinge, o_, PIVOT_PAD, PIVOT_FACE_X)])
+    jaw_moving = jaw_moving - (m_box([-80, hinge[0] - 16, hinge[1] + CONDYLE_TRIM], [80, hinge[0] + 16, hinge[1] + 30]) - keep)
+    log('jaw knuckles: servo side %.1f cm3, pivot side %.1f cm3' % (vol(pads['servo']), vol(pads['pivot'])))
     angles = np.arange(JAW_CLOSE_STOP - 1.0, JAW_OPEN_DEG + JAW_STOP_MARGIN + 1.01, 1.5)
     sweep = union([jaw_moving.transform(rot_x_about(*hinge, a)) for a in angles] + [mech['horn']])
     b = np.array(cr.bounding_box())
@@ -1416,7 +1435,16 @@ def build():
     Bv = G.vox(cr)
     plugs, einfo, Df, sockets = make_plugs(G, Bv, info['scale'])
     info['eyes'] = einfo
-    sweep_v = ndimage.binary_dilation(G.vox(sweep), iterations=int(round(JAW_SWEEP_CLEAR / G.h)))
+    sv = G.vox(sweep)
+    sweep_v = ndimage.binary_dilation(sv, iterations=int(round(JAW_SWEEP_CLEAR / G.h)))
+    # round the condyles the voxel dilation above is short of JAW_SWEEP_CLEAR on the
+    # diagonals and the shell mesh is smoothed: there the carve is a true distance
+    # (+ HINGE_CLEAR_EXTRA for the smoothing), so the knuckles keep their clearance
+    i0 = G.idx([-70.0, hinge[0] - 30, hinge[1] - 34]); i1 = G.idx([70.0, hinge[0] + 30, hinge[1] + 24])
+    sl_ = tuple(slice(max(a, 0), min(b, n)) for a, b, n in zip(i0, i1, G.shape))
+    sub = edt(sv[sl_], G.h) <= JAW_SWEEP_CLEAR + HINGE_CLEAR_EXTRA
+    xs_ = np.abs(G.x[sl_[0]])[:, None, None]
+    sweep_v[sl_] |= sub & (xs_ >= 24.0)
     for sk in sockets.values():                    # the bowls' air is outside by definition
         sweep_v |= G.vox(sk['air'])
     # the shell is taken from the outside of the marked volume, so grow the cup by the wall
@@ -1485,7 +1513,14 @@ def build():
     # ---- chassis features: servo cup bosses, jaw pivot, neck, tie bar (the servo tray needs no posts of its own)
     slot = union([mech['finger_clear'].transform(rot_x_about(*hinge, a))
                   for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 0.5)])
-    pivot = mech['skull_pivot'] - slot - mech['skull_pivot_holes']
+    # the pivot boss is rooted in the cranial floor: a gusset flaring from the
+    # boss top out over the floor (kept inside the skin and below the chassis cut)
+    xs_p = -SERVO_SIDE * (PIVOT_FACE_X - 0.5)
+    root = mf.Manifold.batch_hull([m_box([min(xs_p, -SERVO_SIDE * 22.0), hinge[0] - 9, hinge[1] + 6],
+                                         [max(xs_p, -SERVO_SIDE * 22.0), hinge[0] + 9, hinge[1] + 15]),
+                                   m_box([min(xs_p, -SERVO_SIDE * 14.0), hinge[0] - 17, hinge[1] + 12],
+                                         [max(xs_p, -SERVO_SIDE * 14.0), hinge[0] + 17, min(hinge[1] + 15, Z_FLOOR - 0.5)])])
+    pivot = (mech['skull_pivot'] + (root ^ inside)) - slot - mech['skull_pivot_holes']
     sboss = union([m_cyl(p, p - np.array([0, 0, 40.0]), 4.5) for p in mech['bracket_bolts']]) ^ inside
     sboss_h = union([insert_bore(p, [0, 0, -1.0]) for p in mech['bracket_bolts']])
     N = NECK
@@ -1575,7 +1610,7 @@ def build():
             % (r_, c_[0], c_[1], xs_, min(x_out), max(x_out)))
     horn_holes = union(horn_cut)
     fast.append(dict(name='jaw pivot bolt (M3x20)', head=np.array([-SERVO_SIDE * (PIVOT_FACE_X + 14.5), hinge[0], hinge[1]]),
-                     axis=-u_ax, stage='jaw', cb=PIVOT_PAD['head_x'] - PIVOT_FACE_X - 14.5, opening='outside',
+                     axis=-u_ax, stage='jaw', cb=PIVOT_PAD['x_end'] - PIVOT_FACE_X - 14.5, opening='outside',
                      spec=dict(kind='insert', L=20.0, d=3.0, clamped=['jaw'], receiver='face', head=M3_HEAD, clear_d=3.5)))
     fast += J['fasteners']
     fast += CJ['fasteners']
@@ -1746,6 +1781,68 @@ def fastener_check(R):
     return out
 
 
+KNUCKLE_WALL = 4.0      # jaw knuckles: least wall round the pivot bolt, its head counterbore and the horn screws
+PIVOT_BOSS_WALL = 2.5   # skull pivot boss: least wall round the insert bore
+KNUCKLE_GAP = 1.0       # least clearance of the knuckles (above the trim) to the skull over the sweep
+
+
+def jaw_check(R):
+    """Jaw knuckles and the skull pivot boss, measured on the finished parts in
+    sections square to the hinge axis (72 rays round each hole, every 0.5 mm of
+    |x| over the knuckle): the wall from each hole to the nearest air. Also the
+    clearance of the knuckle tops to the skull (face + back) over the sweep."""
+    from matplotlib.path import Path
+    hinge = R['hinge']; hy, hz = hinge
+    jaw, face = R['parts']['jaw'], R['parts']['face']
+    box = m_box([-70, hy - 40, hz - 40], [70, hy + 40, hz + 30])
+    jaw, face = jaw ^ box, face ^ box
+    Tm = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0]], float)
+    ang = np.linspace(0, 2 * np.pi, 72, endpoint=False)
+
+    def wall(M, x, r0, c):
+        pol = M.transform(Tm).slice(x).to_polygons()
+        if not pol:
+            return 0.0
+        v, cd = [], []
+        for p_ in pol:
+            v += list(p_) + [p_[0]]; cd += [Path.MOVETO] + [Path.LINETO] * (len(p_) - 1) + [Path.CLOSEPOLY]
+        rs = np.arange(r0 + 0.05, 25.0, 0.05)
+        P_ = np.array([[c[0] + r * np.cos(a), c[1] + r * np.sin(a)] for a in ang for r in rs])
+        inn = Path(v, cd).contains_points(P_).reshape(len(ang), len(rs))
+        w = np.where(inn.all(1), 25.0, rs[np.argmin(inn, axis=1)] - r0)
+        w[~inn[:, 0]] = 0.0
+        return float(w.min())
+    out = []
+
+    def item(name, M, xs, r0, c, need):
+        ws = [wall(M, x, r0, c) for x in xs]
+        out.append(dict(name=name, wall=round(min(ws), 2), need=need, ok=min(ws) >= need))
+    o = -SERVO_SIDE; sg = SERVO_SIDE
+    item('pivot bolt hole (Ø3.5) in the jaw', jaw, o * np.arange(PIVOT_FACE_X + 0.3, PIVOT_FACE_X + 14.5, 0.5), 1.75, (hy, hz), KNUCKLE_WALL)
+    item('pivot head counterbore (Ø6.6) in the jaw', jaw, o * np.arange(PIVOT_FACE_X + 14.7, PIVOT_PAD['x_end'] - 0.2, 0.5), 3.3, (hy, hz),
+         KNUCKLE_WALL)
+    item('horn-hub counterbore (Ø7) in the jaw', jaw, sg * np.arange(HORN_FACE_X + 0.3, HORN_FACE_X + HORN_HUB_CB - 0.2, 0.5), 3.5, (hy, hz),
+         KNUCKLE_WALL)
+    item('horn driver hole (Ø5) in the jaw', jaw, sg * np.arange(HORN_FACE_X + HORN_HUB_CB + 0.2, JAW_PAD['x_end'] - 0.2, 0.5), 2.5, (hy, hz),
+         KNUCKLE_WALL)
+    hd = horn_dir(); seats = {f['name']: f['head'] for f in R['fasteners'] if f['name'].startswith('horn-to-jaw')}
+    for r_ in HORN_JAW_HOLES:
+        xh = abs(seats['horn-to-jaw screw (r=%.0f)' % r_][0])
+        item('horn screw pilot (Ø2.2, r=%.0f) in the jaw' % r_, jaw, sg * np.arange(HORN_FACE_X + 0.3, xh - 0.2, 0.5), 1.1,
+             (hy + r_ * hd[0], hz + r_ * hd[1]), KNUCKLE_WALL)
+    item('pivot insert bore (Ø4) in the skull boss', face, o * np.arange(PIVOT_FACE_X - 0.8, PIVOT_FACE_X - 0.5 - INSERT_BORE, -0.5),
+         INSERT_D / 2, (hy, hz), PIVOT_BOSS_WALL)
+    # knuckle tops (above the condyle trim, outboard of the pad faces) to the skull
+    sk = union([R['parts']['face'], R['parts']['back']]) ^ box
+    tops = union([jaw ^ m_box([min(s_ * (x0 + 0.6), s_ * 70), hy - 20, hz + CONDYLE_TRIM - 1.0],
+                              [max(s_ * (x0 + 0.6), s_ * 70), hy + 20, hz + 30])
+                  for s_, x0 in ((sg, HORN_FACE_X), (o, PIVOT_FACE_X))])
+    g = min(tops.transform(rot_x_about(hy, hz, a)).min_gap(sk, 3.0)
+            for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 1.0))
+    out.append(dict(name='knuckle tops to the skull over the sweep', wall=round(g, 2), need=KNUCKLE_GAP, ok=g >= KNUCKLE_GAP))
+    return out
+
+
 def verify(R):
     P, H, hinge = R['parts'], R['hardware'], R['hinge']
     rep = dict(parts={}, collisions=[], jaw_sweep=[])
@@ -1867,6 +1964,7 @@ def verify(R):
             worst = max(vol(m.translate(list(-n_s * d)) ^ upper_) for d in np.arange(0.5, JOINT_H + 10, 1.0))
             rep['bracket_slide'].append((k, round(worst, 3)))
     rep['fastener_check'] = fastener_check(R)
+    rep['jaw_check'] = jaw_check(R)
     return rep
 
 
@@ -2004,6 +2102,16 @@ def render(R):
     jobs.append(('skull_chassis_34_hw.png', fo, '0,50,-10,55,0,140,380'))
     bk = scad('covers.scad', 'color("wheat") import("back.stl");\ntranslate([0,0,60]) color("navajowhite") import("cap.stl");')
     jobs.append(('skull_covers.png', bk, '0,90,40,60,0,140,520'))
+    # jaw knuckles: each half of the jaw on its own, from outside and from inside (3/4 views)
+    for k_, lo_, hi_ in (('jaw_left', -100.0, 0.0), ('jaw_right', 0.0, 100.0)):
+        to_tri(items['jaw'] ^ m_box([lo_, -100, -150], [hi_, 200, 100])).export(os.path.join(tmp, k_ + '.stl'))
+    for side_, nm_ in ((-SERVO_SIDE, 'pivot'), (SERVO_SIDE, 'horn')):
+        k_ = 'jaw_left' if side_ < 0 else 'jaw_right'
+        f_ = scad('%s_half.scad' % nm_, 'color("tan") import("%s.stl");' % k_)
+        c_ = '%g,%g,%g' % (side_ * 40, hinge[0] - 5, hinge[1] - 8)
+        rz_out, rz_in = (240, 120) if side_ < 0 else (120, 240)
+        jobs.append(('out/closeup_jaw_%s_34.png' % nm_, f_, '%s,65,0,%d,150' % (c_, rz_out)))
+        jobs.append(('out/closeup_jaw_%s_34_inside.png' % nm_, f_, '%s,65,0,%d,150' % (c_, rz_in)))
     procs = []
     for fn, f, cam in jobs:
         procs.append(subprocess.Popen([SCAD, '-o', os.path.join(HERE, fn), '--preview', '--imgsize=1400,1100',
@@ -2012,7 +2120,7 @@ def render(R):
     for p in procs:
         p.wait()
     for f in os.listdir(tmp):                         # keep the viewer to real parts
-        if f.startswith('tools') or f == 'hands.stl':
+        if f.startswith('tools') or f in ('hands.stl', 'jaw_left.stl', 'jaw_right.stl'):
             os.remove(os.path.join(tmp, f))
     sections(R, items)
     log('rendered %d previews + sections' % len(jobs))
@@ -2189,13 +2297,13 @@ def closeups(R, items, cols):
         (np.array([SERVO_SIDE * 38.0, *R['hinge']]) + np.array([0, *hd_]) * 8, [1.0, 0, 0], [0, *hd_], 18,
          'Jaw servo-side pad: section along the horn arm through both M2x16 screws', hn),
         (np.array([SERVO_SIDE * 37.0, *R['hinge']]), [0, 1.0, 0], [0, 0, 1.0], 24,
-         'Jaw servo-side pad, seen from inside (x = %.0f): pad outline, horn-screw holes' % (SERVO_SIDE * 37.0), [])])
+         'Jaw servo-side knuckle, seen from inside (x = %.0f): outline, horn-screw holes' % (SERVO_SIDE * 37.0), [])])
     fp = F['jaw pivot bolt (M3x20)']
     one('closeup_jaw_pivot.png', [
         (np.array([-SERVO_SIDE * 36.0, *R['hinge']]), [1.0, 0, 0], [0, 0, 1.0], 20,
          'Jaw pivot: section through the bolt axis (y = %.1f), seen from the front' % R['hinge'][0], [fp['name']]),
         (np.array([-SERVO_SIDE * 37.0, *R['hinge']]), [0, 1.0, 0], [0, 0, 1.0], 20,
-         'Jaw pivot pad (x = %.0f): Ø22 pad, Ø15 bolt boss, stop finger' % (-SERVO_SIDE * 37.0), [])])
+         'Jaw pivot knuckle (x = %.0f): Ø%.0f round the bolt + tail down the neck, stop finger' % (-SERVO_SIDE * 37.0, 2 * PIVOT_PAD['r']), [])])
 
 
 def main():
@@ -2229,7 +2337,13 @@ def main():
     rep['failures'] = rep['usb']['failures'] + [t['name'] for t in bad] + [k for k, v in rep['hand_access'].items() if v > 0.005] + \
         (['back lift-off'] if rep['back_lift'] > 0.005 else []) + (['cap lift-off'] if rep['cap_lift'] > 0.005 else []) + \
         ['collision %s/%s' % (a, b) for a, b, v in rep['collisions']] + \
-        ['fastener %s' % t['name'] for t in rep['fastener_check'] if not t['ok']]
+        ['fastener %s' % t['name'] for t in rep['fastener_check'] if not t['ok']] + \
+        ['jaw %s' % t['name'] for t in rep['jaw_check'] if not t['ok']] + \
+        ['jaw sweep overlap at %g deg' % a for a, v in rep['jaw_sweep'] if v > 0.005] + \
+        ['jaw stop at %g deg does not stop' % a for a, v in rep['beyond_stops'] if v <= 0.005]
+    log('jaw knuckles (least wall / clearance, mm):')
+    for t in rep['jaw_check']:
+        log('  %s %-48s %5.2f (>= %.1f)' % ('OK ' if t['ok'] else 'FAIL', t['name'], t['wall'], t['need']))
     log('jaw sweep overlaps:', [a for a in rep['jaw_sweep'] if a[1] > 0.005] or 'none',
         '| past the stops:', rep['beyond_stops'])
     export(R)

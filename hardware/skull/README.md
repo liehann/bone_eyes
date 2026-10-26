@@ -30,7 +30,8 @@ Everything comes from `build.py` and is reproducible.
 | `skull_covers.png` | the back cover and the cap (cap lifted 60 mm) |
 | `skull_cover_joints.png` | sections through the cover joints: cap hook under the forehead ledge; the back cover screw and the cap screw; the floor lip |
 | `out/closeup_back_cover_screw.png`, `out/closeup_cap_screw.png` | sections through the two cover screws: screw (red), head, insert (gold) in its bore |
-| `out/closeup_jaw_horn_pad.png`, `out/closeup_jaw_pivot.png` | sections through the jaw attachments: servo-side pad and horn screws, pivot pad and bolt |
+| `out/closeup_jaw_horn_pad.png`, `out/closeup_jaw_pivot.png` | sections through the jaw attachments: servo-side knuckle and horn screws, pivot knuckle and bolt |
+| `out/closeup_jaw_pivot_34.png`, `out/closeup_jaw_horn_34.png` (+ `_inside`) | each half of the jaw on its own, 3/4 view from outside (and from inside): the knuckles |
 | `skull_stand_cable.png` | USB cable path: neck bore, then the stand column and its open slot |
 | `out/skull_esp32_usb.png` | the servo tray and ESP32, cap off: DuPont housings + wires, USB plug, insertion path, grip, cable loop into the neck bore, EN/BOOT fingertips |
 | `skull_section_orbits.png` | sections through the orbit centres and through one eye (socket bowls, modules, bar) |
@@ -139,7 +140,7 @@ with the jaw. The stand adds 78 mm.
 | `face.stl` (chassis) | 115 × 171 × 95 | 134 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts and pivot boss | ~7 h |
 | `back.stl` (back cover) | 134 × 124 × 50 | 40 cm³ | lower cut (z = −14) on the bed | none to little | ~2 h |
 | `cap.stl` | 134 × 172 × 74 | 95 cm³ | cut face on the bed, crown up | under the front hook only | ~4 h |
-| `jaw.stl` | 99 × 97 × 72 | 51 cm³ | upright | tree under the lower border and the two hinge pads | ~2 h |
+| `jaw.stl` | 99 × 97 × 74 | 57 cm³ | upright | tree under the lower border and the two hinge knuckles | ~2 h |
 | `stand.stl` | Ø110 × 88 | 114 cm³ | base on the bed | none (the cable slot is open) | ~3 h |
 | `servo_tray.stl` | 72 × 50 × 77 | 15 cm³ | servo mounting plate on the bed (slab, ribs and cradle stand up) | under the two cradle end walls and the ledges | ~1.5 h |
 
@@ -225,20 +226,38 @@ radar sees through the nasal window. Use paint without metal flakes there.
     **outside** the ramus. They go through Ø2.2 pilots at 10 and 14 mm from
     the axis along the horn arm, which points 20° forward of straight down,
     along the condyle neck (`HORN_ARM_DEG`). The heads sit on a shallow Ø6
-    spot face on the ramus; each screw reaches 4–6 mm past the horn arm.
+    spot face on the outer end of the knuckle (|x| = 45.8); each screw has
+    3.2 mm past the joint face, i.e. it just passes through the horn arm.
   - Screwing from outside is the only straight tool path once the jaw is
     on.
-- **Pads.** Each condyle neck carries a pad on its inside, grown out of the
-  bone: inside the pad outline the ramus is filled solid from the pad face to
-  0.8 mm under the outer surface, with a 3 mm fillet where the pad meets the
-  ramus (`jaw_pads()`).
-  - Servo side: the hull of a Ø24 disc on the axis and an Ø11 lobe round the
-    far horn screw, 8 mm thick from the horn face (was a Ø24 × 8 disc that
-    the r = 14 screw sat outside of).
-  - Pivot side: a Ø22 disc, 8 mm thick (was Ø16 × 8), plus a Ø15 boss on the
-    axis out to |x| = 48.5 that is kept above the condyle trim. It leaves
-    4.2 mm of wall round the Ø6.6 head counterbore and 5.7 mm of material
-    over the bolt (the trim used to leave a 1.7 mm bridge there).
+- **Knuckles.** Each condyle neck carries a knuckle on its inside, grown out
+  of the bone (`jaw_pads()`, `JAW_PAD`, `PIVOT_PAD`):
+  - Outline seen along the axis: a teardrop, the hull of a disc on the axis
+    (Ø19 pivot side, Ø16 servo side) and an Ø14 disc 16 mm down the condyle
+    neck (20° forward of straight down, along the horn arm).
+  - Inside the outline the jaw is solid from the pad face out to 0.8 mm under
+    the ramus' outer skin, and at least 13 mm (servo side) / 14 mm (pivot
+    side) thick where there is no ramus outside it. A 4 mm fillet (a
+    Euclidean closing) blends it into the ramus.
+  - Above the condyle trim only the axis disc is kept: it turns in place, so
+    it sweeps only itself. It runs from the pad face out to |x| = 47 (servo)
+    and 48.5 (pivot) as a solid boss round the axis.
+  - Pivot side: 7.75 mm of wall round the Ø3.5 bolt hole and 6.2 mm round the
+    Ø6.6 head counterbore (was 5.75 and 4.2 with a Ø22 × 8 disc and a Ø15
+    boss). The knuckle's section is 500 mm² at the pad face and 670–850 mm²
+    where it joins the ramus (was 310 mm² throughout the disc).
+  - Servo side: 6.7 / 6.1 mm round the r = 10 / 14 horn-screw pilots (was
+    4.3 and 2.45 mm at the r = 14 screw), and 6 mm over the axis hole, which
+    is now an Ø7 × 4 counterbore for the horn-screw head, then Ø5 through
+    for a driver (the Ø7 used to run through, opened at the top by the trim).
+  - Nothing of the condyles stays inboard of the pad faces.
+- **Pivot boss on the skull:** Ø30 round the insert (13 mm of wall), rooted in
+  the cranial floor by a gusset that flares from the boss top out over the
+  floor (y ± 17, out to |x| = 14), kept inside the skin and below the chassis
+  cut.
+- The build checks all of this (`jaw_check()`; it fails below 4 mm of wall
+  round any jaw hole, 2.5 mm round the pivot insert, or 1.0 mm of clearance
+  between the knuckle tops and the skull over the sweep).
 - The other side pivots on an **M3×20** shoulder of the bolt. The head sits
   in a counterbore on the outside of the condyle, and the bolt runs into an
   insert in a boss hanging from the skull base, with a 0.5 mm gap. Add a
@@ -246,11 +265,14 @@ radar sees through the nasal window. Use paint without metal flakes there.
 - **Range: 0 to 18° nominal** (JAW_OPEN_DEG). That gives about 33 mm of chin
   travel, which reads clearly for a talking skull; 15–20° is the usual prop
   range. Set the servo limits in firmware.
-- Hard stops: a finger on the pivot-side jaw pad runs in a slot in the skull
+- Hard stops: a finger on the pivot-side knuckle runs in a slot in the skull
   boss and stops at −0.5° (teeth just clear; checked) and +20°.
 - The condyle heads are trimmed 3.5 mm above the axis.
 - The cranium is carved 1.2 mm clear of the jaw swept from −1.5° to +21.5°,
-  and the shell wraps the carve, so the hinge region stays closed.
+  and the shell wraps the carve, so the hinge region stays closed. Round the
+  condyles (|x| ≥ 24) the carve is a true distance, 1.2 + 1.4 mm
+  (`HINGE_CLEAR_EXTRA`, lost again to voxels and smoothing), which leaves the
+  knuckle tops at least 1 mm clear.
 - Why direct drive works here: the hinge sits right at the level of the skull
   base. A vertical servo body (22.8 mm) fits mostly inside the cranium, with
   the cup bulging about 15 mm below the base, hidden between the jaw rami.

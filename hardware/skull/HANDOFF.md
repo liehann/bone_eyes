@@ -46,17 +46,16 @@
   the current layout the cable cannot reach the neck without a hole in the
   tray. Also, a U-turn of the plug and cable (30 mm + R15) has no room beyond
   the +X board end: the wall is about 3 mm past the plug.
-- The horn screws reach 4–6 mm past the horn arm (the M2x16 is longer than the
-  ramus there needs). The tips are clear of the servo case. M2x12 would
-  only just get through the arm at r = 14.
+- (Superseded by the jaw-knuckle change: the knuckles are now thicker, the
+  horn-screw heads seat at |x| = 45.8 and the M2x16 just passes through the
+  horn arm, 3.2 mm past the joint face. See README, Jaw > Knuckles.)
 - The servo tab screws' length is an assumption (8 mm, supplied screws).
   The horn screw is supplied and not modelled, so it only gets the tool-access
   check.
 - The shell-stage cache I used for iterating was a scratch wrapper. It is not
   in the repo.
-- The servo-side pad's Ø7 axis hole is for horn-screw access. The condyle
-  trim at +3.5 mm opens it at the top edge. This was already the case before
-  this change, and I left it.
+- (Fixed since: the servo-side axis hole is now Ø7 × 4 then Ø5, inside the
+  Ø16 knuckle disc, with 4.5 mm of wall over it.)
 - `verify()` now takes about 7 minutes (the whole build is about 9.5 min with
   renders). Most of that time goes to the volume booleans of the existing
   checks and the new fastener check on the full-size shells.
