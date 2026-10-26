@@ -32,6 +32,7 @@ from scipy import ndimage
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from vox import voxelize  # noqa: E402
+import liners  # noqa: E402
 
 # =============================================================== PARAMETERS
 SRC = os.path.join(HERE, '..', 'skull_src')
@@ -488,7 +489,8 @@ def socket(c, th, r_rim, y_rim, r_bot, y_bot, W, K=SOCKET_K, flat_bottom=False):
     air = rings_mesh([front] + [inner[k] for k in range(K)], cap_first=ctr(float(np.mean(y_rim)) - 12.0),
                      cap_last=ctr(y_bot))
     plug = rings_mesh([outer[k] for k in range(K)], cap_first=ctr(float(np.mean(y_rim))), cap_last=ctr(y_bot + W))
-    return dict(wall=wall, air=air, plug=plug, paint=paint)
+    return dict(wall=wall, air=air, plug=plug, paint=paint,
+                prof=dict(c=c, th=th, r_rim=r_rim, y_rim=y_rim, r_bot=r_bot, y_bot=y_bot, W=W, flat=flat_bottom))
 
 
 def make_plugs(G, B, scale):
@@ -1557,6 +1559,14 @@ def build():
     # the back-cover post goes on after the lip trim, and its insert bore is cut
     # after it is added (it used to be cut before, so the post came out solid)
     face = clean(face + lip + CJ['face_post'] - union(CJ['cut_face']), 'face')
+    # black socket/nose liners: the face is cut back to take them (liners.py)
+    face, liner_parts = liners.make_liners(face, sockets, dict(
+        eye_clear=eye_clear, corridor=corridor, radar_clear=radar_clear, radar=radar, bar=bar, modules=modules,
+        skin=skin, radar_path=radar_path + radar_lift, y_eye_base=y_glass - FIT, y_nose_base=y_wall_back), log=log)
+    face = clean(face, 'face')
+    info['liners'] = liners.REPORT
+    PRINT_ORIENT.update({k: liners.PRINT_ROT for k in liner_parts})
+    COLORS.update({k: '#181818' for k in liner_parts})
     # cap
     cap = union([cap ^ region('cap')] + J['add']['cap'] + CJ['cap']) - union(J['cut']['cap'] + CJ['cut_cap'])
     cap = clean(cap, 'cap')
@@ -1626,6 +1636,7 @@ def build():
     servo_tray, board = servo_tray_parts(mech)
     servo_tray = clean(servo_tray, 'servo_tray')
     parts = dict(face=face, back=back, cap=cap, jaw=jaw_part, servo_tray=servo_tray, stand=stand())
+    parts.update(liner_parts)
     for name, br in J['brackets']:
         parts['joint_bracket_' + name] = br
     P = servo_frame(hinge); St = SERVO
@@ -2340,7 +2351,7 @@ def main():
         ['fastener %s' % t['name'] for t in rep['fastener_check'] if not t['ok']] + \
         ['jaw %s' % t['name'] for t in rep['jaw_check'] if not t['ok']] + \
         ['jaw sweep overlap at %g deg' % a for a, v in rep['jaw_sweep'] if v > 0.005] + \
-        ['jaw stop at %g deg does not stop' % a for a, v in rep['beyond_stops'] if v <= 0.005]
+        ['jaw stop at %g deg does not stop' % a for a, v in rep['beyond_stops'] if v <= 0.005] + liners.failures()
     log('jaw knuckles (least wall / clearance, mm):')
     for t in rep['jaw_check']:
         log('  %s %-48s %5.2f (>= %.1f)' % ('OK ' if t['ok'] else 'FAIL', t['name'], t['wall'], t['need']))
@@ -2352,6 +2363,8 @@ def main():
     if '--no-render' not in sys.argv:
         render(R)
         render_usb(R, usb_k)
+        liners.render_png(R['parts']['face'], {k: v for k, v in R['parts'].items() if k.startswith('liner_')},
+                          os.path.join(OUT, 'skull_face_liners.png'), SCAD, log)
     if rep['failures']:
         log('FAILED access checks:', rep['failures'])
         sys.exit(1)

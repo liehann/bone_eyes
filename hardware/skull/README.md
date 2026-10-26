@@ -20,7 +20,7 @@ Everything comes from `build.py` and is reproducible.
 
 | Preview | |
 |---|---|
-| `skull_front.png`, `skull_iso.png`, `skull_side.png` | assembled, on the stand; sockets/nose drawn painted black, screens gold |
+| `skull_front.png`, `skull_iso.png`, `skull_side.png` | assembled, on the stand; socket and nose liners black, screens gold |
 | `skull_jaw_open.png` | jaw at the full 18° opening |
 | `skull_exploded.png` | parts pulled apart in assembly order |
 | `skull_bottom.png` | underside (servo cup, pivot boss, neck boss) |
@@ -137,7 +137,7 @@ with the jaw. The stand adds 78 mm.
 
 | STL (`out/`) | Size (mm, x × y × z) | Volume | Print orientation | Supports | Time (rough) |
 |---|---|---|---|---|---|
-| `face.stl` (chassis) | 115 × 171 × 95 | 134 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts and pivot boss | ~7 h |
+| `face.stl` (chassis) | 115 × 171 × 95 | 129 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts and pivot boss | ~7 h |
 | `back.stl` (back cover) | 134 × 124 × 50 | 40 cm³ | lower cut (z = −14) on the bed | none to little | ~2 h |
 | `cap.stl` | 134 × 172 × 74 | 95 cm³ | cut face on the bed, crown up | under the front hook only | ~4 h |
 | `jaw.stl` | 99 × 97 × 74 | 57 cm³ | upright | tree under the lower border and the two hinge knuckles | ~2 h |
@@ -160,8 +160,83 @@ because the bowls are inside. Brim on the jaw.
 The minimum designed wall is 1.6 mm. The shell is 2.6 mm, the socket bowls
 2.0 mm and the nasal window 1.8 mm.
 
-**Paint:** the socket bowls and the nose bowl black, like a prop skull. The
-radar sees through the nasal window. Use paint without metal flakes there.
+### Black liners (eye sockets and nose)
+
+The socket bowls and the nose bowl are three separate black parts that sit in
+the face, so nothing needs painting and the face prints in one colour
+(`liners.py`, called from `build.py` once the face is finished).
+
+- **Shape.** Each liner's inside is the analytic bowl that `build.py` lofts
+  for the socket, so the visible cavity keeps its shape and size. The face is
+  cut back by the liner plus a loose gap and gets a new 2 mm wall behind the
+  pocket (1.2 mm behind the pocket's base), tied into the bone by a collar
+  round the rim.
+  - Liner wall 1.2 mm (measured square to the bowl); 0.3 mm gap to the face
+    round the bowl and behind the base.
+  - **Rim lip:** 0.6 mm thick and 1 mm wide past the wall. It laps over the
+    face into a matching rebate and sits flush, with 0.3 mm round its edge.
+    Under the lip a 45° chamfer is the seat, 0.05 mm off its pocket, so the
+    lip ends flush (at most 0.07 mm proud) and the liner centres itself.
+  - Where bone stands in front of the rim (a raised margin round part of each
+    socket and the top of the nose), that bone hides the seam, so the lip
+    narrows to nothing there instead of the rebate shaving the bone thin.
+  - The lip follows the face surface, but never slopes back more than 45°;
+    where the bone falls away faster (lower outer orbit), the lip stands just
+    proud of it.
+  - **Eyes:** the liner's flat back is the screen bezel: Ø18.5 aperture,
+    14.25 mm behind the rim plane, 0.75 mm in front of the glass (the same
+    clearance the eye-bar path keeps). Behind it the face is open round the
+    module.
+  - **Nose:** the liner's flat bottom is the 1.8 mm radar window. Use a black
+    PLA without carbon fibre or metal fill there, and check the radar range
+    with the liner fitted.
+- **Retention: a glue dab.** A liner goes in from the front and the face
+  only holds it from behind; nothing can hold it from the front without a
+  part that would block it going in, so the eye bar cannot clamp it. Put
+  2–3 small dabs of CA or hot glue on the chamfer seat (or, for the eyes,
+  through the open back round the screen, before the eye bar goes in), push
+  the liner home and hold it for a few seconds. Hot glue comes off again.
+- **Print:** back face (bezel ring or radar window) on the bed, opening up.
+  The outside is a 45° self-supporting envelope, so no supports, and the
+  visible inside prints as top surface. A 3 mm brim helps the eye liners,
+  whose bed contact is a ring. Black PLA, 0.2 mm, 3 walls (the wall is all
+  perimeter).
+
+| STL (`out/`) | Size (mm, as printed) | Volume | Time (rough) |
+|---|---|---|---|
+| `liner_eye_L.stl` | 35 × 40 × 26 | 2.5 cm³ | ~30 min |
+| `liner_eye_R.stl` | 36 × 40 × 26 | 2.5 cm³ | ~30 min |
+| `liner_nose.stl` | 28 × 29 × 28 | 2.0 cm³ | ~25 min |
+
+All three fit one plate: about 1 h 15 min together on an H2D.
+
+`out/skull_face_liners.png` shows the face with the liners fitted (front and
+3/4) and pulled 30 mm forward.
+
+**Checks** (in `build_report.json` under `info.liners`; the build fails on
+any of them):
+- the liners overlap nothing: face, eye modules, eye bar, radar, the eye-bar
+  insertion path and the radar path;
+- liner wall ≥ 0.8 mm (rays square into the wall from area-weighted points;
+  the lip is reported apart: 0.6 mm by design);
+- face wall behind the liner pockets: the target is 1.2 mm (samples under it
+  are counted in the report) and the build fails under 0.9 mm. The first
+  2.5 mm below the rim (rebate, seat and the slot beside the lip) is reported
+  apart as the rim zone: where the bone falls away steeply or stands thin in
+  front of the rim, the face's rim edge runs out to a feather edge there, as
+  the bone itself does;
+- no line of sight past a liner into the skull (4,000 rays per socket,
+  up to 45° off axis). Rays that reach a little way down the 0.3 mm seam where
+  the lip narrows are counted and reported, not failed.
+
+The eye-bar tool access, hand space and collision checks run on the new face
+as before.
+
+The booleans of these finely sampled surfaces leave a few hundred vertices
+microns apart, which pinch edges once the mesh is written as float32 STL.
+`liners.py` fills each with a 0.3 mm cube (union only, inside the 0.3 mm
+gap), so every STL is watertight; the thickness checks measure the geometry
+before that fill.
 
 ## Mechanism
 
@@ -449,17 +524,20 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
    - Heat-set the inserts.
    - Screw the servo into the servo tray (tab screws). Centre it and screw
      the horn on, pointing down the ramus.
-2. **Eyes** (both covers off, chassis on the bench):
+2. **Liners** (before the eye bar): push each black liner into its socket
+   from the front until the lip sits flush, with 2–3 dabs of glue on the
+   seat (see *Black liners*).
+3. **Eyes** (both covers off, chassis on the bench):
    - Plug the cables into the LCDs.
    - Bring the eye bar in from behind and push it onto the left post and the
      right key peg.
    - Screw the M2×8s and the M3×12 bar bolt (with a Ø9 washer) straight from
      behind. Centre the screens.
-3. **Radar:** on edge down the slot between the bowls, then flat and forward
+4. **Radar:** on edge down the slot between the bowls, then flat and forward
    into its frame.
-4. **USB cable:** feed the USB-A end down the neck bore from inside and lay
+5. **USB cable:** feed the USB-A end down the neck bore from inside and lay
    the cable in the stand slot later; leave the micro-USB end inside.
-5. **Servo tray, ESP32 and jaw:**
+6. **Servo tray, ESP32 and jaw:**
    - Lower the servo tray (servo and horn on it) into the cup, with the gear
      tower down the slot in the cup wall; let the cable into the slab's open
      notch from the +X side. Bolt the flange (2× M3×8 from above).
@@ -469,13 +547,13 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
    - Fix the jaw to the horn with 2× M2×16 from outside the ramus.
    - Put the M3×20 pivot bolt (with a washer) through the other condyle.
    - Wire everything and test on the bench.
-6. **Back cover:** drop it onto the floor lip, then fit 1× M3×12 from behind,
+7. **Back cover:** drop it onto the floor lip, then fit 1× M3×12 from behind,
    low.
-7. **Cap:**
+8. **Cap:**
    - Lower it 6 mm behind its place and slide it forward under the forehead
      ledge.
    - Fit 1× M3×12 from behind, high.
-8. **Stand:**
+9. **Stand:**
    - Lay the cable (already down the neck bore) in the column slot.
    - Push the stand's socket onto the neck.
    - Fit 1× M3×8 from behind.

@@ -3,8 +3,8 @@
   "face": {
    "watertight": true,
    "bodies": 1,
-   "volume_cm3": 132.04,
-   "tris": 330346,
+   "volume_cm3": 128.56,
+   "tris": 379184,
    "size": [
     114.5,
     171.1,
@@ -64,6 +64,39 @@
     109.8,
     110.0,
     88.0
+   ]
+  },
+  "liner_eye_L": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 2.47,
+   "tris": 54806,
+   "size": [
+    35.4,
+    25.9,
+    40.4
+   ]
+  },
+  "liner_eye_R": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 2.53,
+   "tris": 55132,
+   "size": [
+    35.6,
+    25.8,
+    40.3
+   ]
+  },
+  "liner_nose": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 2.04,
+   "tris": 54286,
+   "size": [
+    27.6,
+    28.1,
+    28.5
    ]
   }
  },
@@ -330,8 +363,8 @@
   "eye_bar_path": 0.0,
   "radar_path": -0.0
  },
- "back_lift": 8.703107678975642e-18,
- "cap_lift": 8.547534064654576e-16,
+ "back_lift": 8.317293776256727e-05,
+ "cap_lift": 8.133415912856322e-16,
  "bracket_slide": [],
  "fastener_check": [
   {
@@ -350,10 +383,10 @@
    "name": "M2 module screw (x=-27)",
    "problems": [],
    "L": 8.0,
-   "s_head": -0.0,
+   "s_head": 0.05,
    "s_joint": 5.65,
-   "clamp": 5.65,
-   "engage": 2.35,
+   "clamp": 5.6,
+   "engage": 2.4,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "ok": true
@@ -362,10 +395,10 @@
    "name": "M2 module screw (x=27)",
    "problems": [],
    "L": 8.0,
-   "s_head": 0.05,
+   "s_head": -0.0,
    "s_joint": 5.65,
-   "clamp": 5.6,
-   "engage": 2.4,
+   "clamp": 5.65,
+   "engage": 2.35,
    "seat_flat": 1.0,
    "clearance_blocked_mm3": {},
    "ok": true
@@ -415,13 +448,13 @@
    "problems": [],
    "L": 8.0,
    "s_head": 0.05,
-   "s_joint": 2.55,
-   "clamp": 2.5,
-   "engage": 5.5,
+   "s_joint": 2.5,
+   "clamp": 2.45,
+   "engage": 5.55,
    "seat_flat": 1.0,
    "bore_blocked_mm3": 0.0,
-   "wall_frac": 0.976,
-   "receiver_thickness": 2.95,
+   "wall_frac": 0.993,
+   "receiver_thickness": 3.0,
    "ok": true
   },
   {
@@ -680,7 +713,239 @@
    "radar_path": 0.0
   },
   "joints": [],
-  "floor_lip_cm3": 0.2
+  "floor_lip_cm3": 0.2,
+  "liners": {
+   "volumes_cm3": {
+    "liner_eye_L": 2.47,
+    "liner_eye_R": 2.53,
+    "liner_nose": 2.04
+   },
+   "face_cm3": [
+    132.04,
+    128.56
+   ],
+   "lip_width_mm": {
+    "liner_eye_L": [
+     0.0,
+     1.0
+    ],
+    "liner_eye_R": [
+     0.0,
+     1.0
+    ],
+    "liner_nose": [
+     0.0,
+     1.0
+    ]
+   },
+   "overlap_cm3": {
+    "liner_eye_L/modules": 0.0,
+    "liner_eye_L/bar": 0.0,
+    "liner_eye_L/radar": 0.0,
+    "liner_eye_L/corridor": 0.0,
+    "liner_eye_L/radar_path": 0.0,
+    "liner_eye_L/face": 0.0002,
+    "liner_eye_R/modules": 0.0,
+    "liner_eye_R/bar": 0.0,
+    "liner_eye_R/radar": 0.0,
+    "liner_eye_R/corridor": -0.0,
+    "liner_eye_R/radar_path": 0.0,
+    "liner_eye_R/face": 0.0001,
+    "liner_nose/modules": 0.0,
+    "liner_nose/bar": 0.0,
+    "liner_nose/radar": 0.0,
+    "liner_nose/corridor": 0.0,
+    "liner_nose/radar_path": 0.0,
+    "liner_nose/face": 0.0006
+   },
+   "liner_eye_L": {
+    "wall": {
+     "min": 1.17,
+     "p1": 1.19,
+     "median": 1.2,
+     "samples": 6677,
+     "edge_samples": 286,
+     "under_1_2": 606
+    },
+    "lip": {
+     "min": 0.61,
+     "p1": 0.68,
+     "median": 1.2,
+     "samples": 608,
+     "edge_samples": 429,
+     "under_1_2": 79
+    },
+    "worst_wall": [
+     {
+      "angle_deg": 42.8,
+      "past_rim_mm": 1.01,
+      "below_rim_mm": 3.85,
+      "t": 1.17
+     },
+     {
+      "angle_deg": 42.9,
+      "past_rim_mm": 1.05,
+      "below_rim_mm": 3.09,
+      "t": 1.17
+     },
+     {
+      "angle_deg": 157.2,
+      "past_rim_mm": 0.82,
+      "below_rim_mm": 2.84,
+      "t": 1.17
+     }
+    ]
+   },
+   "liner_eye_R": {
+    "wall": {
+     "min": 1.17,
+     "p1": 1.18,
+     "median": 1.2,
+     "samples": 6614,
+     "edge_samples": 299,
+     "under_1_2": 542
+    },
+    "lip": {
+     "min": 0.6,
+     "p1": 0.66,
+     "median": 1.2,
+     "samples": 639,
+     "edge_samples": 448,
+     "under_1_2": 130
+    },
+    "worst_wall": [
+     {
+      "angle_deg": 220.5,
+      "past_rim_mm": 0.94,
+      "below_rim_mm": 2.67,
+      "t": 1.17
+     },
+     {
+      "angle_deg": 220.5,
+      "past_rim_mm": 0.86,
+      "below_rim_mm": 6.46,
+      "t": 1.17
+     },
+     {
+      "angle_deg": 220.5,
+      "past_rim_mm": 0.09,
+      "below_rim_mm": 7.73,
+      "t": 1.17
+     }
+    ]
+   },
+   "liner_nose": {
+    "wall": {
+     "min": 1.12,
+     "p1": 1.13,
+     "median": 1.2,
+     "samples": 6108,
+     "edge_samples": 297,
+     "under_1_2": 964
+    },
+    "lip": {
+     "min": 0.59,
+     "p1": 0.64,
+     "median": 1.22,
+     "samples": 878,
+     "edge_samples": 717,
+     "under_1_2": 225
+    },
+    "worst_wall": [
+     {
+      "angle_deg": 277.1,
+      "past_rim_mm": -0.46,
+      "below_rim_mm": 7.89,
+      "t": 1.12
+     },
+     {
+      "angle_deg": 277.7,
+      "past_rim_mm": -0.37,
+      "below_rim_mm": 4.91,
+      "t": 1.12
+     },
+     {
+      "angle_deg": 276.9,
+      "past_rim_mm": -0.02,
+      "below_rim_mm": 3.92,
+      "t": 1.12
+     }
+    ]
+   },
+   "face_behind_pockets": {
+    "min": 1.2,
+    "p1": 1.2,
+    "median": 2.0,
+    "samples": 6551,
+    "edge_samples": 1077,
+    "under_1_2": 0,
+    "worst": [
+     [
+      1.2,
+      "eyeL",
+      217.2,
+      -6.18,
+      6.71
+     ],
+     [
+      1.2,
+      "eyeL",
+      236.7,
+      -4.78,
+      8.64
+     ],
+     [
+      1.2,
+      "eyeL",
+      238.7,
+      -7.12,
+      8.94
+     ],
+     [
+      1.2,
+      "eyeR",
+      251.1,
+      -6.81,
+      11.72
+     ],
+     [
+      1.2,
+      "eyeR",
+      285.8,
+      -6.92,
+      10.71
+     ]
+    ]
+   },
+   "face_rim_edge": {
+    "min": 0.02,
+    "p1": 0.86,
+    "median": 3.48,
+    "samples": 591,
+    "edge_samples": 781,
+    "under_1_2": 19
+   },
+   "sight": {
+    "liner_eye_L": {
+     "rays": 2889,
+     "seam": 6,
+     "seam_depth_max": 5.01,
+     "past_liner": 0
+    },
+    "liner_eye_R": {
+     "rays": 2895,
+     "seam": 9,
+     "seam_depth_max": 5.05,
+     "past_liner": 0
+    },
+    "liner_nose": {
+     "rays": 2418,
+     "seam": 6,
+     "seam_depth_max": 3.66,
+     "past_liner": 0
+    }
+   }
+  }
  },
  "usb": {
   "plug_plugged": {},
