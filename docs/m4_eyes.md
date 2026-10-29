@@ -110,7 +110,8 @@ WiFi/HTTP up, against the 60 KB target. PSRAM: about 0.3-0.6 MB per eye set
 (the loaded textures plus a tinted copy). Static RAM for the whole firmware:
 102.8 KB. App flash: 1.68 MB of 2 MB, of which the built-in hazel fallback is
 about 300 KB. LittleFS: five eye sets, about 1 MB of the 5.9 MB partition (no
-partition change needed).
+partition change needed); the Uncanny Eyes sets in `data/uncanny/` add 1.2 MB
+(`docs/eye_styles.md`).
 
 ## Parameters
 

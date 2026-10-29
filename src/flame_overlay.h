@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "eye_art/fire_tables.h"
+#include "eye_art/eye_tint.h"
 #include "eye_render.h"
 
 namespace flame_overlay {
@@ -133,9 +134,11 @@ inline void composite(const Buffers& b, int y, uint16_t* row) {
   const uint8_t* o = b.open + y * N;
   const uint8_t* h = b.heat + y * N;
   const uint8_t* s = b.smoke + y * N;
+  const uint16_t* pal = eye_tint::active().table;  // fire palette
+  if (!pal) pal = fire_tables::kPalette;           // orange
   for (int x = 0; x < N; x++) {
     if (o[x]) continue;  // the eye itself
-    const uint16_t f = fire_tables::kPalette[h[x]];
+    const uint16_t f = pal[h[x]];
     // Smoke: a dim grey added under the flame.
     const int g = s[x] >> 1;  // 0..60
     int r5 = (f >> 11) + (g >> 3), g6 = ((f >> 5) & 63) + (g >> 2), b5 = (f & 31) + (g >> 3);

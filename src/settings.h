@@ -8,9 +8,19 @@
 
 namespace settings {
 
-enum Style : int32_t { kDefault = 0, kDragon = 1, kFire = 2, kM4 = 3 };
-constexpr int kNumStyles = 4;
-extern const char* const kStyleNames[kNumStyles];  // "default", "dragon", "fire", "m4"
+// Values are stored in NVS: append, never renumber.
+enum Style : int32_t {
+  kDefault = 0, kDragon = 1, kFire = 2, kM4 = 3,
+  // Uncanny Eyes sets on LittleFS (data/uncanny/<name>.eye), kCat..kNauga.
+  kCat = 4, kGoat, kOwl, kNewt, kTerminator, kNoSclera, kDoe, kNauga,
+};
+constexpr int kNumStyles = 12;
+// "default", "dragon", "fire", "m4", "cat", "goat", "owl", "newt",
+// "terminator", "nosclera", "doe", "nauga"
+extern const char* const kStyleNames[kNumStyles];
+// Style drawn by the Uncanny Eyes renderer from a LittleFS file (named after
+// the style).
+inline bool isUncannyFile(int style) { return style >= kCat && style <= kNauga; }
 // The M4 eye's own parameters (src/m4eye/m4eye_config.h) ride along as a
 // nested "m4" object in toJson()/applyJson(), saved as one NVS string.
 
@@ -27,6 +37,12 @@ struct Settings {
   int32_t wander;      // idle saccades; off = look straight ahead
   int32_t verge;       // go cross-eyed when someone is close
   int32_t pupilReact;  // pupils dilate/constrict with the mood
+  // Colour of the Uncanny Eyes styles (default, dragon, cat ...): hue
+  // rotation (deg), saturation (%) and a multiply tint (0xRRGGBB) for the
+  // iris and the sclera textures. Baked into texture copies when they change.
+  int32_t irisHue, irisSat, irisTint;
+  int32_t scleraHue, scleraSat, scleraTint;
+  int32_t firePalette;  // eye_tint::Palette, for the fire eye and the flame overlay
 };
 
 void begin();  // load from NVS (defaults where unset); call before eyes::begin

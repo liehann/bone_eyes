@@ -12,6 +12,7 @@
 #pragma once
 #include <stdint.h>
 
+#include "eye_art/eye_tint.h"
 #include "fire_render.h"
 
 namespace fire_eye {
@@ -194,9 +195,11 @@ inline void row(const Buffers& b, int y, uint16_t* out) {
   fire_render::heatSpan(fp, y, x0, x1, heat);
   for (int x = x0; x < x1; x++)
     if (!open[x]) heat[x] = 0;
+  const uint16_t* pal = eye_tint::active().table;  // fire palette
+  if (!pal) pal = fire_tables::kPalette;           // orange
   for (int x = 0; x < N; x++) {
     const int h = x >= x0 && x < x1 ? heat[x] : 0;
-    const uint16_t f = fire_tables::kPalette[h];
+    const uint16_t f = pal[h];
     int g = h < 40 ? sm[x] * 3 / 4 : 0;  // 0..82, a dim warm grey
     if (h) g = g * (40 - h) / 40;
     const int r5 = (f >> 11) + (g >> 3), g6 = ((f >> 5) & 63) + ((g * 7 / 8) >> 2),

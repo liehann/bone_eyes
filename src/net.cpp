@@ -35,7 +35,8 @@ td{padding:2px 12px 2px 0}
 </style></head><body>
 <h1>&#x1F480; bone_eyes</h1><div id=msg></div>
 <h2>Eyes</h2>
-<label>Style <select id=style><option value=default>regular (hazel)</option><option value=dragon>dragon</option><option value=fire>fire</option><option value=m4>M4 eye (settings below)</option></select></label>
+<label>Style <select id=style><option value=default>regular (hazel)</option><option value=dragon>dragon</option><option value=fire>fire</option><option value=m4>M4 eye (settings below)</option>
+<optgroup label="Uncanny Eyes"><option value=cat>cat</option><option value=goat>goat</option><option value=owl>owl</option><option value=newt>newt</option><option value=terminator>terminator</option><option value=nosclera>no sclera</option><option value=doe>doe</option><option value=nauga>nauga</option></optgroup></select></label>
 <div id=ovr><small></small></div>
 <label>Brightness <input type=range id=brightness min=0 max=255><span id=brightness_v></span></label>
 <label>Rotation left eye <select id=rot_l></select></label>
@@ -47,6 +48,16 @@ td{padding:2px 12px 2px 0}
 <label>Flames around regular/dragon eyes <input type=checkbox id=flames></label>
 <label>Smoke from flame tips <input type=checkbox id=smoke></label>
 <label>Fire eye flame length % <input type=number id=fire_len min=50 max=150 step=5></label>
+<label>Flame colour <select id=fire_palette><option>orange</option><option>red</option><option>blue</option><option>green</option><option>purple</option><option>white</option></select></label>
+<h2>Colour (regular, dragon, Uncanny Eyes styles)</h2>
+<label>Iris hue&deg; <input type=range id=iris_hue min=-180 max=180 step=5><span id=iris_hue_v></span></label>
+<label>Iris saturation % <input type=range id=iris_sat min=0 max=200 step=5><span id=iris_sat_v></span></label>
+<label>Iris tint <input type=color id=iris_tint></label>
+<label>Sclera hue&deg; <input type=range id=sclera_hue min=-180 max=180 step=5><span id=sclera_hue_v></span></label>
+<label>Sclera saturation % <input type=range id=sclera_sat min=0 max=200 step=5><span id=sclera_sat_v></span></label>
+<label>Sclera tint <input type=color id=sclera_tint></label>
+<div class=row><button id=colour_reset>Original colours</button></div>
+<small>Tint multiplies (white = none). On cat, owl and nauga the coloured iris is part of the sclera artwork.</small>
 <h2>M4 eye</h2>
 <label>Eye set <select id=m4_eye></select></label>
 <label>Eyelid shape <select id=m4_lids></select></label>
@@ -82,8 +93,8 @@ function showM4(m,sets){if(!m)return;if(sets){opts($('m4_eye'),sets.eyes,[]);opt
  for(const k in m){const e=$('m4_'+k);if(!e||document.activeElement===e)continue;
   if(e.type=='checkbox')e.checked=m[k];else e.value=Array.isArray(m[k])?hex(m[k]):m[k]}}
 function show(c){showM4(c.m4,c.m4_sets);for(const k in c){const e=$(k);if(!e)continue;
- if(e.type=='checkbox')e.checked=c[k];else if(document.activeElement!==e)e.value=c[k]}
- $('brightness_v').textContent=c.brightness;
+ if(e.type=='checkbox')e.checked=c[k];else if(document.activeElement!==e)e.value=c[k];
+ const v=$(k+'_v');if(v)v.textContent=c[k]}
  $('ovr').firstChild.textContent=c.style_override?'The brain is showing "'+c.style_override+'" for the current persona; picking a style here takes over.':''}
 async function post(q,b){try{const r=await fetch('/api/config'+q,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
  const c=await r.json();if(c.error)msg('Error: '+c.error);show(c);return c}catch(e){msg('Skull unreachable')}}
@@ -92,9 +103,10 @@ document.querySelectorAll('[id^=m4_]').forEach(e=>{if(e.tagName=='BUTTON')return
  if(e.type=='range'){e.oninput=()=>{clearTimeout(e.t);e.t=setTimeout(send,150)}}else e.onchange=send});
 $('m4_reset').onclick=()=>post('',{m4:{reset:true}});
 document.querySelectorAll('input,select').forEach(e=>{if(e.id=='mood'||e.id.startsWith('m4_'))return;
- const send=()=>post('',{[e.id]:e.type=='checkbox'?e.checked:e.id=='style'?e.value:Number(e.value)});
- if(e.type=='range')e.oninput=()=>{$('brightness_v').textContent=e.value;clearTimeout(e.t);e.t=setTimeout(send,120)};
+ const send=()=>post('',{[e.id]:e.type=='checkbox'?e.checked:e.type=='color'||isNaN(e.value)?e.value:Number(e.value)});
+ if(e.type=='range')e.oninput=()=>{$(e.id+'_v').textContent=e.value;clearTimeout(e.t);e.t=setTimeout(send,120)};
  else e.onchange=send});
+$('colour_reset').onclick=()=>post('',{iris_hue:0,iris_sat:100,iris_tint:'#ffffff',sclera_hue:0,sclera_sat:100,sclera_tint:'#ffffff'});
 $('mood').onchange=()=>post('',{mood:$('mood').value});
 $('save').onclick=async()=>{if(await post('?save=1'))msg('Saved')};
 $('reset').onclick=async()=>{if(confirm('Restore the defaults and save them?')&&await post('?reset=1'))msg('Defaults restored')};
@@ -112,7 +124,7 @@ fetch('/api/config').then(r=>r.json()).then(show);status();setInterval(status,20
 void handleRoot() { server.send_P(200, "text/html", kPage, sizeof(kPage) - 1); }
 
 void sendConfig(const char* error = nullptr) {
-  static char body[2048];  // one server task, so one buffer (settings + the nested m4 object)
+  static char body[2560];  // one server task, so one buffer (settings + the nested m4 object)
   size_t n = settings::toJson(body, sizeof body);
   if (error && n > 1) snprintf(body + n - 1, sizeof body - (n - 1), ",\"error\":\"%s\"}", error);
   server.send(error ? 400 : 200, "application/json", body);

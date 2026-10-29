@@ -68,7 +68,7 @@ Pin map changes from the original plan:
 ```sh
 pio run -t upload            # A2DP build (env "skull")
 pio run -e skull_i2s -t upload   # PCM5102 I2S fallback (not implemented; needs re-pinning)
-pio run -t uploadfs          # flash data/ (clips, M4 eye sets in data/eyes/) to LittleFS; replaces the whole image
+pio run -t uploadfs          # flash data/ (clips, M4 eye sets in data/eyes/, Uncanny Eyes sets in data/uncanny/) to LittleFS; replaces the whole image
 pio device monitor           # console, 115200
 ```
 
@@ -92,11 +92,11 @@ Type `help` in the monitor.
 | `eyes blink`, `eyes mood idle\|alert\|talking\|goodbye` | trigger a blink / set the mood |
 | `eyes bl <0-255>` | backlight (a setting: `config save` keeps it) |
 | `eyes lcd` / `eyes pixel` | switch eye backend |
-| `art default\|dragon\|fire\|m4` | LCD eye style (a setting). `default` is the regular hazel eye; `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids; `m4`: the Adafruit M4_Eyes renderer with eye sets from LittleFS (see `docs/m4_eyes.md`) |
+| `art <style>` | LCD eye style (a setting). `default` is the regular hazel eye; `dragon`; `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids; `m4`: the Adafruit M4_Eyes renderer with eye sets from LittleFS (see `docs/m4_eyes.md`); `cat`, `goat`, `owl`, `newt`, `terminator`, `nosclera`, `doe`, `nauga`: more Uncanny Eyes artwork from LittleFS (see `docs/eye_styles.md`) |
 | `m4`, `m4 <key> <value>`, `m4 set <json>` | M4 eye parameters: show / change one / patch (e.g. `m4 eye snake_green`, `m4 irisTint #ff8080`). Also `m4 list`, `m4 reset` (the eye set's defaults), `m4 rescan`, `m4 mem tables int\|psram tex psram\|int\|flash`, `m4 bench [n]` |
 | `flames on\|off` | flames and smoke rising from hazel/dragon eyes (a setting) |
 | `config` / `config show` | print the settings as JSON |
-| `config set <key> <value>`, `config keys` | change one setting live / list the keys |
+| `config set <key> <value>`, `config keys` | change one setting live / list the keys (e.g. `config set iris_hue 120`, `config set sclera_tint #ffc0c0`, `config set fire_palette blue`) |
 | `config save` / `config reset` | keep the current settings across reboots / restore and save the `config.h` defaults |
 | `!a <style>` / `!a` | brain link: override the eye style for the speaking persona (not saved) / back to the saved style |
 | `lcd prof` | frame-time breakdown since the last call: simulation, row rendering on each core, SPI waits |
@@ -108,8 +108,12 @@ The skull serves a settings page at `http://bone-eyes.local/` (or its IP; on
 its own access point `http://192.168.4.1/`). It's plain HTML/JS from flash, no
 CDN, so it works on the access point too. It has:
 
-- eye style (regular/hazel, dragon, fire, M4 eye), brightness, rotation per
-  eye, gaze mirror;
+- eye style (regular/hazel, dragon, fire, M4 eye, and the Uncanny Eyes sets
+  cat, goat, owl, newt, terminator, no sclera, doe, nauga), brightness,
+  rotation per eye, gaze mirror;
+- colour of the Uncanny Eyes styles: iris and sclera hue, saturation and
+  tint; flame colour (orange, red, blue, green, purple, white) for the fire
+  eye and the flames;
 - M4 eye: eye set, eyelid shape, iris and sclera tint, iris size, slit pupil,
   pupil min/max, eye-tracking range, lids following the pupil, extra blinks;
 - effects: flames around regular/dragon eyes, smoke, fire-eye flame length;
@@ -138,7 +142,11 @@ curl -X POST -H 'Content-Type: application/json' \
      'http://bone-eyes.local/api/config?save=1'
 ```
 
-Keys: `style` (`default`, `dragon`, `fire` or `m4`), `flames`, `smoke`, `fire_len` (50-150 %),
+Keys: `style` (`default`, `dragon`, `fire`, `m4`, `cat`, `goat`, `owl`, `newt`,
+`terminator`, `nosclera`, `doe` or `nauga`), `flames`, `smoke`, `fire_len` (50-150 %),
+`fire_palette` (`orange`, `red`, `blue`, `green`, `purple`, `white`),
+`iris_hue`/`sclera_hue` (-180..180), `iris_sat`/`sclera_sat` (0-200 %),
+`iris_tint`/`sclera_tint` (`"#rrggbb"`, multiply; `#ffffff` = none),
 `brightness` (0-255), `rot_l`, `rot_r` (0/90/180/270), `gaze_invert`, `blink`,
 `blink_min_ms`, `blink_max_ms`, `wander`, `verge`, `pupil_react`, and `m4`,
 a nested object of M4 eye parameters (partial; `docs/m4_eyes.md` lists them).
@@ -177,7 +185,19 @@ For a static contact sheet of poses instead:
 c++ -std=c++17 -O2 -Itools/host_shim -Isrc tools/eye_preview.cpp \
     src/eye_art/default_eye.cpp src/eye_art/dragon_eye.cpp -o /tmp/eye_preview
 /tmp/eye_preview /tmp/eyes.ppm && open /tmp/eyes.ppm
+/tmp/eye_preview /tmp/sets.ppm data/uncanny/*.eye --tint 120,100,ffffff,0,100,ffc0c0   # LittleFS sets, tinted
 ```
+
+## Eye styles and colours
+
+`default` and `dragon` are compiled in; `cat`, `goat`, `owl`, `newt`,
+`terminator`, `nosclera`, `doe` and `nauga` are the rest of Adafruit's Uncanny
+Eyes artwork, kept on LittleFS (`data/uncanny/`, 1.2 MB, flashed with
+`pio run -t uploadfs`) and loaded into PSRAM when picked, because together
+they don't fit in the 2 MB app partition. Iris/sclera hue, saturation and
+tint are baked into PSRAM copies of the textures when a setting changes, and
+the flame colour is a 256-entry palette, so neither costs frame rate. Details,
+per-set notes and measurements: [`docs/eye_styles.md`](docs/eye_styles.md).
 
 ## Adding voice clips
 
@@ -222,7 +242,8 @@ exactly.
 ## Third-party code
 
 - Eye artwork and renderer algorithm: Phil Burgess / Adafruit "Uncanny Eyes"
-  (MIT), via Bodmer's TFT_eSPI `Animated_Eyes_2` example.
+  (MIT), via Bodmer's TFT_eSPI `Animated_Eyes_2` example; see
+  `src/eye_art/LICENSE.md` (all ten sets, including those in `data/uncanny/`).
 - GC9D01 init sequence: Waveshare 0.71" LCD demo.
 - M4 eye renderer and eye sets: Phil Burgess / Adafruit "M4_Eyes" (MIT); see
   `src/m4eye/LICENSE.md` (the demon eye's third-party iris is not included).

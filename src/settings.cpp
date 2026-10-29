@@ -5,15 +5,18 @@
 
 #include "config.h"
 #include "console.h"
+#include "eye_art/eye_tint.h"
 #include "m4eye/m4eye.h"
 
 namespace settings {
 
-const char* const kStyleNames[kNumStyles] = {"default", "dragon", "fire", "m4"};
+const char* const kStyleNames[kNumStyles] = {"default", "dragon", "fire",       "m4",       "cat", "goat",
+                                             "owl",     "newt",   "terminator", "nosclera", "doe", "nauga"};
 
 namespace {
 
-enum Kind : uint8_t { kBool, kInt, kStyleKind, kRot };
+// kColor: 0xRRGGBB, "#rrggbb" in JSON. kPalette: a fire palette name.
+enum Kind : uint8_t { kBool, kInt, kStyleKind, kRot, kColor, kPalette };
 
 // One row per setting: JSON / NVS / console key, kind, range, member.
 struct Field {
@@ -38,6 +41,13 @@ const Field kFields[] = {
     FIELD("wander", kBool, 0, 1, wander),
     FIELD("verge", kBool, 0, 1, verge),
     FIELD("pupil_react", kBool, 0, 1, pupilReact),
+    FIELD("iris_hue", kInt, -180, 180, irisHue),
+    FIELD("iris_sat", kInt, 0, 200, irisSat),
+    FIELD("iris_tint", kColor, 0, 0xFFFFFF, irisTint),
+    FIELD("sclera_hue", kInt, -180, 180, scleraHue),
+    FIELD("sclera_sat", kInt, 0, 200, scleraSat),
+    FIELD("sclera_tint", kColor, 0, 0xFFFFFF, scleraTint),
+    FIELD("fire_palette", kPalette, 0, eye_tint::kNumPalettes - 1, firePalette),
 };
 #undef FIELD
 
@@ -91,6 +101,17 @@ bool parseValue(const Field& f, const char* s, size_t n, int32_t& out) {
     int i = styleIndex(buf);
     if (i >= 0) return out = i, true;
   }
+  if (f.kind == kPalette)
+    for (int i = 0; i < eye_tint::kNumPalettes; i++)
+      if (!strcasecmp(buf, eye_tint::kPaletteNames[i])) return out = i, true;
+  if (f.kind == kColor) {  // #rrggbb, rrggbb or 0xrrggbb
+    const char* h = buf[0] == '#' ? buf + 1 : (buf[0] == '0' && (buf[1] == 'x' || buf[1] == 'X')) ? buf + 2 : buf;
+    char* end;
+    const long v = strtol(h, &end, 16);
+    if (end - h != 6 || *end) return false;
+    out = (int32_t)v;
+    return true;
+  }
   if (!strcasecmp(buf, "true") || !strcasecmp(buf, "on")) return out = 1, true;
   if (!strcasecmp(buf, "false") || !strcasecmp(buf, "off")) return out = 0, true;
   char* end;
@@ -101,9 +122,9 @@ bool parseValue(const Field& f, const char* s, size_t n, int32_t& out) {
 }
 
 void print() {
-  char* buf = (char*)malloc(1600);
+  char* buf = (char*)malloc(2048);
   if (!buf) return;
-  toJson(buf, 1600);
+  toJson(buf, 2048);
   Serial.println(buf);
   free(buf);
 }
@@ -123,8 +144,12 @@ void cmdConfig(int argc, char** argv) {
   } else if (!strcmp(argv[1], "keys")) {
     for (const Field& f : kFields)
       Serial.printf("  %-13s %s\n", f.key,
-                    f.kind == kBool ? "on|off" : f.kind == kStyleKind ? "default|dragon|fire|m4"
-                                    : f.kind == kRot ? "0|90|180|270" : "number");
+                    f.kind == kBool        ? "on|off"
+                    : f.kind == kStyleKind ? "default|dragon|fire|m4|cat|goat|owl|newt|terminator|nosclera|doe|nauga"
+                    : f.kind == kRot       ? "0|90|180|270"
+                    : f.kind == kColor     ? "#rrggbb (multiply; #ffffff = none)"
+                    : f.kind == kPalette   ? "orange|red|blue|green|purple|white"
+                                           : "number");
     Serial.println("  m4            {json}  (M4 eye parameters; 'm4 show' / 'm4 <key> <value>')");
   } else if (!strcmp(argv[1], "set") && argc > 3) {
     const Field* f = find(argv[2]);
@@ -146,7 +171,9 @@ void cmdArt(int argc, char** argv) {
     if (i >= 0) return setStyle(i);
   }
   const Settings s = get();
-  Serial.printf("art: %s%s%s (options: default dragon fire m4; 'config save' keeps it)\n", kStyleNames[s.style],
+  Serial.printf("art: %s%s%s (options: default dragon fire m4 cat goat owl newt terminator nosclera doe nauga; "
+                "'config save' keeps it)\n",
+                kStyleNames[s.style],
                 override_ >= 0 ? ", brain override " : "", override_ >= 0 ? kStyleNames[override_] : "");
 }
 
@@ -190,6 +217,10 @@ Settings defaults() {
   d.wander = true;
   d.verge = true;
   d.pupilReact = true;
+  d.irisHue = d.scleraHue = 0;
+  d.irisSat = d.scleraSat = 100;
+  d.irisTint = d.scleraTint = 0xFFFFFF;
+  d.firePalette = eye_tint::kOrange;
   return d;
 }
 
@@ -272,6 +303,9 @@ size_t toJson(char* out, size_t n) {
     const int32_t v = member(s, f);
     if (f.kind == kStyleKind) len += snprintf(out + len, n - len, "\"%s\":\"%s\",", f.key, kStyleNames[v]);
     else if (f.kind == kBool) len += snprintf(out + len, n - len, "\"%s\":%s,", f.key, v ? "true" : "false");
+    else if (f.kind == kColor) len += snprintf(out + len, n - len, "\"%s\":\"#%06x\",", f.key, (unsigned)v);
+    else if (f.kind == kPalette)
+      len += snprintf(out + len, n - len, "\"%s\":\"%s\",", f.key, eye_tint::kPaletteNames[v]);
     else len += snprintf(out + len, n - len, "\"%s\":%d,", f.key, v);
   }
   if (len < n) {
@@ -359,7 +393,8 @@ int applyJson(const char* json, const char** err) {
 
 void registerCommands() {
   console::add("config", "settings: config [show|save|reset|set <key> <value>|keys]", cmdConfig);
-  console::add("art", "eye style: art [default|dragon|fire|m4] ('config save' keeps it)", cmdArt);
+  console::add("art", "eye style: art [default|dragon|fire|m4|cat|goat|owl|newt|terminator|nosclera|doe|nauga]",
+               cmdArt);
   console::add("flames", "flames + smoke around hazel/dragon eyes: flames [on|off]", cmdFlames);
   console::add("!a", "brain link: !a <style> overrides the eye style, !a alone restores it", cmdBrainArt);
 }

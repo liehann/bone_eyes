@@ -42,6 +42,7 @@ inline Params compute(const EyeArt& a, float gazeX, float gazeY, float lid, floa
   }
   uTrack = (uTrack * 3 + n) / 4;
   float uT = uTrack, lT = 254 - uTrack;
+  if (a.noTracking) uT = lT = 0;  // upstream without TRACKING: lids fully open unless blinking
   if (lid >= 0.75f) {
     float w = 1 - clampf((lid - 0.75f) / 0.25f, 0, 1);
     uT *= w;

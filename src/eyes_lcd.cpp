@@ -12,6 +12,8 @@
 #include "config.h"
 #include "console.h"
 #include "eye_art/eye_art.h"
+#include "eye_art/eye_tint.h"
+#include "eye_art/uncanny_store.h"
 #include "eye_render.h"
 #include "eyes.h"
 #include "fire_eye.h"
@@ -28,9 +30,64 @@ constexpr int kChunkRows = 8;
 constexpr int kChunks = Gc9d01Bus::kSize / kChunkRows;
 constexpr int kRing = 4;  // DMA chunk buffers
 
-// Styles (settings::Style): the two Uncanny Eyes artworks, plus "fire"
+// Styles (settings::Style): Uncanny Eyes artworks (default and dragon
+// compiled in, cat/goat/owl/... loaded from LittleFS into PSRAM), plus "fire"
 // (procedural burning iris whose flame tips smoke and drift up over the lids;
-// default eye's lid shapes). Chosen in src/settings.cpp.
+// default eye's lid shapes) and "m4". Chosen in src/settings.cpp.
+
+// Non-orange fire palette (eye_tint::setPalette), internal RAM: read per pixel.
+uint16_t firePalette[256];
+
+// Tinted copies of the current artwork's iris and sclera textures (PSRAM),
+// rebuilt only when the artwork or a colour setting changes, so a tinted eye
+// draws exactly as fast as an untinted one from PSRAM. Neutral tints use the
+// original tables (flash for default/dragon) untouched.
+class TintCache {
+ public:
+  const EyeArt* get(const EyeArt* a, const eye_tint::Tint& ti, const eye_tint::Tint& ts) {
+    if (ti.neutral() && ts.neutral()) return a;
+    if (valid_ && a->sclera == srcSclera_ && !strcmp(a->name, name_) && ti == iris_ && ts == sclera_) return &out_;
+    const uint32_t t0 = micros();
+    valid_ = false;
+    out_ = *a;
+    if (!ti.neutral()) {
+      if (!(out_.iris = tint(a->iris, a->irisMapW * a->irisMapH, ti, irisBuf_, irisCap_))) return a;
+    }
+    if (!ts.neutral()) {
+      if (!(out_.sclera = tint(a->sclera, a->scleraW * a->scleraH, ts, scleraBuf_, scleraCap_))) return a;
+    }
+    srcSclera_ = a->sclera;
+    snprintf(name_, sizeof name_, "%s", a->name);
+    iris_ = ti;
+    sclera_ = ts;
+    valid_ = true;
+    Serial.printf("eyes: %s tinted in %lu ms\n", a->name, (micros() - t0 + 500) / 1000);
+    return &out_;
+  }
+
+ private:
+  static const uint16_t* tint(const uint16_t* src, int n, const eye_tint::Tint& t, uint16_t*& buf, int& cap) {
+    if (cap < n) {
+      heap_caps_free(buf);
+      buf = (uint16_t*)heap_caps_malloc(n * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+      cap = buf ? n : 0;
+      if (!buf) {
+        Serial.println("eyes: no PSRAM for a tinted texture, drawing it untinted");
+        return nullptr;
+      }
+    }
+    eye_tint::applyAll(eye_tint::matrix(t), src, buf, n);
+    return buf;
+  }
+
+  bool valid_ = false;
+  char name_[24] = "";
+  const uint16_t* srcSclera_ = nullptr;
+  eye_tint::Tint iris_{}, sclera_{};
+  EyeArt out_{};
+  uint16_t *irisBuf_ = nullptr, *scleraBuf_ = nullptr;
+  int irisCap_ = 0, scleraCap_ = 0;
+};
 
 // Frame-time breakdown for `lcd prof` (microseconds, summed since the last
 // print). Per eye: simulation step, row rendering, time blocked on SPI.
@@ -189,6 +246,7 @@ class LcdEyes : public EyeBackend {
   // Per-frame choices, made once on core 1 so both eyes agree.
   struct Frame {
     int style;
+    const EyeArt* art;  // Uncanny Eyes artwork (tinted), or the fire eye's lids
     int effect;  // 0 none, 1 flame overlay, 2 fire eye, 3 M4 eye (src/m4eye)
     bool smoke, gazeInvert;
     int fireLen;  // % of the mood's flame length
@@ -206,6 +264,19 @@ class LcdEyes : public EyeBackend {
       f.style = settings::kDragon;
       f.effect = 0;
     }
+    // Artwork: compiled-in default/dragon or a LittleFS set, then tinted.
+    if (f.style != lastStyle_) {
+      uncanny_store::retry();  // a missing file is retried once per pick
+      lastStyle_ = f.style;
+    }
+    const EyeArt* base = f.style == settings::kDragon ? &kDragonEye : &kDefaultEye;
+    if (settings::isUncannyFile(f.style)) {
+      if (const EyeArt* u = uncanny_store::load(settings::kStyleNames[f.style])) base = u;
+    }
+    f.art = f.effect == 2 ? &kDefaultEye  // fire: default lids
+                          : tint_.get(base, {cfg.irisHue, cfg.irisSat, (uint32_t)cfg.irisTint},
+                                      {cfg.scleraHue, cfg.scleraSat, (uint32_t)cfg.scleraTint});
+    eye_tint::setPalette(cfg.firePalette, firePalette);
     // Fire and the flame overlay share one set of per-eye buffers; reset them
     // when switching between the two so stale heat doesn't flash up.
     for (int e = 0; e < 2; e++) {
@@ -216,7 +287,7 @@ class LcdEyes : public EyeBackend {
     }
   }
 
-  static const EyeArt& art(const Frame& f) { return f.style == settings::kDragon ? kDragonEye : kDefaultEye; }  // fire: default lids
+  static const EyeArt& art(const Frame& f) { return *f.art; }
 
   // Advance eye e's animation/simulation for this frame.
   void simulate(int e, const EyeState& st, const Frame& f) {
@@ -398,6 +469,8 @@ class LcdEyes : public EyeBackend {
   volatile int dmaDone_ = -1;     // last chunk whose DMA has completed
   uint8_t* fx_[2] = {nullptr, nullptr};
   int effect_[2] = {0, 0};  // 0 none, 1 flame overlay, 2 fire eye
+  int lastStyle_ = -1;
+  TintCache tint_;
   flame_overlay::Buffers flame_[2] = {};
   fire_eye::Buffers fireEye_[2] = {};
 };
