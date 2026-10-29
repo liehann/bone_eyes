@@ -1,4 +1,4 @@
-// WiFi (home network or own access point) + a small status web page.
+// WiFi (home network or own access point) + the settings / status web page.
 #pragma once
 
 namespace net {

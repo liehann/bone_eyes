@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "console.h"
+#include "settings.h"
 
 EyeBackend* makeLcdEyes();    // eyes_lcd.cpp
 EyeBackend* makePixelEyes();  // eyes_pixel.cpp
@@ -22,7 +23,6 @@ struct Shared {
   float holdX = 0, holdY = 0;
   int testReq = -1;          // test pattern request, eye index
   bool animate = true;       // false while showing a test pattern
-  int brightness = -1;       // pending brightness change
   Backend pendingBackend = Backend::Lcd;
   bool backendReq = false;
 };
@@ -58,19 +58,24 @@ void eyeTask(void*) {
   uint32_t nextSaccade = 0, nextBlink = millis() + 2000, blinkStart = 0;
   uint32_t last = millis(), fpsT0 = last;
   int frames = 0;
+  // Backlight / rotation last sent to the backend; -1 = resend.
+  int appliedBl = -1, appliedRot[2] = {-1, -1};
+  int lastTest = 2;  // redrawn when the rotation changes during a test
 
   for (;;) {
     uint32_t now = millis();
     float dt = (now - last) / 1000.0f;
     last = now;
 
+    const settings::Settings cfg = settings::get();
+    const bool cfgDirty =
+        cfg.brightness != appliedBl || cfg.rot[0] != appliedRot[0] || cfg.rot[1] != appliedRot[1];
     Shared s;
     portENTER_CRITICAL(&mux);
     s = shared;
-    parked = !s.animate && s.testReq < 0 && s.brightness < 0 && !s.backendReq;
+    parked = !s.animate && s.testReq < 0 && !cfgDirty && !s.backendReq;
     shared.blinkReq = false;
     shared.testReq = -1;
-    shared.brightness = -1;
     shared.backendReq = false;
     portEXIT_CRITICAL(&mux);
 
@@ -79,13 +84,21 @@ void eyeTask(void*) {
       activeKind = s.pendingBackend;
       active = create(activeKind);
       if (!active->begin()) Serial.printf("eyes: backend %s failed to start\n", active->name());
+      appliedBl = appliedRot[0] = appliedRot[1] = -1;
     }
     if (!active) {
       vTaskDelay(100);
       continue;
     }
-    if (s.brightness >= 0) active->setBrightness(s.brightness);
-    if (s.testReq >= 0) active->testPattern(s.testReq);
+    if (cfg.brightness != appliedBl) active->setBrightness(appliedBl = cfg.brightness);
+    bool rotChanged = false;
+    for (int e = 0; e < 2; e++) {
+      if (cfg.rot[e] == appliedRot[e]) continue;
+      active->setRotation(e, appliedRot[e] = cfg.rot[e]);
+      rotChanged = true;
+    }
+    if (s.testReq >= 0) active->testPattern(lastTest = s.testReq);
+    else if (rotChanged && !s.animate) active->testPattern(lastTest);
     if (!s.animate) {
       vTaskDelay(50);
       continue;
@@ -106,11 +119,12 @@ void eyeTask(void*) {
         sy = frand(-r, r) * 0.6f;
         nextSaccade = now + (uint32_t)frand(400, s.mood == Mood::Idle ? 3000 : 1200);
       }
+      if (!cfg.wander) sx = sy = 0;  // look straight ahead
       tx = sx, ty = sy, tau = 0.03f;  // saccades are fast
     }
     gx = approach(gx, tx, dt, tau);
     gy = approach(gy, ty, dt, tau);
-    float wantVerge = (tracking && s.targetCm > 0) ? constrain(30.0f / s.targetCm, 0.0f, 0.25f) : 0;
+    float wantVerge = (cfg.verge && tracking && s.targetCm > 0) ? constrain(30.0f / s.targetCm, 0.0f, 0.25f) : 0;
     verge = approach(verge, wantVerge, dt, 0.2f);
 
     // --- lids / pupil by mood ---
@@ -121,13 +135,14 @@ void eyeTask(void*) {
       case Mood::Talking: wantLid = 0.9f; wantPupil = 0.7f; break;
       case Mood::Goodbye: wantLid = 0.45f; wantPupil = 0.3f; break;
     }
+    if (!cfg.pupilReact) wantPupil = 0.5f;
     lid = approach(lid, wantLid, dt, 0.15f);
     pupil = approach(pupil, wantPupil, dt, 0.3f);
 
     // --- blink ---
-    if (s.blinkReq || (int32_t)(now - nextBlink) >= 0) {
+    if (s.blinkReq || (cfg.autoBlink && (int32_t)(now - nextBlink) >= 0)) {
       blinkStart = now;
-      nextBlink = now + (uint32_t)frand(2000, 6000);
+      nextBlink = now + (uint32_t)frand(cfg.blinkMinMs, cfg.blinkMaxMs);
     }
     float blinkLid = lid;
     if (blinkStart && now - blinkStart < kBlinkMs) {
@@ -161,16 +176,6 @@ void withShared(F f) {
   portEXIT_CRITICAL(&mux);
 }
 
-const char* moodName(Mood m) {
-  switch (m) {
-    case Mood::Idle: return "idle";
-    case Mood::Alert: return "alert";
-    case Mood::Talking: return "talking";
-    case Mood::Goodbye: return "goodbye";
-  }
-  return "?";
-}
-
 // --- console ---
 
 void cmdEyes(int argc, char** argv) {
@@ -186,9 +191,9 @@ void cmdEyes(int argc, char** argv) {
   if (sub == "test") {
     long eye = 2;
     console::argInt(argc, argv, 2, eye);
-    withShared([&](Shared& sh) { sh.animate = false; sh.testReq = (int)eye; });
+    test((int)eye);
   } else if (sub == "anim") {
-    withShared([](Shared& sh) { sh.animate = true; });
+    animate();
   } else if (sub == "blink") {
     blink();
   } else if (sub == "look") {
@@ -198,13 +203,13 @@ void cmdEyes(int argc, char** argv) {
   } else if (sub == "free") {
     release();
   } else if (sub == "mood") {
-    const char* names[] = {"idle", "alert", "talking", "goodbye"};
-    for (int i = 0; i < 4; i++)
-      if (argc > 2 && strcmp(argv[2], names[i]) == 0) return setMood((Mood)i);
+    Mood m;
+    if (argc > 2 && parseMood(argv[2], m)) return setMood(m);
     Serial.println("usage: eyes mood idle|alert|talking|goodbye");
   } else if (sub == "bl") {
     long v;
-    if (console::argInt(argc, argv, 2, v)) withShared([&](Shared& sh) { sh.brightness = constrain(v, 0, 255); });
+    if (console::argInt(argc, argv, 2, v)) settings::setBrightness((int)v);
+    else Serial.printf("eyes: backlight %d ('config save' keeps it)\n", (int)settings::get().brightness);
   } else if (sub == "lcd" || sub == "pixel") {
     setBackend(sub == "lcd" ? Backend::Lcd : Backend::Pixel);
   } else {
@@ -213,6 +218,36 @@ void cmdEyes(int argc, char** argv) {
 }
 
 }  // namespace
+
+const char* moodName(Mood m) {
+  switch (m) {
+    case Mood::Idle: return "idle";
+    case Mood::Alert: return "alert";
+    case Mood::Talking: return "talking";
+    case Mood::Goodbye: return "goodbye";
+  }
+  return "?";
+}
+
+bool parseMood(const char* name, Mood& out) {
+  for (int i = 0; i < 4; i++)
+    if (strcmp(name, moodName((Mood)i)) == 0) return out = (Mood)i, true;
+  return false;
+}
+
+Mood mood() {
+  Mood m;
+  withShared([&](Shared& sh) { m = sh.mood; });
+  return m;
+}
+
+void test(int eye) {
+  withShared([&](Shared& sh) { sh.animate = false; sh.testReq = eye < 0 || eye > 2 ? 2 : eye; });
+}
+
+void animate() {
+  withShared([](Shared& sh) { sh.animate = true; });
+}
 
 void begin(Backend b) {
   withShared([&](Shared& sh) { sh.pendingBackend = b; sh.backendReq = true; });

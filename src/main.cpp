@@ -5,6 +5,7 @@
 #include "console.h"
 #include "eyes.h"
 #include "net.h"
+#include "settings.h"
 
 namespace {
 
@@ -40,6 +41,8 @@ void setup() {
   console::add("info", "chip / flash / build info", cmdInfo);
   console::add("reboot", "restart the ESP32", cmdReboot);
 
+  settings::begin();  // before the eyes start, so the first frame uses them
+  settings::registerCommands();
   eyes::registerCommands();
   eyes::begin(eyes::Backend::Lcd);
   net::registerCommands();

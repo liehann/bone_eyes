@@ -47,7 +47,8 @@ inline void reset(Buffers& b, uint32_t seed) {
 
 // Advance one frame. lids: this frame's lid thresholds (from eye_render or
 // fire_render compute()), lidArt: the art whose lid maps define the opening.
-inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lids, int mood) {
+// emitSmoke false: no new smoke (what's there drifts off).
+inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lids, int mood, bool emitSmoke = true) {
   const MoodFlame& m = kMoods[mood & 3];
   const int coolQ4 = m.coolQ4, source = m.source;
   const int S = lidArt.lidSize;
@@ -117,7 +118,7 @@ inline void step(Buffers& b, const EyeArt& lidArt, const eye_render::Params& lid
     }
     for (int x = 0; x < N; x++) b.smoke[(N - 1) * N + x] = 0;
   }
-  for (int i = 0; i < N * N; i++) {
+  for (int i = 0; emitSmoke && i < N * N; i++) {
     const int h = heat[i];
     if (h > 20 && h < 60 && !open[i] && (next(rng) & 15) == 0) {
       const int v = smoke[i] + 70;

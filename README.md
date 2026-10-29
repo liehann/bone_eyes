@@ -90,12 +90,56 @@ Type `help` in the monitor.
 | `eyes anim` | back to animation |
 | `eyes look <x> <y>` / `eyes free` | hold a gaze (-1..1; +x = skull's right, +y = up) / release it |
 | `eyes blink`, `eyes mood idle\|alert\|talking\|goodbye` | trigger a blink / set the mood |
-| `eyes bl <0-255>` | backlight |
+| `eyes bl <0-255>` | backlight (a setting: `config save` keeps it) |
 | `eyes lcd` / `eyes pixel` | switch eye backend |
-| `art default\|dragon\|fire` | LCD eye style. `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids |
-| `flames on\|off` | flames and smoke rising from hazel/dragon eyes |
+| `art default\|dragon\|fire` | LCD eye style (a setting). `default` is the regular hazel eye; `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids |
+| `flames on\|off` | flames and smoke rising from hazel/dragon eyes (a setting) |
+| `config` / `config show` | print the settings as JSON |
+| `config set <key> <value>`, `config keys` | change one setting live / list the keys |
+| `config save` / `config reset` | keep the current settings across reboots / restore and save the `config.h` defaults |
+| `!a <style>` / `!a` | brain link: override the eye style for the speaking persona (not saved) / back to the saved style |
 | `lcd prof` | frame-time breakdown since the last call: simulation, row rendering on each core, SPI waits |
-| `lcd rot [L\|R\|both <0\|90\|180\|270>]` | show or set each eye's picture rotation (clockwise, seen from the front), then show the test pattern. Not saved: copy the working values into `EYE_L_ROT` / `EYE_R_ROT` |
+| `lcd rot [L\|R\|both <0\|90\|180\|270>]` | show or set each eye's picture rotation (clockwise, seen from the front), then show the test pattern. A setting: `config save` keeps it (`EYE_L_ROT` / `EYE_R_ROT` are the defaults) |
+
+## Settings web page
+
+The skull serves a settings page at `http://bone-eyes.local/` (or its IP; on
+its own access point `http://192.168.4.1/`). It's plain HTML/JS from flash, no
+CDN, so it works on the access point too. It has:
+
+- eye style (regular/hazel, dragon, fire), brightness, rotation per eye, gaze
+  mirror;
+- effects: flames around regular/dragon eyes, smoke, fire-eye flame length;
+- behaviour: blinking on its own and the blink gap, looking around when idle,
+  going cross-eyed when someone is close, pupils reacting to the mood;
+- buttons for the eyes test pattern, back to animation, a blink, and the mood;
+- the status table (network, IP, uptime, heap, frame rate, style, mood).
+
+Changes apply at once. **Save** keeps them in NVS across reboots; **Reset**
+restores and saves the `config.h` defaults. The brain's `!a <style>` is a
+temporary override on top (shown on the page); picking a style on the page,
+`!a` with no style, or a reboot goes back to the saved one.
+
+| Endpoint | |
+|---|---|
+| `GET /` | the page |
+| `GET /status` | uptime, heap, eye fps, RSSI, network, IP, mood, style shown |
+| `GET /api/config` | settings as JSON, plus `style_override` (the brain's, or null) |
+| `POST /api/config` | partial update as JSON (or form fields); `?save=1` (or `"save":1`) also saves, `?reset=1` restores the defaults first; `"mood"` sets the mood (live only). Returns the new settings; a bad value gives 400 with `"error"` |
+| `POST /api/eyes?cmd=test\|anim\|blink` | test pattern / back to animation / blink |
+
+```sh
+curl http://bone-eyes.local/api/config
+curl -X POST -H 'Content-Type: application/json' \
+     -d '{"style":"default","flames":false,"brightness":150}' \
+     'http://bone-eyes.local/api/config?save=1'
+```
+
+Keys: `style` (`default`, `dragon` or `fire`), `flames`, `smoke`, `fire_len` (50-150 %),
+`brightness` (0-255), `rot_l`, `rot_r` (0/90/180/270), `gaze_invert`, `blink`,
+`blink_min_ms`, `blink_max_ms`, `wander`, `verge`, `pupil_react`. Booleans
+take `true`/`false` (or `on`/`off`, 1/0). The HTTP server runs on core 0 at
+low priority, and the console logs each settings change with the client IP.
 
 ### Display bring-up checklist (milestone 2)
 
@@ -105,7 +149,7 @@ Type `help` in the monitor.
    - Red and blue swapped: set `TFT_SWAP_RB`.
    - Rotated: try `lcd rot L <0|90|180|270>` until the bars run red, green,
      blue, white from top to bottom with the yellow square top-left, then
-     set `EYE_L_ROT` (and `EYE_R_ROT`) in `config.h` to match. The skull's
+     `config save` (or set `EYE_L_ROT` / `EYE_R_ROT` in `config.h`). The skull's
      defaults are L = 270 and R = 90, because each module is mounted with its
      tip toward the nose. On the old tip-down bar, use 0 and 0.
    - Garbage or nothing: check that VCC is on 3V3 (on 5 V the panel stays

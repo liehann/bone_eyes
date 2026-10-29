@@ -53,6 +53,7 @@ class Brain:
         self.set_state("warming up")
         await self.loop.run_in_executor(self.work_pool, self.stt.warmup)
         await self.loop.run_in_executor(self.tts_pool, self.tts.synth, "Ready.", PERSONAS[SKELETON])
+        self.skull.art()  # drop any override left from an earlier run
         self.player.start()
         self.mic.start()
         await self._refill_fillers(SKELETON)
@@ -203,7 +204,9 @@ class Brain:
     def _set_persona(self, persona: Persona):
         if persona.id != self.persona.id:
             self.persona = persona
-            self.skull.art(persona.eyes)
+            # The skeleton is the skull itself: show its saved eye style (set on
+            # its web page); possessing spirits override it until they leave.
+            self.skull.art(None if persona.id == SKELETON else persona.eyes)
             self.emit({"type": "persona", "id": persona.id, "name": persona.name, "eyes": persona.eyes})
 
     def _voice_key(self, pid: str):

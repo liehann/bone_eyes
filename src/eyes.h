@@ -24,6 +24,8 @@ class EyeBackend {
   // Bench helpers. eye: 0 left, 1 right, 2 both.
   virtual void testPattern(int eye) {}
   virtual void setBrightness(uint8_t level) {}
+  // Picture rotation, deg clockwise (0/90/180/270). Eye task only.
+  virtual void setRotation(int eye, int deg) {}
 };
 
 namespace eyes {
@@ -42,6 +44,12 @@ void setMood(Mood m);
 // saccades after ~1 s without updates.
 void lookAt(float x, float y, int distanceCm = 0);
 void blink();
+// Colour bars on eye 0, 1 or 2 (both) until animate(), as `eyes test`.
+void test(int eye = 2);
+void animate();
+Mood mood();
+const char* moodName(Mood m);
+bool parseMood(const char* name, Mood& out);
 // Hold a fixed pose (bench). nan releases it.
 void hold(float x, float y);
 void release();

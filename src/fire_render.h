@@ -39,7 +39,7 @@ struct Params {
 };
 
 inline Params compute(const EyeArt& lidArt, float gazeX, float gazeY, float lid, float pupil, bool lidFlip,
-                      int& uTrack, int mood, uint32_t nowMs, State& s) {
+                      int& uTrack, int mood, uint32_t nowMs, State& s, int lenPct = 100) {
   auto clampf = [](float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; };
   Params p;
   // Lid thresholds exactly as the normal eye computes them.
@@ -55,7 +55,8 @@ inline Params compute(const EyeArt& lidArt, float gazeX, float gazeY, float lid,
   uint32_t dt = s.lastMs ? nowMs - s.lastMs : 0;
   if (dt > 200) dt = 200;
   s.lastMs = nowMs;
-  s.len += (m.len * 16 - s.len) / 8;
+  // lenPct scales the flame length (settings fire_len); 100 = as tuned.
+  s.len += (m.len * lenPct * 16 / 100 - s.len) / 8;
   s.base += (m.base * 16 - s.base) / 8;
   s.speed += (m.speed - s.speed) / 4;
   // Wrap at a common period of all three scrolls below (no jumps, no overflow).

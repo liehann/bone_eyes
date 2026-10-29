@@ -59,6 +59,7 @@ Lines starting with `!` share the ESP32's serial console:
 | laptop → skull | `!j <0-1000>` | jaw opening |
 | | `!m idle\|alert\|talking\|goodbye` | mood |
 | | `!l <x> <y>` / `!l` | look at (-1..1) / release gaze |
-| | `!a fire\|default\|dragon` | eye style (follows the speaking persona) |
+| | `!a fire\|default\|dragon` | eye style for a possessing persona: a temporary override, never saved |
+| | `!a` | drop the override: back to the skull's saved style (sent when the skeleton is back, and at start) |
 | skull → laptop | `!p <cm>` | someone present at this distance |
 | | `!g` | they left |

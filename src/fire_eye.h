@@ -82,7 +82,8 @@ inline int coreHalfWidth(int ady, int R) {
   return w;
 }
 
-inline void step(Buffers& b, const EyeArt& lidArt, const fire_render::Params& fp, int mood) {
+// smoke false: no new smoke (what's there drifts off).
+inline void step(Buffers& b, const EyeArt& lidArt, const fire_render::Params& fp, int mood, bool smoke = true) {
   b.fp = fp;
   b.lidArt = &lidArt;
 
@@ -151,7 +152,7 @@ inline void step(Buffers& b, const EyeArt& lidArt, const fire_render::Params& fp
   //    pixels, gap by gap, skipping the core.
   const uint8_t* gap = gapTable(mood);
   const int e1 = kEmit[mood & 3][1];
-  for (int i = gap[next(rng) & 255]; i < N * N; i += 1 + gap[next(rng) & 255]) {
+  for (int i = smoke ? gap[next(rng) & 255] : N * N; i < N * N; i += 1 + gap[next(rng) & 255]) {
     const int y = i / N, x = i - y * N;
     const int dx = x - cx, dy = y - cy;
     const int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;

@@ -18,6 +18,7 @@
 #include "fire_render.h"
 #include "flame_overlay.h"
 #include "gc9d01.h"
+#include "settings.h"
 
 namespace {
 
@@ -26,13 +27,9 @@ constexpr int kChunkRows = 8;
 constexpr int kChunks = Gc9d01Bus::kSize / kChunkRows;
 constexpr int kRing = 4;  // DMA chunk buffers
 
-// Styles: the two Uncanny Eyes artworks, plus "fire" (procedural burning
-// iris whose flame tips smoke and drift up over the lids; default eye's lid
-// shapes).
-const char* const kStyles[] = {"default", "dragon", "fire"};
-constexpr int kFireStyle = 2;
-volatile int currentStyle = 1;
-volatile bool flamesOn = EYE_FLAMES_DEFAULT;  // flames + smoke around hazel/dragon eyes
+// Styles (settings::Style): the two Uncanny Eyes artworks, plus "fire"
+// (procedural burning iris whose flame tips smoke and drift up over the lids;
+// default eye's lid shapes). Chosen in src/settings.cpp.
 
 // Frame-time breakdown for `lcd prof` (microseconds, summed since the last
 // print). Per eye: simulation step, row rendering, time blocked on SPI.
@@ -98,10 +95,10 @@ class LcdEyes : public EyeBackend {
     applyOrientation();
   }
 
-  // Per-eye picture rotation (deg clockwise, 0/90/180/270), from config.h at
-  // boot, changed with `lcd rot`.
+  // Per-eye picture rotation (deg clockwise, 0/90/180/270), set by the eye
+  // task from the settings (`lcd rot`, the web page).
   int rotation(int eye) const { return rot_[eye]; }
-  void setRotation(int eye, int deg) {
+  void setRotation(int eye, int deg) override {
     rot_[eye] = deg;
     bus_.setOrientation(eye, deg, TFT_SWAP_RB);
   }
@@ -192,13 +189,19 @@ class LcdEyes : public EyeBackend {
   struct Frame {
     int style;
     int effect;  // 0 none, 1 flame overlay, 2 fire eye
+    bool smoke, gazeInvert;
+    int fireLen;  // % of the mood's flame length
   };
 
   void prepare(Frame& f) {
-    f.style = currentStyle;
-    f.effect = f.style == kFireStyle ? 2 : (flamesOn ? 1 : 0);
+    const settings::Settings cfg = settings::get();
+    f.style = settings::effectiveStyle();
+    f.effect = f.style == settings::kFire ? 2 : (cfg.flames ? 1 : 0);
+    f.smoke = cfg.smoke;
+    f.gazeInvert = cfg.gazeInvert;
+    f.fireLen = cfg.fireLen;
     if (f.effect && !ensureBuffers()) {
-      f.style = currentStyle;
+      f.style = settings::kDragon;
       f.effect = 0;
     }
     // Fire and the flame overlay share one set of per-eye buffers; reset them
@@ -211,21 +214,22 @@ class LcdEyes : public EyeBackend {
     }
   }
 
-  static const EyeArt& art(const Frame& f) { return f.style == 1 ? kDragonEye : kDefaultEye; }  // fire: default lids
+  static const EyeArt& art(const Frame& f) { return f.style == settings::kDragon ? kDragonEye : kDefaultEye; }  // fire: default lids
 
   // Advance eye e's animation/simulation for this frame.
   void simulate(int e, const EyeState& st, const Frame& f) {
     const EyeArt& a = art(f);
-    const float gx = EYE_GAZE_X_INVERT ? -st.gazeX : st.gazeX;
+    const float gx = f.gazeInvert ? -st.gazeX : st.gazeX;
     const bool flip = e == 0 ? EYE_L_LID_FLIP : EYE_R_LID_FLIP;
     const int mood = (int)st.mood;
     if (f.effect == 2) {
       fire_render::Params fp =
-          fire_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e], mood, millis(), fireState_[e]);
-      fire_eye::step(fireEye_[e], a, fp, mood);
+          fire_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e], mood, millis(), fireState_[e],
+                              f.fireLen);
+      fire_eye::step(fireEye_[e], a, fp, mood, f.smoke);
     } else {
       p_[e] = eye_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e]);
-      if (f.effect == 1) flame_overlay::step(flame_[e], a, p_[e], mood);
+      if (f.effect == 1) flame_overlay::step(flame_[e], a, p_[e], mood, f.smoke);
     }
   }
 
@@ -355,8 +359,9 @@ class LcdEyes : public EyeBackend {
       if (!m) m = (uint8_t*)heap_caps_malloc(3 * N * N, MALLOC_CAP_8BIT);
       if (!m) {
         Serial.println("eyes: out of memory for fire/flames, falling back to plain eyes");
-        flamesOn = false;
-        currentStyle = 1;
+        settings::setFlames(false);
+        settings::setStyleOverride(-1);
+        settings::setStyle(settings::kDragon);
         return false;
       }
       fx_[e] = m;
@@ -438,7 +443,7 @@ void toggleTask(void* arg) {
 
 void printRotation() {
   for (int e = 0; e < 2; e++) {
-    const int r = lcd ? lcd->rotation(e) : (e ? EYE_R_ROT : EYE_L_ROT);
+    const int r = settings::get().rot[e];
     Serial.printf("lcd: eye %c rot %d (MADCTL 0x%02X)%s\n", e ? 'R' : 'L', r, Gc9d01Bus::madctl(r, TFT_SWAP_RB),
                   r == (e ? EYE_R_ROT : EYE_L_ROT) ? "" : ", config.h default differs");
   }
@@ -504,6 +509,22 @@ void cmdLcd(int argc, char** argv) {
     printRotation();
     return;
   }
+  if (sub == "rot") {
+    // Through the settings, so the web page sees it and `config save` keeps
+    // it; the eye task applies it and draws the test pattern.
+    long deg;
+    const int eye = eyeArg(argv[2]);
+    if (eye < 0 || !console::argInt(argc, argv, 3, deg) || deg < 0 || deg > 270 || deg % 90) {
+      Serial.println("usage: lcd rot <L|R|both> <0|90|180|270>  (clockwise, as seen from the front)");
+      return;
+    }
+    settings::setRotation(eye, (int)deg);
+    eyes::test(2);
+    printRotation();
+    Serial.println("lcd: test pattern up (bars red/green/blue/white top to bottom, yellow square top-left); "
+                   "'config save' keeps the rotation");
+    return;
+  }
   if (!lcd || !lcd->started() || eyes::backend() != eyes::Backend::Lcd) {
     Serial.println("lcd: LCD backend not running ('eyes lcd' first)");
     return;
@@ -512,7 +533,7 @@ void cmdLcd(int argc, char** argv) {
     Serial.println("lcd: toggle still running, wait for it to finish");
     return;
   }
-  if (sub != "spi" && sub != "init" && sub != "fill" && sub != "toggle" && sub != "rot" && sub != "madctl") {
+  if (sub != "spi" && sub != "init" && sub != "fill" && sub != "toggle" && sub != "madctl") {
     Serial.println(usage);
     return;
   }
@@ -552,18 +573,6 @@ void cmdLcd(int argc, char** argv) {
     uint16_t c = rgb(constrain(r, 0, 255), constrain(g, 0, 255), constrain(b, 0, 255));
     lcd->fillBoth(c);
     Serial.printf("lcd: filled both with %ld %ld %ld (RGB565 0x%04X)\n", r, g, b, c);
-  } else if (sub == "rot") {
-    long deg;
-    const int eye = eyeArg(argv[2]);
-    if (eye < 0 || !console::argInt(argc, argv, 3, deg) || deg < 0 || deg > 270 || deg % 90) {
-      Serial.println("usage: lcd rot <L|R|both> <0|90|180|270>  (clockwise, as seen from the front)");
-      return;
-    }
-    for (int e = 0; e < 2; e++)
-      if (eye == 2 || eye == e) lcd->setRotation(e, (int)deg);
-    printRotation();
-    lcd->testPattern(2);
-    Serial.println("lcd: test pattern up (bars red/green/blue/white top to bottom, yellow square top-left)");
   } else if (sub == "madctl") {
     const int eye = argc > 2 ? eyeArg(argv[2]) : -1;
     char* end = nullptr;
@@ -591,30 +600,11 @@ void cmdLcd(int argc, char** argv) {
   }
 }
 
-void cmdArt(int argc, char** argv) {
-  for (int i = 0; i < 3; i++) {
-    if (argc > 1 && strcmp(argv[1], kStyles[i]) == 0) {
-      currentStyle = i;
-      return;
-    }
-  }
-  Serial.printf("art: %s (options: default dragon fire)\n", kStyles[currentStyle]);
-}
-
-void cmdFlames(int argc, char** argv) {
-  if (argc > 1) flamesOn = strcmp(argv[1], "on") == 0;
-  Serial.printf("flames: %s\n", flamesOn ? "on" : "off");
-}
-
 }  // namespace
 
 EyeBackend* makeLcdEyes() {
   static bool registered = false;
   if (!registered) {
-    for (int i = 0; i < 3; i++)
-      if (strcmp(kStyles[i], EYE_ART_DEFAULT) == 0) currentStyle = i;
-    console::add("art", "LCD eye style: art [default|dragon|fire]", cmdArt);
-    console::add("flames", "flames + smoke around hazel/dragon eyes: flames [on|off]", cmdFlames);
     console::add("lcd", "LCD bench diagnostics: lcd spi <MHz> | init | fill r g b | pins | toggle <gpio> | prof | rot | madctl",
                  cmdLcd);
     registered = true;

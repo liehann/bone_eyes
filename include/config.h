@@ -81,6 +81,13 @@ constexpr bool EYE_L_LID_FLIP = false;
 constexpr bool EYE_R_LID_FLIP = true;
 constexpr const char* EYE_ART_DEFAULT = "fire";   // "default" (hazel), "dragon" or "fire" (burning, smoking iris)
 constexpr bool EYE_FLAMES_DEFAULT = false;         // flames + smoke around hazel/dragon eyes
+constexpr bool EYE_SMOKE_DEFAULT = true;           // flame tips give off smoke (fire eye and flames)
+constexpr uint32_t EYE_BLINK_MIN_MS = 2000;        // random gap between blinks
+constexpr uint32_t EYE_BLINK_MAX_MS = 6000;
+// The constants above (style, flames, smoke, BL_DEFAULT, EYE_*_ROT,
+// EYE_GAZE_X_INVERT, blink) are only defaults: the web page / `config`
+// command change them at runtime and `config save` keeps them in NVS
+// (src/settings.cpp). `config reset` goes back to these.
 
 // ---------------------------------------------------------------------------
 // Jaw (calibrate after mounting; `jaw closed <deg>` / `jaw open <deg>` then
