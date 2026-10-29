@@ -33,6 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from vox import voxelize  # noqa: E402
 import liners  # noqa: E402
+import printability  # noqa: E402
 
 # =============================================================== PARAMETERS
 SRC = os.path.join(HERE, '..', 'skull_src')
@@ -165,15 +166,24 @@ M3_WASHER = dict(d=9.0, h=3.8)   # M3 head on a Ø9 (DIN 9021) washer: the seat 
 
 # --- electronics / base --------------------------------------------------------------
 RADAR = dict(L=35.0, W=7.0, T=1.2, comp=3.0, z=-27.5)    # HLK-LD2410C 35 x 7 mm
-# Servo tray: ONE printed part (servo_tray.stl) = the servo L-bracket (its flange takes the 2x M3x8
-# into the two insert bosses; no other screws) + a bridge slab + two deep ribs + a narrow ESP32
-# cradle plate between the header rows. It drops in from above (cap off) with the servo already
-# screwed to it on the bench. The board lies flat, pins down, long axis along X, centred on the
-# neck-bore line (y = NECK y), USB end at +X (servo side), high enough that the cable can loop
-# down into the neck bore; it lifts out of the cradle without touching the servo.
+# Servo bracket + ESP32 tray: TWO printed parts, both printed without support.
+# - servo_bracket.stl: the servo L-bracket (servo plate under the tabs + flange onto the two insert
+#   bosses, two gussets). Printed servo plate down. It drops in from above (cap off) with the servo
+#   already screwed to it on the bench.
+# - esp32_tray.stl: a foot plate that lies on the bracket flange, a base plate running under the
+#   board, and two rails (y = yc +- RAIL y) whose top edges seat the board along its length, with
+#   end teeth and a zip-tie hole. Printed upright (as fitted). The two bracket bolts (M3x12) go
+#   through the foot and the flange into the face's inserts, so the tray needs no screws of its own.
+# The board lies flat, pins down, long axis along X, centred on the neck-bore line (y = NECK y),
+# USB end at +X (servo side), high enough that the cable can loop down into the neck bore; it lifts
+# off the rails without touching the servo.
 ESP32 = dict(L=55.0, W=28.0, T=1.6, x_usb=5.5, y=90.0, z=30.0)   # DevKitC-VIE (no holes); x of the USB end, PCB bottom z
 TRAY = dict(t=3.0, half_w=9.5, standoff=16.0, wall=2.0, fit=0.5, ledge=5.0, rib_y=7.0, rib_t=2.0,
-            bridge_y0=70.0, notch=3.5, tie_w=16.2, far_wall_w=7.0)   # cradle plate between the header rows; ribs at y +-rib_y; cable notch in the bridge
+            bridge_y0=70.0, notch=3.5, tie_w=16.2, far_wall_w=7.0)   # notch: cable notch half-width; the rest is the v1 one-part tray (before/after render)
+# ESP32 tray rails: centre offset and thickness, far end x, tooth height over the PCB top, the USB-end
+# step under the grip keep-out (x, z), base / foot plate thickness, zip-tie hole (strap 2.5 x 1)
+RAIL = dict(y=7.4, t=2.4, x_far=-52.4, tooth=0.4, grip_x=8.5, grip_z=26.6, base_t=3.0, tie=(2.8, 1.8))
+BRACKET_BOLT_L = 12.0   # M3x12: through the tray foot (3) and the bracket flange (3) into the insert
 # keep-outs: DuPont housings on both header rows (pins down), their wires (out of the bottom, then
 # sideways), the micro-USB plug, its insertion path and grip, the cable to the neck bore, EN/BOOT
 DUPONT = dict(row_y=11.4, w=2.6, h=14.0, inset=3.4, wire=15.0)   # 19-pin rows, 48.3 mm long
@@ -1206,8 +1216,9 @@ def esp32_frame():
     return dict(xb0=xb0, xb1=xb1, yc=E['y'], zb=zb, zt=zt, zp=zt + USB['z_up'])
 
 
-def servo_tray_parts(mech):
-    """The servo bracket and the ESP32 cradle as ONE part (skull coordinates).
+def servo_tray_v1(mech):
+    """(Superseded; kept only for the before/after print render.) The servo bracket and
+    the ESP32 cradle as ONE part (skull coordinates).
 
     mech['bracket'] (servo plate under the tabs + flange onto the two insert
     bosses) is unchanged, so the shaft stays on the hinge axis. Added to it:
@@ -1222,7 +1233,7 @@ def servo_tray_parts(mech):
     br = mech['bracket']
     bb = np.array(br.bounding_box())
     zf0 = float(mech['bracket_bolts'][0][2]); zf1 = zf0 + BRACKET_T      # flange bottom / top
-    assert SERVO_SIDE == 1, 'servo_tray_parts assumes the servo on +X'
+    assert SERVO_SIDE == 1, 'servo_tray_v1 assumes the servo on +X'
     xp_in = bb[3] - BRACKET_T                                             # inner face of the servo plate (x)
     sv = np.array(mech['servo'].bounding_box())                          # servo case y range: sv[1] .. sv[4]
     z1 = zb - T['standoff']; z0 = z1 - T['t']                             # cradle plate top / bottom
@@ -1262,6 +1273,81 @@ def servo_tray_parts(mech):
                   [m_box([xb0 + D['inset'], yc + sy * D['row_y'] - D['w'] / 2, zb - D['h']],
                          [xb1 - D['inset'], yc + sy * D['row_y'] + D['w'] / 2, zb]) for sy in (-1, 1)])   # header rows + DuPont housings
     return part, board
+
+
+def teardrop(p0, p1, r, up):
+    """Cutter for a horizontal (as printed) hole p0 -> p1 of radius r with a 45° point toward the
+    print-up direction `up` (a unit vector square to the axis, in skull coordinates)."""
+    up = np.asarray(up, float); up = up / np.linalg.norm(up)
+    off = up * r * np.sqrt(2.0)
+    return mf.Manifold.batch_hull([m_cyl(p0, p1, r), m_cyl(np.asarray(p0) + off, np.asarray(p1) + off, 0.05, seg=8)])
+
+
+def esp32_board():
+    """The ESP32 with its header rows + DuPont housings (hardware, for the collision checks)."""
+    E = ESP32; F = esp32_frame(); D = DUPONT
+    xb0, xb1, yc, zb, zt = F['xb0'], F['xb1'], F['yc'], F['zb'], F['zt']
+    return union([m_box([xb0, yc - E['W'] / 2, zb], [xb1, yc + E['W'] / 2, zt])] +
+                 [m_box([xb0 + D['inset'], yc + sy * D['row_y'] - D['w'] / 2, zb - D['h']],
+                        [xb1 - D['inset'], yc + sy * D['row_y'] + D['w'] / 2, zb]) for sy in (-1, 1)])
+
+
+def servo_tray_parts(mech):
+    """The servo bracket and the ESP32 tray (two parts, skull coordinates).
+
+    Bracket: mech['bracket'] (servo plate under the tabs + flange onto the two insert bosses,
+    unchanged, so the shaft stays on the hinge axis) + two gussets in the flange/plate corner
+    beside the servo case. It prints servo plate down (the plate's outer face on the bed), so the
+    flange and gussets stand up from it; the flange bolt holes are horizontal there and get
+    teardrops pointing -X (print up).
+
+    Tray: a foot plate on the flange (bolted down with the bracket), a base plate under the board
+    out to its far end, and two rails standing on it between the header rows, whose top edges
+    (z = PCB bottom) seat the board along its length. Teeth on the rails stop the board ends
+    (0.5 mm clear); the USB-end tooth steps down under the grip keep-out with a 45° chamfer. A
+    zip-tie hole runs across both rails under the board's far end (between its edge and the first
+    pin), a teardrop pointing up. An open notch from the +X edge lets the USB cable pass down to
+    the neck bore. It prints upright, base on the bed: every face is vertical, up-facing or 45°.
+    Returns (bracket, tray, board)."""
+    assert SERVO_SIDE == 1, 'servo_tray_parts assumes the servo on +X'
+    F = esp32_frame(); Rl = RAIL; T = TRAY
+    xb0, xb1, yc, zb, zt = F['xb0'], F['xb1'], F['yc'], F['zb'], F['zt']
+    br = mech['bracket']
+    bb = np.array(br.bounding_box())
+    zf0 = float(mech['bracket_bolts'][0][2]); zf1 = zf0 + BRACKET_T      # flange bottom / top
+    xp_in = bb[3] - BRACKET_T                                             # inner face of the servo plate (x)
+    sv = np.array(mech['servo'].bounding_box())                          # servo case y range: sv[1] .. sv[4]
+    parts = [br]
+    for y_a, y_b in ((bb[1], sv[1] - 0.6), (sv[4] + 0.6, bb[4])):
+        parts.append(mf.Manifold.batch_hull([m_box([xp_in - 12.0, y_a, zf0 - 0.5], [xp_in + 0.01, y_b, zf0 + 0.01]),
+                                             m_box([xp_in - 0.5, y_a, zf0 - 24.0], [xp_in + 0.01, y_b, zf0 + 0.01])]))
+    bolt_td = [teardrop(p - [0, 0, 1.0], p + [0, 0, BRACKET_T + 1.0], 1.9, [-1.0, 0, 0]) for p in mech['bracket_bolts']]
+    bracket = union(parts) - union(bolt_td)
+    # tray
+    zt0 = zf1; zt1 = zt0 + Rl['base_t']                                   # foot / base plate bottom, top
+    ya = yc + Rl['y'] + Rl['t'] / 2                                       # rails' outer faces at yc +- (ya - yc)
+    x_end = bb[3]                                                         # +X end: the servo plate's outer face
+    tp = [m_box([bb[0], bb[1], zt0], [x_end, ya, zt1]),                   # foot on the flange, out under the rails
+          m_box([Rl['x_far'], 2 * yc - ya, zt0], [x_end, ya, zt1])]       # base plate under the rails
+    ztt = zt + Rl['tooth']
+    for sy in (-1, 1):
+        y0 = yc + sy * Rl['y'] - Rl['t'] / 2; y1 = y0 + Rl['t']
+        rail = m_box([Rl['x_far'], y0, zt0], [x_end, y1, zb]) - \
+            m_box([Rl['grip_x'], y0 - 1, Rl['grip_z']], [x_end + 1, y1 + 1, zb + 5])        # stepped down under the USB grip
+        far = m_box([Rl['x_far'], y0, zb - 0.01], [xb0 - 0.5, y1, ztt])                      # far-end tooth
+        usb = mf.Manifold.batch_hull([m_box([xb1 + 0.5, y0, zb - 0.01], [xb1 + 1.0, y1, ztt]),   # USB-end tooth, 45° back
+                                      m_box([xb1 + 0.5, y0, zb - 0.01], [Rl['grip_x'], y1, zb])])
+        tp += [rail, far, usb]
+    tray = union(tp)
+    tw, th = Rl['tie']
+    xm = xb0 + 0.1 + tw / 2; zm = zb - 3.0                                # zip tie: under the far end, between edge and first pin
+    tie = mf.Manifold.batch_hull([m_box([xm - tw / 2, yc - 20, zm - th / 2], [xm + tw / 2, yc + 20, zm + th / 2]),
+                                  m_box([xm - 0.02, yc - 20, zm + th / 2 + tw / 2 - 0.05], [xm + 0.02, yc + 20, zm + th / 2 + tw / 2])])
+    w = T['notch']
+    cuts = [tie, m_box([-2.0, yc - w, zt0 - 1], [x_end + 1, yc + w, zt1 + 1])] + \
+        [m_cyl(p - [0, 0, 1.0], p + [0, 0, BRACKET_T + Rl['base_t'] + 1.0], 1.9) for p in mech['bracket_bolts']]
+    tray = tray - union(cuts)
+    return bracket, tray, esp32_board()
 
 
 def usb_keepouts():
@@ -1325,7 +1411,7 @@ def usb_checks(R):
     jaw_sw = union([jm.transform(rot_x_about(*hinge, a))
                     for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 1.0)])
     horn = R['mech']['horn']                                  # swept horn disc
-    fixed = dict(face=P['face'], back=P['back'], servo_tray=P['servo_tray'], servo=H['servo'], horn_sweep=horn,
+    fixed = dict(face=P['face'], back=P['back'], servo_bracket=P['servo_bracket'], esp32_tray=P['esp32_tray'], servo=H['servo'], horn_sweep=horn,
                  jaw_sweep=jaw_sw, bar=H['bar'], modules=H['modules'], radar=H['radar'])
     cap_on = dict(fixed, cap=P['cap'], stand=P['stand'])
     res = {}
@@ -1351,12 +1437,15 @@ def usb_checks(R):
     for i, sy in enumerate(('front', 'back')):
         res['dupont_' + sy] = hits(K['dupont'][i], cap_on)
     res['buttons'] = hits(K['buttons'], dict(fixed, plug=K['plug']))
-    # servo tray drops in from above (cap off, back cover off) with the servo and horn on it
-    grp = union([P['servo_tray'], H['servo'], H['horn']])
+    # the servo bracket drops in from above (cap off, back cover off) with the servo and horn on it,
+    # then the ESP32 tray drops onto its flange
+    grp = union([P['servo_bracket'], H['servo'], H['horn']])
     early = union([P['face'], H['bar'], H['modules'], H['radar']])
-    res['servo_tray_drop'] = round(max(vol(grp.translate([0, 0, d]) ^ early) for d in np.arange(0.5, 100.01, 1.5)), 3)
-    # the ESP32 lifts out of the cradle with the servo tray in place (cap off)
-    rest = union([P['face'], P['back'], P['servo_tray'], H['servo'], H['horn'], H['bar'], H['modules'], H['radar']])
+    res['servo_bracket_drop'] = round(max(vol(grp.translate([0, 0, d]) ^ early) for d in np.arange(0.5, 100.01, 1.5)), 3)
+    early = union([early, grp])
+    res['esp32_tray_drop'] = round(max(vol(P['esp32_tray'].translate([0, 0, d]) ^ early) for d in np.arange(0.5, 100.01, 1.5)), 3)
+    # the ESP32 lifts off the rails with the bracket and tray in place (cap off)
+    rest = union([P['face'], P['back'], P['servo_bracket'], P['esp32_tray'], H['servo'], H['horn'], H['bar'], H['modules'], H['radar']])
     res['esp32_lift_out'] = round(max(vol(H['esp32'].translate([0, 0, d]) ^ rest) for d in np.arange(0.5, 60.01, 1.5)), 3)
     F = esp32_frame()
     res['layout'] = dict(board_x=(F['xb0'], F['xb1']), board_y=F['yc'], pcb_bottom_z=F['zb'], usb_axis_z=round(F['zp'], 2),
@@ -1592,14 +1681,15 @@ def build():
     vmid = (-S_['shaft_off'] + S_['L'] - S_['shaft_off']) / 2
     for v in (vmid - S_['hole_sp'] / 2, vmid + S_['hole_sp'] / 2):
         fast.append(dict(name='servo tab screw (v=%.0f)' % v, head=Ps(S_['tab_top'], v, 0), axis=u_ax, stage='bench_servo', cb=0.0,
-                         spec=dict(kind='selftap', L=8.0, d=2.0, clamped=['servo'], receiver='servo_tray', head=M2_HEAD,
+                         spec=dict(kind='selftap', L=8.0, d=2.0, clamped=['servo'], receiver='servo_bracket', head=M2_HEAD,
                                    clear_d=None, pilot_d=1.8, through=True, note='supplied servo screw, length assumed 8 mm')))
     fast.append(dict(name='horn screw', head=Ps(S_['spline_top'] + 1.0, 0, 0), axis=u_ax, stage='bench_horn', cb=0.0,
                      spec=dict(kind='hw', clamped=['horn'], receiver='servo', note='supplied; horn onto the spline, not modelled')))
     for p_ in mech['bracket_bolts']:
-        fast.append(dict(name='servo tray bolt (M3x8, y=%.0f)' % p_[1], head=p_ + [0, 0, BRACKET_T], axis=np.array([0, 0, 1.0]), stage='servo_tray',
-                         cb=0.0, opening='top',
-                         spec=dict(kind='insert', L=8.0, d=3.0, clamped=['servo_tray'], receiver='face', head=M3_HEAD, clear_d=3.8)))
+        fast.append(dict(name='servo bracket bolt (M3x12, y=%.0f)' % p_[1], head=p_ + [0, 0, BRACKET_T + RAIL['base_t']], axis=np.array([0, 0, 1.0]),
+                         stage='servo_tray', cb=0.0, opening='top',
+                         spec=dict(kind='insert', L=BRACKET_BOLT_L, d=3.0, clamped=['esp32_tray', 'servo_bracket'], receiver='face', head=M3_HEAD,
+                                   clear_d=3.8, note='through the ESP32 tray foot and the bracket flange')))
     # horn-to-jaw screws (M2x16 self-tapping) from outside the ramus: Ø2.2 pilot,
     # and a Ø4.8 counterbore only where the ramus is thicker than the screw allows
     hd = horn_dir(); sg_ = SERVO_SIDE; tj = to_tri(jaw_moving); horn_cut = []
@@ -1633,9 +1723,9 @@ def build():
     # jaw
     jaw_part = clean(jaw_moving - mech['jaw_pad_holes'] - mech['jaw_pivot_holes'] - horn_holes, 'jaw')
 
-    servo_tray, board = servo_tray_parts(mech)
-    servo_tray = clean(servo_tray, 'servo_tray')
-    parts = dict(face=face, back=back, cap=cap, jaw=jaw_part, servo_tray=servo_tray, stand=stand())
+    s_bracket, e_tray, board = servo_tray_parts(mech)
+    parts = dict(face=face, back=back, cap=cap, jaw=jaw_part, servo_bracket=clean(s_bracket, 'servo_bracket'),
+                 esp32_tray=clean(e_tray, 'esp32_tray'), stand=stand())
     parts.update(liner_parts)
     for name, br in J['brackets']:
         parts['joint_bracket_' + name] = br
@@ -1878,7 +1968,7 @@ def verify(R):
                 for q in (A ^ B_).decompose():
                     if q.volume() > 2:
                         log('  clash %s/%s %.1f mm3 at %s' % (a, b, q.volume(), np.round(q.bounding_box(), 1)))
-    others = union([P['face'], P['back'], H['servo'], P['servo_tray'], P['stand']])
+    others = union([P['face'], P['back'], H['servo'], P['servo_bracket'], P['esp32_tray'], P['stand']])
     jm = P['jaw']
     for a in np.arange(JAW_CLOSE_STOP, JAW_OPEN_DEG + JAW_STOP_MARGIN + 0.01, 1.0):
         v = vol(jm.transform(rot_x_about(*hinge, a)) ^ others)
@@ -1889,16 +1979,16 @@ def verify(R):
     # ---- tool access: every fastener needs a straight tool path when it is driven
     STAGES = ['bench_servo', 'bench_horn', 'eyebar', 'radar', 'servo_tray', 'esp32', 'jaw', 'brackets_floor', 'back',
               'brackets_cap', 'cap', 'stand']
-    FITTED = dict(eyebar=['bar', 'modules'], radar=['radar'], servo_tray=['servo', 'servo_tray', 'horn'],
+    FITTED = dict(eyebar=['bar', 'modules'], radar=['radar'], servo_tray=['servo', 'servo_bracket', 'horn', 'esp32_tray'],
                   esp32=['esp32'], jaw=['jaw'], brackets_floor=[k for k in P if k.startswith('joint_bracket_back')], back=['back'],
                   brackets_cap=[k for k in P if k.startswith('joint_bracket_cap')], cap=['cap'], stand=['stand'])
     allp = dict(P); allp.update(H)
 
     def present(stage):
         if stage == 'bench_servo':
-            return ['servo', 'servo_tray']
+            return ['servo', 'servo_bracket']
         if stage == 'bench_horn':
-            return ['servo', 'servo_tray', 'horn']
+            return ['servo', 'servo_bracket', 'horn']
         out = ['face']
         for st in STAGES[2:STAGES.index(stage) + 1]:
             out += FITTED.get(st, [])
@@ -1951,7 +2041,7 @@ def verify(R):
         eye_bar_path=round(vol(hd['eye_bar'] ^ (P['face'] - R['peg'] if R['peg'] is not None else P['face'])), 3),
         radar_path=round(vol(hd['radar'] ^ union([P['face'], H['bar'], H['modules']])), 3))
     # covers: the back lifts straight up (cap already off), the cap along its normal
-    under = union([P['face'], P['jaw'], P['servo_tray'], H['servo'], H['horn'], H['esp32'], H['bar'], H['modules'],
+    under = union([P['face'], P['jaw'], P['servo_bracket'], P['esp32_tray'], H['servo'], H['horn'], H['esp32'], H['bar'], H['modules'],
                    H['radar']] + [m for k, m in P.items() if k.startswith('joint_bracket_back')])
     bl = [(vol(P['back'].translate([0, 0, d]) ^ under), d) for d in np.arange(1.0, 121.0, 2.0)]
     rep['back_lift'] = max(bl)[0]
@@ -1995,7 +2085,8 @@ PRINT_ORIENT = {   # rotation into print orientation (then dropped onto z = 0, c
     'back': rx(0),              # lower cut (z = Z_FLOOR) on the bed
     'cap': 'seam_up',           # cut face on the bed, crown up
     'jaw': rx(0),               # upright, as in the skull
-    'servo_tray': ry(90 * SERVO_SIDE),   # servo mounting plate on the bed; slab, ribs and cradle stand up
+    'servo_bracket': ry(90 * SERVO_SIDE),   # servo plate's outer face on the bed; flange and gussets stand up
+    'esp32_tray': rx(0),        # upright, base on the bed
     'stand': rx(0),
     'dowel': rx(0),
 }
@@ -2033,8 +2124,96 @@ def export(R):
     log('wrote %d STLs to %s' % (len(R['parts']), OUT))
 
 
+# The face (chassis) is already printed: the build must reproduce main's face.stl (9c237b9 geometry).
+FACE_REF = dict(sha256='fad4e58ec28ca6f7e76bababe985328696e25e6fd1bd045d1f83bdf291c7e1a6', volume_mm3=128527.733)
+# printability (printability.py) is checked on every part but the face; these parts fail the build
+# above PRINT_MAX_SUPPORT mm2 of support area or a bridge longer than PRINT_MAX_BRIDGE mm
+PRINT_STRICT = ('servo_bracket', 'esp32_tray')
+PRINT_MAX_SUPPORT = 50.0
+PRINT_MAX_BRIDGE = 10.0
+
+
+def face_check():
+    """out/face.stl must be byte-identical to main's, or at least the same solid (volume)."""
+    fn = os.path.join(OUT, 'face.stl')
+    sha = hashlib.sha256(open(fn, 'rb').read()).hexdigest()
+    if sha == FACE_REF['sha256']:
+        return dict(identical='bytes', sha256=sha)
+    v = float(trimesh.load(fn).volume)
+    return dict(identical='volume' if abs(v - FACE_REF['volume_mm3']) < 1.0 else False, sha256=sha, volume_mm3=round(v, 3))
+
+
+def print_check(R):
+    """Overhang / bridge numbers of every part except the face, in its print orientation."""
+    out = {}
+    for name, M in R['parts'].items():
+        if name == 'face':
+            continue
+        r = printability.analyse(print_pose(name, M), name)
+        R.setdefault('print_masks', {})[name] = r
+        r = printability.report(r)
+        r['strict'] = name in PRINT_STRICT
+        r['ok'] = (not r['strict']) or (r['support_mm2'] <= PRINT_MAX_SUPPORT and r['longest_bridge_mm'] <= PRINT_MAX_BRIDGE)
+        out[name] = r
+    return out
+
+
+def render_print(R):
+    """out/skull_servo_tray_print.png: the servo tray before (v1, one part) and after (bracket +
+    ESP32 tray) in print orientation; faces that need support red, bridges orange. Each part is
+    shown from above and from below (OpenSCAD previews)."""
+    import subprocess
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    tmp = os.path.join(CACHE, 'render_print'); os.makedirs(tmp, exist_ok=True)
+    old, _ = servo_tray_v1(R['mech'])
+    old_p = old.transform(ry(90 * SERVO_SIDE))                    # v1 print orientation: servo plate on the bed
+    b_ = np.array(old_p.bounding_box()); old_p = old_p.translate([-(b_[0] + b_[3]) / 2, -(b_[1] + b_[4]) / 2, -b_[2]])
+    shots = [('before', 'Before: servo_tray.stl (one part, servo plate on the bed)', old_p, printability.analyse(old_p))]
+    for k in PRINT_STRICT:
+        shots.append((k, 'After: %s.stl' % k, print_pose(k, R['parts'][k]), R['print_masks'][k]))
+    jobs = []
+    for key, title, M, r in shots:
+        t = to_tri(M)
+        t.export(os.path.join(tmp, key + '.stl'))
+        body = 'color("lightsteelblue") import("%s.stl");\n' % key
+        for nm, mask, c in (('sup', r['_steep'], 'red'), ('bri', r['_bridged'], 'orange')):
+            if mask.any():
+                f = t.faces[mask]
+                # a thin double-sided skin just outside each face, so OpenSCAD draws it over the part
+                lo = trimesh.Trimesh(t.vertices[f].reshape(-1, 3) + np.repeat(t.face_normals[mask], 3, 0) * 0.15,
+                                     np.arange(len(f) * 3).reshape(-1, 3), process=False)
+                hi = trimesh.Trimesh(t.vertices[f].reshape(-1, 3) + np.repeat(t.face_normals[mask], 3, 0) * 0.05,
+                                     np.arange(len(f) * 3).reshape(-1, 3)[:, ::-1], process=False)
+                trimesh.util.concatenate([lo, hi]).export(os.path.join(tmp, '%s_%s.stl' % (key, nm)))
+                body += 'color("%s") import("%s_%s.stl");\n' % (c, key, nm)
+        with open(os.path.join(tmp, key + '.scad'), 'w') as f_:
+            f_.write(body)
+        for v, cam in (('top', '55,0,35'), ('bottom', '125,0,35')):
+            png = os.path.join(tmp, '%s_%s.png' % (key, v))
+            jobs.append((png, subprocess.Popen([SCAD, '-o', png, '--preview', '--imgsize=900,800', '--camera=0,0,0,%s,0' % cam,
+                                                '--viewall', '--autocenter', '--projection=o', '--colorscheme=Tomorrow',
+                                                os.path.join(tmp, key + '.scad')], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)))
+    for _, p in jobs:
+        p.wait()
+    fig, ax = plt.subplots(2, 3, figsize=(21, 13))
+    for j, (key, title, M, r) in enumerate(shots):
+        for i, v in enumerate(('top', 'bottom')):
+            a = ax[i, j]
+            a.imshow(plt.imread(os.path.join(tmp, '%s_%s.png' % (key, v)))); a.set_axis_off()
+            if i == 0:
+                a.set_title('%s\nsupport %.0f mm2, bridges %.0f mm2 (longest %.1f mm), bed contact %.0f mm2'
+                            % (title, r['support_mm2'], r['bridge_mm2'], r['longest_bridge_mm'], r['bed_mm2']), fontsize=12)
+            else:
+                a.set_title('from below', fontsize=11)
+    fig.suptitle('Print orientation (bed = z 0): red = downward faces steeper than 45° from vertical (need support), '
+                 'orange = bridges', fontsize=14)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(os.path.join(OUT, 'skull_servo_tray_print.png'), dpi=70); plt.close(fig)
+
+
 SCAD = '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD'
-COLORS = dict(face='ivory', back='wheat', cap='navajowhite', jaw='tan', servo_tray='mediumpurple',
+COLORS = dict(face='ivory', back='wheat', cap='navajowhite', jaw='tan', servo_bracket='mediumpurple', esp32_tray='plum',
               stand='gray', bar='dimgray', modules='black', servo='royalblue', horn='crimson', radar='red',
               esp32='teal', paint='#1a1a1a', screens='gold', tools='deepskyblue')
 
@@ -2087,7 +2266,7 @@ def render(R):
     n_, _ = seam()
     lift = lambda d: tuple(float(v) for v in n_ * d)
     ex = dict(bar=(0, 70, 0), modules=(0, 70, 0), radar=(0, 40, 60), esp32=(0, 0, 115),
-              servo=(0, 0, 70), servo_tray=(0, 0, 70), horn=(0, 0, 70), jaw=(0, 0, -70),
+              servo=(0, 0, 70), servo_bracket=(0, 0, 70), esp32_tray=(0, 0, 95), horn=(0, 0, 70), jaw=(0, 0, -70),
               back=(0, 150, 60), cap=lift(250), stand=(0, 0, -120))
     for k in items:
         if k.startswith('joint_bracket_back'):
@@ -2097,7 +2276,7 @@ def render(R):
     e = scad('expl.scad', asm(explode=ex))
     jobs.append(('skull_exploded.png', e, '0,90,90,70,0,300,1250'))
     eyes_hw = ('bar', 'modules', 'radar', 'screens', 'paint')
-    allhw = eyes_hw + ('servo', 'servo_tray', 'horn', 'esp32', 'jaw')
+    allhw = eyes_hw + ('servo', 'servo_bracket', 'esp32_tray', 'horn', 'esp32', 'jaw')
 
     def imp(keys, extra=''):
         return 'color("ivory") import("face.stl");\n' + '\n'.join(
@@ -2148,7 +2327,7 @@ def render_usb(R, K):
     import matplotlib.pyplot as plt
     tmp = os.path.join(CACHE, 'render_usb'); os.makedirs(tmp, exist_ok=True)
     P, H = R['parts'], R['hardware']
-    items = dict(face=P['face'], back=P['back'], servo_tray=P['servo_tray'], jaw=P['jaw'], servo=H['servo'], horn=H['horn'],
+    items = dict(face=P['face'], back=P['back'], servo_bracket=P['servo_bracket'], esp32_tray=P['esp32_tray'], jaw=P['jaw'], servo=H['servo'], horn=H['horn'],
                  esp32=H['esp32'], bar=H['bar'], modules=H['modules'], radar=H['radar'],
                  ko_dupont=union(K['dupont']), ko_plug=K['plug'], ko_path=K['path'] - K['plug'], ko_grip=K['grip'] - K['path'],
                  ko_cable=K['cable'], ko_buttons=K['buttons'])
@@ -2188,7 +2367,7 @@ def sections(R, items):
     from matplotlib.patches import PathPatch, Patch
     from matplotlib.path import Path
     cols = dict(face='#f2e6c4', back='#d9b87c', jaw='#b88a4a', bar='#666666', modules='#111111',
-                servo='#3355cc', servo_tray='#9370db', horn='#cc2233', radar='#ee2222', esp32='#119999', stand='#999999', paint='#111111', screens='#e0b000', cap='#f5deb3')
+                servo='#3355cc', servo_bracket='#9370db', esp32_tray='#dda0dd', horn='#cc2233', radar='#ee2222', esp32='#119999', stand='#999999', paint='#111111', screens='#e0b000', cap='#f5deb3')
     maps = dict(z=(np.eye(4)[:3], ('x', 'y'), 1), x=(np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0]], float), ('y', 'z'), 1),
                 y=(np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0]], float), ('x', 'z'), -1))
 
@@ -2357,12 +2536,23 @@ def main():
         log('  %s %-48s %5.2f (>= %.1f)' % ('OK ' if t['ok'] else 'FAIL', t['name'], t['wall'], t['need']))
     log('jaw sweep overlaps:', [a for a in rep['jaw_sweep'] if a[1] > 0.005] or 'none',
         '| past the stops:', rep['beyond_stops'])
+    rep['printability'] = print_check(R)
+    for k, v in rep['printability'].items():
+        log('  print %s %-14s support %7.1f mm2  bridges %6.1f mm2 (longest %4.1f mm)  overhang %7.1f mm2  bed %7.1f mm2%s'
+            % ('OK  ' if v['ok'] else 'FAIL', k, v['support_mm2'], v['bridge_mm2'], v['longest_bridge_mm'], v['overhang_mm2'],
+               v['bed_mm2'], '' if v['strict'] else '  (reported only)'))
+    rep['failures'] += ['printability %s' % k for k, v in rep['printability'].items() if not v['ok']]
     export(R)
+    rep['face_check'] = face_check()
+    log('face.stl vs main (9c237b9):', rep['face_check'])
+    if not rep['face_check']['identical']:
+        rep['failures'].append('face.stl differs from the printed face')
     with open(os.path.join(OUT, 'build_report.json'), 'w') as f:
         json.dump(rep, f, indent=1, default=lambda o: float(o) if np.isscalar(o) else str(o))
     if '--no-render' not in sys.argv:
         render(R)
         render_usb(R, usb_k)
+        render_print(R)
         liners.render_png(R['parts']['face'], {k: v for k, v in R['parts'].items() if k.startswith('liner_')},
                           os.path.join(OUT, 'skull_face_liners.png'), SCAD, log)
     if rep['failures']:
