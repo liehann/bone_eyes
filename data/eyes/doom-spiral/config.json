@@ -1,0 +1,49 @@
+{
+ "name": "doom-spiral",
+ "eyeRadius": 83,
+ "irisRadius": 83,
+ "slitPupilRadius": 0,
+ "coverage": 0.6,
+ "pupilColor": [
+  255,
+  255,
+  169
+ ],
+ "backColor": [
+  255,
+  0,
+  0
+ ],
+ "irisColor": [
+  0,
+  0,
+  0
+ ],
+ "scleraColor": [
+  255,
+  0,
+  0
+ ],
+ "eyelidColor": [
+  0,
+  0,
+  0
+ ],
+ "pupilMin": 0,
+ "pupilMax": 0,
+ "tracking": true,
+ "squint": 0.5,
+ "irisSpin": 0.0,
+ "scleraSpin": 0.0,
+ "irisMirror": false,
+ "irisAngle": 0,
+ "scleraAngle": 0,
+ "left": {
+  "irisSpin": 80
+ },
+ "right": {
+  "irisMirror": true,
+  "irisSpin": 70
+ },
+ "irisTexture": "iris.565"
+}

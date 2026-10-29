@@ -1,0 +1,43 @@
+{
+ "name": "skull",
+ "eyeRadius": 80,
+ "irisRadius": 47,
+ "slitPupilRadius": 0,
+ "coverage": 0.6,
+ "pupilColor": [
+  0,
+  0,
+  0
+ ],
+ "backColor": [
+  0,
+  0,
+  0
+ ],
+ "irisColor": [
+  0,
+  0,
+  0
+ ],
+ "scleraColor": [
+  0,
+  0,
+  0
+ ],
+ "eyelidColor": [
+  0,
+  0,
+  0
+ ],
+ "pupilMin": 0.1,
+ "pupilMax": 0.25,
+ "tracking": true,
+ "squint": 0.5,
+ "irisSpin": 0.0,
+ "scleraSpin": 0.0,
+ "irisMirror": false,
+ "irisAngle": 0,
+ "scleraAngle": 0,
+ "irisTexture": "iris.565",
+ "scleraTexture": "sclera.565"
+}

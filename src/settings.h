@@ -8,9 +8,11 @@
 
 namespace settings {
 
-enum Style : int32_t { kDefault = 0, kDragon = 1, kFire = 2 };
-constexpr int kNumStyles = 3;
-extern const char* const kStyleNames[kNumStyles];  // "default", "dragon", "fire"
+enum Style : int32_t { kDefault = 0, kDragon = 1, kFire = 2, kM4 = 3 };
+constexpr int kNumStyles = 4;
+extern const char* const kStyleNames[kNumStyles];  // "default", "dragon", "fire", "m4"
+// The M4 eye's own parameters (src/m4eye/m4eye_config.h) ride along as a
+// nested "m4" object in toJson()/applyJson(), saved as one NVS string.
 
 struct Settings {
   int32_t style;       // Style

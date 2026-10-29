@@ -18,6 +18,7 @@
 #include "fire_render.h"
 #include "flame_overlay.h"
 #include "gc9d01.h"
+#include "m4eye/m4eye.h"
 #include "settings.h"
 
 namespace {
@@ -188,7 +189,7 @@ class LcdEyes : public EyeBackend {
   // Per-frame choices, made once on core 1 so both eyes agree.
   struct Frame {
     int style;
-    int effect;  // 0 none, 1 flame overlay, 2 fire eye
+    int effect;  // 0 none, 1 flame overlay, 2 fire eye, 3 M4 eye (src/m4eye)
     bool smoke, gazeInvert;
     int fireLen;  // % of the mood's flame length
   };
@@ -196,11 +197,12 @@ class LcdEyes : public EyeBackend {
   void prepare(Frame& f) {
     const settings::Settings cfg = settings::get();
     f.style = settings::effectiveStyle();
-    f.effect = f.style == settings::kFire ? 2 : (cfg.flames ? 1 : 0);
+    if (f.style == settings::kM4 && !m4eye::beginFrame()) f.style = settings::kDragon;  // out of memory
+    f.effect = f.style == settings::kM4 ? 3 : f.style == settings::kFire ? 2 : (cfg.flames ? 1 : 0);
     f.smoke = cfg.smoke;
     f.gazeInvert = cfg.gazeInvert;
     f.fireLen = cfg.fireLen;
-    if (f.effect && !ensureBuffers()) {
+    if ((f.effect == 1 || f.effect == 2) && !ensureBuffers()) {
       f.style = settings::kDragon;
       f.effect = 0;
     }
@@ -222,7 +224,9 @@ class LcdEyes : public EyeBackend {
     const float gx = f.gazeInvert ? -st.gazeX : st.gazeX;
     const bool flip = e == 0 ? EYE_L_LID_FLIP : EYE_R_LID_FLIP;
     const int mood = (int)st.mood;
-    if (f.effect == 2) {
+    if (f.effect == 3) {
+      m4eye::simulate(e, st, f.gazeInvert, millis());
+    } else if (f.effect == 2) {
       fire_render::Params fp =
           fire_render::compute(a, gx, st.gazeY, st.lid, st.pupil, flip, uTrack_[e], mood, millis(), fireState_[e],
                               f.fireLen);
@@ -239,6 +243,10 @@ class LcdEyes : public EyeBackend {
     const EyeArt& a = art(f);
     if (f.effect == 0 && prev && eye_render::repeatsPrevious(a.lidSize, oy)) {
       memcpy(row, prev, N * 2);  // upscaling repeats every 5th row
+      return;
+    }
+    if (f.effect == 3) {
+      m4eye::renderRow(e, oy, row);  // already big-endian
       return;
     }
     if (f.effect == 2) {
@@ -607,6 +615,7 @@ EyeBackend* makeLcdEyes() {
   if (!registered) {
     console::add("lcd", "LCD bench diagnostics: lcd spi <MHz> | init | fill r g b | pins | toggle <gpio> | prof | rot | madctl",
                  cmdLcd);
+    m4eye::registerCommands();
     registered = true;
   }
   static LcdEyes* instance = new LcdEyes();  // owns the SPI bus; reused across backend switches

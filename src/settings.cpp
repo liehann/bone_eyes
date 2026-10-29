@@ -5,10 +5,11 @@
 
 #include "config.h"
 #include "console.h"
+#include "m4eye/m4eye.h"
 
 namespace settings {
 
-const char* const kStyleNames[kNumStyles] = {"default", "dragon", "fire"};
+const char* const kStyleNames[kNumStyles] = {"default", "dragon", "fire", "m4"};
 
 namespace {
 
@@ -100,9 +101,11 @@ bool parseValue(const Field& f, const char* s, size_t n, int32_t& out) {
 }
 
 void print() {
-  static char buf[640];
-  toJson(buf, sizeof buf);
+  char* buf = (char*)malloc(1600);
+  if (!buf) return;
+  toJson(buf, 1600);
   Serial.println(buf);
+  free(buf);
 }
 
 // --- console ---
@@ -120,8 +123,9 @@ void cmdConfig(int argc, char** argv) {
   } else if (!strcmp(argv[1], "keys")) {
     for (const Field& f : kFields)
       Serial.printf("  %-13s %s\n", f.key,
-                    f.kind == kBool ? "on|off" : f.kind == kStyleKind ? "default|dragon|fire"
+                    f.kind == kBool ? "on|off" : f.kind == kStyleKind ? "default|dragon|fire|m4"
                                     : f.kind == kRot ? "0|90|180|270" : "number");
+    Serial.println("  m4            {json}  (M4 eye parameters; 'm4 show' / 'm4 <key> <value>')");
   } else if (!strcmp(argv[1], "set") && argc > 3) {
     const Field* f = find(argv[2]);
     int32_t v;
@@ -142,7 +146,7 @@ void cmdArt(int argc, char** argv) {
     if (i >= 0) return setStyle(i);
   }
   const Settings s = get();
-  Serial.printf("art: %s%s%s (options: default dragon fire; 'config save' keeps it)\n", kStyleNames[s.style],
+  Serial.printf("art: %s%s%s (options: default dragon fire m4; 'config save' keeps it)\n", kStyleNames[s.style],
                 override_ >= 0 ? ", brain override " : "", override_ >= 0 ? kStyleNames[override_] : "");
 }
 
@@ -193,6 +197,7 @@ void begin() {
   Settings s = defaults();
   if (prefs.begin(kNs, true)) {  // read-only; fails (harmlessly) until the first save
     for (const Field& f : kFields) member(s, f) = clampField(f, prefs.getInt(f.key, member(s, f)));
+    if (prefs.isKey("m4")) m4eye::applyJson(prefs.getString("m4", "").c_str());
     prefs.end();
   }
   portENTER_CRITICAL(&mux);
@@ -236,6 +241,12 @@ bool save() {
   bool ok = true;
   for (const Field& f : kFields)
     if (prefs.getInt(f.key, INT32_MIN) != member(s, f)) ok &= prefs.putInt(f.key, member(s, f)) == 4;
+  constexpr int kM4Max = 1024;
+  char* m4 = (char*)malloc(kM4Max);
+  const int n = m4 ? m4eye::getJson(m4, kM4Max) : -1;
+  if (n > 0 && n < kM4Max && (!prefs.isKey("m4") || prefs.getString("m4", "") != m4))
+    ok &= prefs.putString("m4", m4) == (size_t)n;
+  free(m4);
   prefs.end();
   return ok;
 }
@@ -249,6 +260,7 @@ void reset() {
   cur = defaults();
   override_ = -1;
   portEXIT_CRITICAL(&mux);
+  m4eye::setConfig(m4eye::defaultsFor("hazel"));
 }
 
 size_t toJson(char* out, size_t n) {
@@ -263,15 +275,64 @@ size_t toJson(char* out, size_t n) {
     else len += snprintf(out + len, n - len, "\"%s\":%d,", f.key, v);
   }
   if (len < n) {
+    len += snprintf(out + len, n - len, "\"m4\":");
+    if (len < n) len += m4eye::getJson(out + len, n - len);
+    // Read-only: the eye/lid sets the m4 pickers offer.
+    if (len < n) len += snprintf(out + len, n - len, ",\"m4_sets\":");
+    if (len < n) len += m4eye::listJson(out + len, n - len);
+    if (len < n) len += snprintf(out + len, n - len, ",");
+  }
+  if (len < n) {
     if (ov >= 0) len += snprintf(out + len, n - len, "\"style_override\":\"%s\"}", kStyleNames[ov]);
     else len += snprintf(out + len, n - len, "\"style_override\":null}");
   }
   return len < n ? len : n - 1;
 }
 
+// The value of a nested "m4": {...} object, as [begin, end) of json.
+bool m4Object(const char* json, const char** b, const char** e) {
+  for (const char* p = strstr(json, "\"m4\""); p; p = strstr(p + 1, "\"m4\"")) {
+    const char* v = p + 4;
+    while (*v == ' ' || *v == '\t' || *v == '\n' || *v == '\r') v++;
+    if (*v++ != ':') continue;
+    while (*v == ' ' || *v == '\t' || *v == '\n' || *v == '\r') v++;
+    if (*v != '{') return false;
+    int depth = 0;
+    bool str = false;
+    for (const char* q = v; *q; q++) {
+      if (str) {
+        if (*q == '\\' && q[1]) q++;
+        else if (*q == '"') str = false;
+      } else if (*q == '"') {
+        str = true;
+      } else if (*q == '{') {
+        depth++;
+      } else if (*q == '}' && --depth == 0) {
+        *b = v;
+        *e = q + 1;
+        return true;
+      }
+    }
+    return false;
+  }
+  return false;
+}
+
 int applyJson(const char* json, const char** err) {
   int applied = 0;
   if (err) *err = nullptr;
+  // The nested M4 object first, and blank it out of the flat-key scan below
+  // (its "irisRadius" etc. aren't top-level keys, but "blink"-like names
+  // could collide).
+  const char *mb, *me;
+  String flat = json;
+  if (m4Object(json, &mb, &me)) {
+    String obj = flat.substring(mb - json, me - json);
+    if (m4eye::applyJson(obj.c_str())) applied++;
+    else if (err) *err = "m4";
+    for (size_t i = mb - json; i < (size_t)(me - json); i++) flat[i] = ' ';
+    json = flat.c_str();
+  }
   for (const Field& f : kFields) {
     // Find "key" followed by ':' (so "rot_l" in a value can't match).
     const size_t kl = strlen(f.key);
@@ -298,7 +359,7 @@ int applyJson(const char* json, const char** err) {
 
 void registerCommands() {
   console::add("config", "settings: config [show|save|reset|set <key> <value>|keys]", cmdConfig);
-  console::add("art", "eye style: art [default|dragon|fire] ('config save' keeps it)", cmdArt);
+  console::add("art", "eye style: art [default|dragon|fire|m4] ('config save' keeps it)", cmdArt);
   console::add("flames", "flames + smoke around hazel/dragon eyes: flames [on|off]", cmdFlames);
   console::add("!a", "brain link: !a <style> overrides the eye style, !a alone restores it", cmdBrainArt);
 }

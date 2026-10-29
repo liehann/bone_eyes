@@ -35,7 +35,7 @@ td{padding:2px 12px 2px 0}
 </style></head><body>
 <h1>&#x1F480; bone_eyes</h1><div id=msg></div>
 <h2>Eyes</h2>
-<label>Style <select id=style><option value=default>regular (hazel)</option><option value=dragon>dragon</option><option value=fire>fire</option></select></label>
+<label>Style <select id=style><option value=default>regular (hazel)</option><option value=dragon>dragon</option><option value=fire>fire</option><option value=m4>M4 eye (settings below)</option></select></label>
 <div id=ovr><small></small></div>
 <label>Brightness <input type=range id=brightness min=0 max=255><span id=brightness_v></span></label>
 <label>Rotation left eye <select id=rot_l></select></label>
@@ -47,6 +47,20 @@ td{padding:2px 12px 2px 0}
 <label>Flames around regular/dragon eyes <input type=checkbox id=flames></label>
 <label>Smoke from flame tips <input type=checkbox id=smoke></label>
 <label>Fire eye flame length % <input type=number id=fire_len min=50 max=150 step=5></label>
+<h2>M4 eye</h2>
+<label>Eye set <select id=m4_eye></select></label>
+<label>Eyelid shape <select id=m4_lids></select></label>
+<label>Iris tint <input type=color id=m4_irisTint></label>
+<label>Sclera tint <input type=color id=m4_scleraTint></label>
+<label>Iris size px <input type=range id=m4_irisRadius min=10 max=83></label>
+<label>Slit pupil px (0 = round) <input type=range id=m4_slitPupilRadius min=0 max=83></label>
+<label>Pupil min <input type=range id=m4_pupilMin min=0 max=1 step=.01></label>
+<label>Pupil max <input type=range id=m4_pupilMax min=0 max=1 step=.01></label>
+<label>Eye tracking range <input type=range id=m4_gazeRange min=0 max=1 step=.05></label>
+<label>Lids follow the pupil <input type=checkbox id=m4_tracking></label>
+<label>Mirror lid art <input type=checkbox id=m4_lidMirror></label>
+<label>Extra blinks per minute <input type=number id=m4_blinkRate min=0 max=120 step=1></label>
+<div class=row><button id=m4_reset>M4 eye set defaults</button></div>
 <h2>Behaviour</h2>
 <label>Blink on its own <input type=checkbox id=blink></label>
 <label>Blink gap min ms <input type=number id=blink_min_ms min=500 max=20000 step=100></label>
@@ -61,13 +75,23 @@ td{padding:2px 12px 2px 0}
 const $=id=>document.getElementById(id);
 for(const r of['rot_l','rot_r'])for(const d of[0,90,180,270])$(r).add(new Option(d+'°',d));
 const msg=t=>{$('msg').textContent=t;clearTimeout(msg.t);msg.t=setTimeout(()=>$('msg').textContent='',3000)};
-function show(c){for(const k in c){const e=$(k);if(!e)continue;
+const hex=a=>'#'+a.map(v=>v.toString(16).padStart(2,'0')).join('');
+function opts(e,list,extra){const v=[...extra,...list].join();if(e.dataset.v==v)return;e.dataset.v=v;e.length=0;
+ for(const [t,val] of extra.map(x=>[x||"eye's own",x]).concat(list.map(x=>[x,x])))e.add(new Option(t,val))}
+function showM4(m,sets){if(!m)return;if(sets){opts($('m4_eye'),sets.eyes,[]);opts($('m4_lids'),sets.lids,['','none'])}
+ for(const k in m){const e=$('m4_'+k);if(!e||document.activeElement===e)continue;
+  if(e.type=='checkbox')e.checked=m[k];else e.value=Array.isArray(m[k])?hex(m[k]):m[k]}}
+function show(c){showM4(c.m4,c.m4_sets);for(const k in c){const e=$(k);if(!e)continue;
  if(e.type=='checkbox')e.checked=c[k];else if(document.activeElement!==e)e.value=c[k]}
  $('brightness_v').textContent=c.brightness;
  $('ovr').firstChild.textContent=c.style_override?'The brain is showing "'+c.style_override+'" for the current persona; picking a style here takes over.':''}
 async function post(q,b){try{const r=await fetch('/api/config'+q,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
  const c=await r.json();if(c.error)msg('Error: '+c.error);show(c);return c}catch(e){msg('Skull unreachable')}}
-document.querySelectorAll('input,select').forEach(e=>{if(e.id=='mood')return;
+document.querySelectorAll('[id^=m4_]').forEach(e=>{if(e.tagName=='BUTTON')return;
+ const send=()=>post('',{m4:{[e.id.slice(3)]:e.type=='checkbox'?e.checked:e.type=='color'||e.tagName=='SELECT'?e.value:Number(e.value)}});
+ if(e.type=='range'){e.oninput=()=>{clearTimeout(e.t);e.t=setTimeout(send,150)}}else e.onchange=send});
+$('m4_reset').onclick=()=>post('',{m4:{reset:true}});
+document.querySelectorAll('input,select').forEach(e=>{if(e.id=='mood'||e.id.startsWith('m4_'))return;
  const send=()=>post('',{[e.id]:e.type=='checkbox'?e.checked:e.id=='style'?e.value:Number(e.value)});
  if(e.type=='range')e.oninput=()=>{$('brightness_v').textContent=e.value;clearTimeout(e.t);e.t=setTimeout(send,120)};
  else e.onchange=send});
@@ -88,7 +112,7 @@ fetch('/api/config').then(r=>r.json()).then(show);status();setInterval(status,20
 void handleRoot() { server.send_P(200, "text/html", kPage, sizeof(kPage) - 1); }
 
 void sendConfig(const char* error = nullptr) {
-  static char body[768];  // one server task, so one buffer
+  static char body[2048];  // one server task, so one buffer (settings + the nested m4 object)
   size_t n = settings::toJson(body, sizeof body);
   if (error && n > 1) snprintf(body + n - 1, sizeof body - (n - 1), ",\"error\":\"%s\"}", error);
   server.send(error ? 400 : 200, "application/json", body);

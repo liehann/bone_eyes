@@ -1,0 +1,42 @@
+{
+ "name": "snake_green",
+ "eyeRadius": 83,
+ "irisRadius": 60,
+ "slitPupilRadius": 60,
+ "coverage": 0.6,
+ "pupilColor": [
+  0,
+  21,
+  20
+ ],
+ "backColor": [
+  76,
+  0,
+  0
+ ],
+ "irisColor": [
+  0,
+  0,
+  0
+ ],
+ "scleraColor": [
+  255,
+  230,
+  80
+ ],
+ "eyelidColor": [
+  0,
+  0,
+  0
+ ],
+ "pupilMin": 0.19999999999999996,
+ "pupilMax": 0.55,
+ "tracking": true,
+ "squint": 0.5,
+ "irisSpin": 0.0,
+ "scleraSpin": 0.0,
+ "irisMirror": false,
+ "irisAngle": 0,
+ "scleraAngle": 0,
+ "irisTexture": "iris.565"
+}
