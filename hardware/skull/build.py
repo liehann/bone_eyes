@@ -147,9 +147,9 @@ SEAM = dict(y0=-5.0, z0=32.0, slope=0.04)
 Y_BACK = 32.0           # front/back cut, just behind the eye bar and its screw heads
 Z_FLOOR = -14.0          # the chassis keeps the cranial floor below this behind Y_BACK
 JOINT_H = 12.0          # radial cover screws this far above their seam
-JOINTS = []             # no separate brackets: covers hook / sit on lips and take one screw each
+JOINTS = []             # no separate brackets: covers sit on lips / the cut and take one screw each
 LIP = dict(h=5.0, t=2.0, gap=0.5, chamfer=1.5)   # chassis lip inside the back cover's lower edge
-CAP_HOOK = dict(w=20.0, slide=6.0, gap=0.5)      # cap hooks under a forehead ledge after a 6 mm slide forward
+CAP_HOOK = dict(w=20.0)      # sizes the chassis forehead ledge only (the cap's hook is gone; face.stl is already printed)
 DOWELS = []
 DOWEL_D = 4.0
 DOWEL_HOLE_D = 5.0      # loose
@@ -1111,9 +1111,10 @@ def cover_joints(G, sd, inside, cavity):
     """Cover joints without brackets.
     Back cover: its lower edge drops over a lip on the chassis floor; one M3 from
     behind, low at the back, into an insert post on the chassis.
-    Cap: a hook on its front edge slides forward under a ledge on the chassis
-    forehead (lower the cap 6 mm back, slide forward); one M3 from behind
-    through the cap into an insert boss on the back cover."""
+    Cap: lowers straight down onto the cut; its front just rests on the cut
+    (no hook). One M3 from behind through the cap into an insert boss on the
+    back cover holds it. The chassis keeps its forehead ledge (face.stl is
+    already printed); nothing on the cap engages it."""
     t = SHELL_T; L = LIP
     out = dict(face=[], back=[], cap=[], cut_face=[], cut_back=[], cut_cap=[], fasteners=[])
 
@@ -1146,7 +1147,7 @@ def cover_joints(G, sd, inside, cavity):
                                  cb=yb + s1 - y_seat, opening='outside',
                                  spec=dict(kind='insert', L=12.0, d=3.0, clamped=['back'], receiver='face',
                                            head=M3_HEAD, clear_d=M3_CLEAR_D)))
-    # cap: forehead ledge (chassis) + hook (cap)
+    # cap: forehead ledge (chassis only; the cap's hook was removed so the cap prints rim-down)
     n, p0 = seam()
     tb = np.array([0.0, 1.0, -SEAM['slope']]); tb /= np.linalg.norm(tb)          # along the seam, backward
     xh = np.array([1.0, 0, 0])
@@ -1157,13 +1158,9 @@ def cover_joints(G, sd, inside, cavity):
             break
         pp = pp - tb * 0.2
     o_f = pp - n * float(np.dot(pp - p0, n))
-    hw = CAP_HOOK['w'] / 2; g = CAP_HOOK['gap']
+    hw = CAP_HOOK['w'] / 2
     ledge = obox_n(o_f, tb, n, xh, (-1.5, 4.0), (-3.0, 0.0), (-hw - 2, hw + 2))
     out['face'].append(ledge)
-    hook = union([obox_n(o_f, tb, n, xh, (-1.5, 7.0), (g, 4.0), (-hw, hw)),                  # bridge over the ledge
-                  obox_n(o_f, tb, n, xh, (4.0 + g, 7.0), (-6.0, 4.0), (-hw, hw)),             # stem behind it
-                  obox_n(o_f, tb, n, xh, (g, 7.0), (-6.0, -3.0 - g), (-hw, hw))])             # foot under it
-    out['cap'].append(hook)
     # cap screw: through the cap at the back, into a boss on the back cover
     yq = 120.0
     qb = np.array([0.0, yq, seam_z(yq)]) + n * 6.0
@@ -1189,8 +1186,7 @@ def cover_joints(G, sd, inside, cavity):
     out['fasteners'].append(dict(name='cap screw (M3x12)', head=c_seat, axis=tb, stage='cap', cb=s1 - s0 + 0.3, opening='outside',
                                  spec=dict(kind='insert', L=12.0, d=3.0, clamped=['cap'], receiver='back',
                                            head=M3_HEAD, clear_d=M3_CLEAR_D)))
-    out['slide_dir'] = tb
-    log('cap hook at %s, cap screw at %s, back screw at %s' % (np.round(o_f, 1), np.round(pco, 1), np.round([0, y_seat, zb], 1)))
+    log('forehead ledge at %s, cap screw at %s, back screw at %s' % (np.round(o_f, 1), np.round(pco, 1), np.round([0, y_seat, zb], 1)))
     return out
 
 
@@ -1430,9 +1426,7 @@ def usb_checks(R):
     # covers on/off with the cable plugged in: the back cover lifts straight up, the cap along its path
     n_s, _ = seam()
     back_sw = union([P['back'].translate([0, 0, d]) for d in np.arange(0.0, 60.01, 2.0)])
-    sl = CAP_HOOK['slide'] + 0.5
-    cap_sw = union([P['cap'].translate(list(R['cap_slide'] * d)) for d in np.arange(0.0, sl + 0.01, 1.0)] +
-                   [P['cap'].translate(list(R['cap_slide'] * sl + n_s * d)) for d in np.arange(1.0, 40.01, 3.0)])
+    cap_sw = union([P['cap'].translate(list(n_s * d)) for d in np.arange(0.0, 40.01, 2.0)])
     res['cable_cover_seams'] = hits(K['cable_bare'] + K['plug'], dict(back_on_off=back_sw, cap_on_off=cap_sw))
     for i, sy in enumerate(('front', 'back')):
         res['dupont_' + sy] = hits(K['dupont'][i], cap_on)
@@ -1741,7 +1735,7 @@ def build():
     paint = union([paint] + [m_cyl([xe, yb_ - 0.05, 0], [xe, y_glass - 0.1, 0], APERTURE_D / 2 + 0.15) -
                              m_cyl([xe, yb_ - 1, 0], [xe, y_glass, 0], APERTURE_D / 2 - 0.2) for xe in (-EYE_SPACING / 2, EYE_SPACING / 2)])
     return dict(parts=parts, hardware=hardware, display=dict(paint=paint, screens=screens), info=info,
-                fasteners=fast, hand=hand, skin_v=skin_v, peg=peg, cap_slide=CJ['slide_dir'], hinge=hinge, mech=mech, jaw_moving=jaw_moving,
+                fasteners=fast, hand=hand, skin_v=skin_v, peg=peg, hinge=hinge, mech=mech, jaw_moving=jaw_moving,
                 G=G, sh=sh, inside=inside, crm=crm)
 
 
@@ -2051,9 +2045,7 @@ def verify(R):
             if q.volume() > 1:
                 log('  back drop-in clash at lift %g: %.1f mm3 at %s' % (d, q.volume(), np.round(q.bounding_box(), 1)))
     under2 = union([under, P['back']] + [m for k, m in P.items() if k.startswith('joint_bracket_cap')])
-    sl = CAP_HOOK['slide'] + 0.5
-    cap_path = [R['cap_slide'] * d for d in np.arange(0.5, sl + 0.01, 0.5)] + \
-        [R['cap_slide'] * sl + n_seam * d for d in np.arange(1.0, 121.0, 2.0)]
+    cap_path = [n_seam * d for d in np.arange(0.5, 121.0, 1.5)]
     rep['cap_lift'] = max(vol(P['cap'].translate(list(v)) ^ under2) for v in cap_path)
     # joint brackets: the back part slides on along Y; nothing may catch on the way
     rep['bracket_slide'] = []
@@ -2399,7 +2391,7 @@ def sections(R, items):
     section(ax[1], 'y', R['hinge'][0], (-60, 60), (-60, 10), 'Section through the hinge axis (y = %.1f)' % R['hinge'][0])
     fig.tight_layout(); fig.savefig(os.path.join(HERE, 'skull_section_jaw.png'), dpi=90); plt.close(fig)
     fig, ax = plt.subplots(1, 3, figsize=(24, 8))
-    section(ax[0], 'x', 0.0, (-25, 15), (12, 48), 'Cap front: hook under the chassis ledge (x = 0)')
+    section(ax[0], 'x', 0.0, (-25, 15), (12, 48), 'Cap front: resting on the cut (x = 0)')
     section(ax[1], 'x', 0.0, (110, 165), (-30, 40), 'Back: cover screw into chassis post (low), cap screw into back-cover boss (high)')
     section(ax[2], 'x', -52.0, (30, 140), (-30, 40), 'Side (x = -52): back cover on the floor lip')
     fig.tight_layout(); fig.savefig(os.path.join(HERE, 'skull_cover_joints.png'), dpi=90); plt.close(fig)
@@ -2505,7 +2497,7 @@ def main():
         log('%-24s %6.1f cm3  %s mm  watertight=%s bodies=%d' % (k, v['volume_cm3'], v['size'], v['watertight'], v['bodies']))
     log('collisions (> 0.005 cm3):', rep['collisions'] or 'none')
     log('bracket slide-on interference (cm3):', rep['bracket_slide'])
-    log('back cover drop-in (straight down, cap off): %.3f cm3; cap (lower 6.5 mm back, slide forward under the hook): %.3f cm3'
+    log('back cover drop-in (straight down, cap off): %.3f cm3; cap (straight down onto the cut): %.3f cm3'
         % (rep['back_lift'], rep['cap_lift']))
     bad = [t for t in rep['tool_access'] if not t['ok']]
     for t in rep['tool_access']:

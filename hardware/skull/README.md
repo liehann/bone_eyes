@@ -12,7 +12,7 @@ Every electronic part and the jaw mount on the chassis.
 - **Taking the back cover off** opens the space right behind the eye bar
   horizontally.
 - **Taking the cap off** opens the whole top.
-- The covers hook or sit on lips and take **one screw each**.
+- The covers sit on lips or on the cut and take **one screw each**.
 
 Everything comes from `build.py` and is reproducible.
 
@@ -28,7 +28,7 @@ Everything comes from `build.py` and is reproducible.
 | `skull_chassis_from_above.png` | the same from above with the electronics fitted, and the tool paths for the screws driven from the top |
 | `skull_chassis_34_hw.png` | the chassis with everything fitted, covers off |
 | `skull_covers.png` | the back cover and the cap (cap lifted 60 mm) |
-| `skull_cover_joints.png` | sections through the cover joints: cap hook under the forehead ledge; the back cover screw and the cap screw; the floor lip |
+| `skull_cover_joints.png` | sections through the cover joints: the cap's front resting on the cut; the back cover screw and the cap screw; the floor lip |
 | `out/closeup_back_cover_screw.png`, `out/closeup_cap_screw.png` | sections through the two cover screws: screw (red), head, insert (gold) in its bore |
 | `out/closeup_jaw_horn_pad.png`, `out/closeup_jaw_pivot.png` | sections through the jaw attachments: servo-side knuckle and horn screws, pivot knuckle and bolt |
 | `out/closeup_jaw_pivot_34.png`, `out/closeup_jaw_horn_34.png` (+ `_inside`) | each half of the jaw on its own, 3/4 view from outside (and from inside): the knuckles |
@@ -140,7 +140,7 @@ with the jaw. The stand adds 78 mm.
 |---|---|---|---|---|---|
 | `face.stl` (chassis) | 115 × 171 × 95 | 129 cm³ | upright, as in the skull | yes: under the cranial floor, inside the socket bowls (their tops), under the posts and pivot boss | ~7 h |
 | `back.stl` (back cover) | 134 × 124 × 50 | 40 cm³ | lower cut (z = −14) on the bed | none to little | ~2 h |
-| `cap.stl` | 134 × 172 × 74 | 95 cm³ | cut face on the bed, crown up | under the front hook only | ~4 h |
+| `cap.stl` | 134 × 172 × 70 | 94 cm³ | cut face on the bed (whole rim flat on the bed), crown up | inside the dome (see below) | ~4 h |
 | `jaw.stl` | 99 × 97 × 74 | 57 cm³ | upright | tree under the lower border and the two hinge knuckles | ~2 h |
 | `stand.stl` | Ø110 × 88 | 114 cm³ | base on the bed | none (the cable slot is open) | ~3 h |
 | `servo_bracket.stl` | 40 × 18 × 27 | 3.1 cm³ | servo plate's outer face on the bed (flange and gussets stand up) | none | ~15 min |
@@ -173,15 +173,16 @@ bridge over 10 mm; the other parts are reported only. This build:
 | `servo_bracket.stl` | 0.5 mm² | none | 392 mm² | fails above 50 mm² / 10 mm |
 | `esp32_tray.stl` | 0 | none | 1,747 mm² | fails above 50 mm² / 10 mm |
 | `back.stl` | ~680 mm² | 18 mm² (2 mm) | 1,022 mm² | not yet printed |
-| `cap.stl` | ~11,600 mm² | 640 mm² (4.5 mm) | 130 mm² | not yet printed |
+| `cap.stl` | ~10,260 mm² | 555 mm² (1.4 mm) | 1,318 mm² | whole cut rim on the bed (no hook) |
 | `jaw.stl` | ~1,180 mm² | 59 mm² (2 mm) | 0 | not yet printed |
 | `stand.stl` | 10 mm² | 2 mm² (1.9 mm) | 8,873 mm² | not yet printed |
 | `liner_*.stl` | 18 mm² each | ~1 mm² | 170–230 mm² | already printed; the 45° outside meshes a hair past the limit |
 
 Unprinted parts: the jaw has no flat face on the bed (it stands on the chin
-and teeth), so it needs supports and a brim as before. The cap printed cut
-face down has the inside of the dome over air: its upper inside surface
-(about 11,600 mm²) needs support, not only the front hook; consider printing it
+and teeth), so it needs supports and a brim as before. The cap prints cut
+face down with its whole rim (about 1,300 mm²) on the bed; nothing on it
+stands below the rim any more. The inside of the dome is over air: its upper inside surface
+(about 10,260 mm²) needs support; consider printing it
 crown down on supports instead, or accept tree supports inside. The back
 cover needs support under its inside top edge and the screw pad.
 
@@ -419,18 +420,19 @@ before that fill.
     gap), and the slanted outside gets a Ø6.5 spot face so the head sits
     flat.
 - **Cap:**
-  - A hook on its front edge (bridge, stem and foot, 20 mm wide, 0.5 mm
-    clearances) goes under a ledge on the chassis forehead.
-  - Fitting: lower the cap 6.5 mm behind its place, then slide it forward
-    along the cut; the foot slides under the ledge.
-  - One M3×12 from behind, high at the back of the head, goes through the
+  - Fitting: lower it straight down onto the cut. Its front just rests on
+    the cut; there is no hook (removed so the cap prints with its whole rim
+    on the bed). The chassis still has the small forehead ledge it was
+    printed with; nothing engages it.
+  - It is held only by the back screw:
+    one M3×12 from behind, high at the back of the head, goes through the
     cap into an insert boss on the back cover. The boss reaches up across the
     cap cut to the screw axis (6 mm above it), with a flat face square to the
     screw about 1 mm inside the cap wall. The back cover is then trapped
     under the cap, and screwed to the chassis at its bottom.
 - **Checked:**
   - The back cover drops in with everything fitted.
-  - The cap's lower-back-then-slide-forward path is clear.
+  - The cap's straight-down path onto the cut is clear.
   - Nothing collides when fitted.
 
 ### Tool access (checked by the build; it fails on any problem)
@@ -557,7 +559,7 @@ What changed:
 
 | Joint | Before | Now |
 |---|---|---|
-| Joint brackets | 8 screws | gone; replaced by hooks/lips + 2 screws |
+| Joint brackets | 8 screws | gone; replaced by lips/the cut + 2 screws |
 | Eye bar | 2 bolts | 1 bolt + a key peg |
 | Tray | 4 bolts | clamped under the 2 servo-bracket bolts (M3×8 → M3×12): no screws of its own |
 | Stand | M5 bolt | M3 radial screw |
@@ -627,7 +629,7 @@ Everything goes onto the chassis. The back cover and then the cap go on last.
 | `JAW_OPEN_DEG`, `JAW_STOP_MARGIN`, `JAW_CLOSE_STOP`, `TEETH_GAP` | 18, 2, −0.5, 0.8 | jaw range and stops |
 | `SERVO`, `SERVO_SIDE`, `HORN_FACE_X` | MG90S | servo dimensions and side |
 | `SEAM`, `Y_BACK`, `Z_FLOOR` | z = 32 − 0.04(y + 5), 32, −14 | the cuts |
-| `LIP`, `CAP_HOOK` | 5 mm / 0.5 gap; 20 mm, 6 mm slide | cover joints |
+| `LIP`, `CAP_HOOK` | 5 mm / 0.5 gap; 20 mm | cover joints (`CAP_HOOK` now only sizes the chassis forehead ledge; the cap has no hook) |
 | `BAR_BOLTS` | [0] | which eye-bar hole gets the bolt (the other gets a key peg) |
 | `EYE_BAR_BACKOFF`, `TOOL_D`, `TOOL_TIP_D`, `TOOL_TIP_L`, `TOOL_LEN` | 12, 8, 5.5, 8, 100 | insertion and tool-access checks |
 | `RADAR`, `ESP32`, `RAIL`, `TRAY`, `TIE_BAR` | | electronics (board placement, ESP32 tray rails, cable notch) |
