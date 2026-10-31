@@ -207,7 +207,7 @@ class Brain:
             self.persona = persona
             # The skeleton is the skull itself: show its saved eye style (set on
             # its web page); possessing spirits override it until they leave.
-            self.skull.art(None if persona.id == SKELETON else persona.eyes)
+            self.skull.art(None if persona.id == SKELETON or persona.eyes == "keep" else persona.eyes)
             self.emit({"type": "persona", "id": persona.id, "name": persona.name, "eyes": persona.eyes})
 
     def _voice_key(self, pid: str):
