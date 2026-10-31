@@ -11,6 +11,8 @@ void begin();
 void add(const char* name, const char* help, Handler fn);
 // Call from loop(); dispatches complete lines.
 void poll();
+// Run one command line (modifies it). Used by the UDP link for `!` messages.
+void exec(char* line);
 
 // Helpers for handlers.
 bool argInt(int argc, char** argv, int i, long& out);

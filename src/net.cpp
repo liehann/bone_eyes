@@ -3,17 +3,20 @@
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <esp_heap_caps.h>
 
 #include "config.h"
 #include "console.h"
 #include "eyes.h"
+#include "jaw.h"
 #include "settings.h"
 
 namespace net {
 namespace {
 
 WebServer server(80);
+constexpr uint16_t kBrainUdpPort = 4210;
 bool apMode = false;
 
 String ip() { return (apMode ? WiFi.softAPIP() : WiFi.localIP()).toString(); }
@@ -72,6 +75,12 @@ td{padding:2px 12px 2px 0}
 <label>Mirror lid art <input type=checkbox id=m4_lidMirror></label>
 <label>Extra blinks per minute <input type=number id=m4_blinkRate min=0 max=120 step=1></label>
 <div class=row><button id=m4_reset>M4 eye set defaults</button></div>
+<h2>Jaw</h2>
+<label>Closed angle&deg; <input type=number id=jaw_closed min=0 max=180 step=1></label>
+<label>Open angle&deg; <input type=number id=jaw_open min=0 max=180 step=1></label>
+<label>Raw angle (live) <input type=range id=jaw_raw min=0 max=180 step=1 value=90><span id=jaw_raw_v>90</span></label>
+<div class=row><button id=jaw_test>Jaw test</button><button id=jaw_c>Go to closed</button><button id=jaw_o>Go to open</button></div>
+<small>Travel is only about 18&deg;. The raw slider ignores the limits: keep it between closed and open. Save keeps the angles.</small>
 <h2>Behaviour</h2>
 <label>Blink on its own <input type=checkbox id=blink></label>
 <label>Blink gap min ms <input type=number id=blink_min_ms min=500 max=20000 step=100></label>
@@ -102,7 +111,12 @@ document.querySelectorAll('[id^=m4_]').forEach(e=>{if(e.tagName=='BUTTON')return
  const send=()=>post('',{m4:{[e.id.slice(3)]:e.type=='checkbox'?e.checked:e.type=='color'||e.tagName=='SELECT'?e.value:Number(e.value)}});
  if(e.type=='range'){e.oninput=()=>{clearTimeout(e.t);e.t=setTimeout(send,150)}}else e.onchange=send});
 $('m4_reset').onclick=()=>post('',{m4:{reset:true}});
-document.querySelectorAll('input,select').forEach(e=>{if(e.id=='mood'||e.id.startsWith('m4_'))return;
+const jaw=q=>fetch('/api/jaw?'+q,{method:'POST'}).catch(()=>msg('Skull unreachable'));
+$('jaw_test').onclick=()=>{jaw('cmd=test');msg('Jaw test running')};
+$('jaw_c').onclick=()=>{jaw('deg='+$('jaw_closed').value);$('jaw_raw').value=$('jaw_closed').value;$('jaw_raw_v').textContent=$('jaw_raw').value};
+$('jaw_o').onclick=()=>{jaw('deg='+$('jaw_open').value);$('jaw_raw').value=$('jaw_open').value;$('jaw_raw_v').textContent=$('jaw_raw').value};
+$('jaw_raw').oninput=e=>{$('jaw_raw_v').textContent=e.target.value;clearTimeout(e.target.t);e.target.t=setTimeout(()=>jaw('deg='+e.target.value),80)};
+document.querySelectorAll('input,select').forEach(e=>{if(e.id=='mood'||e.id.startsWith('m4_')||e.id=='jaw_raw')return;
  const send=()=>post('',{[e.id]:e.type=='checkbox'?e.checked:e.type=='color'||isNaN(e.value)?e.value:Number(e.value)});
  if(e.type=='range')e.oninput=()=>{$(e.id+'_v').textContent=e.value;clearTimeout(e.t);e.t=setTimeout(send,120)};
  else e.onchange=send});
@@ -178,6 +192,25 @@ void handleEyes() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
+bool jawTesting = false;
+
+// POST /api/jaw?cmd=test, or ?deg=<0-180> (raw angle, for calibration)
+void handleJaw() {
+  if (server.arg("cmd") == "test") {
+    if (!jawTesting) {
+      jawTesting = true;
+      xTaskCreate([](void*) { jaw::test(); jawTesting = false; vTaskDelete(nullptr); }, "jawtest", 3072, nullptr, 1, nullptr);
+    }
+  } else if (server.hasArg("deg")) {
+    const int d = server.arg("deg").toInt();
+    if (d < 0 || d > 180) return server.send(400, "application/json", "{\"error\":\"deg: 0-180\"}");
+    jaw::setRawAngle(d);
+  } else {
+    return server.send(400, "application/json", "{\"error\":\"cmd=test or deg=0-180\"}");
+  }
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
 void handleStatus() {
   char body[384];
   snprintf(body, sizeof(body),
@@ -190,9 +223,24 @@ void handleStatus() {
   server.send(200, "application/json", body);
 }
 
+// Brain link over UDP: one `!` message per datagram, same commands as the
+// serial console (!j, !a ...).
+WiFiUDP brainUdp;
+void pollBrainUdp() {
+  char buf[96];
+  for (int n = brainUdp.parsePacket(); n > 0; n = brainUdp.parsePacket()) {
+    const int len = brainUdp.read(buf, sizeof buf - 1);
+    if (len <= 0) continue;
+    buf[len] = 0;
+    for (char* p = strtok(buf, "\r\n"); p; p = strtok(nullptr, "\r\n"))
+      if (*p == '!') console::exec(p);
+  }
+}
+
 void serverTask(void*) {
   for (;;) {
     server.handleClient();
+    pollBrainUdp();
     vTaskDelay(2);
   }
 }
@@ -233,7 +281,9 @@ void begin() {
   server.on("/api/config", HTTP_GET, handleGetConfig);
   server.on("/api/config", HTTP_POST, handlePostConfig);
   server.on("/api/eyes", HTTP_POST, handleEyes);
+  server.on("/api/jaw", HTTP_POST, handleJaw);
   server.begin();
+  brainUdp.begin(kBrainUdpPort);
   // Core 0 with the WiFi stack and the LCD render worker; the eye task owns core 1.
   xTaskCreatePinnedToCore(serverTask, "http", 5120, nullptr, 1, nullptr, 0);
   cmdWifi(0, nullptr);

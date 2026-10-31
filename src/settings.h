@@ -42,6 +42,7 @@ struct Settings {
   // iris and the sclera textures. Baked into texture copies when they change.
   int32_t irisHue, irisSat, irisTint;
   int32_t scleraHue, scleraSat, scleraTint;
+  int32_t jawClosed, jawOpen;  // servo angles (deg) for closed / fully open
   int32_t firePalette;  // eye_tint::Palette, for the fire eye and the flame overlay
 };
 

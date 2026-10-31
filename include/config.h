@@ -92,10 +92,13 @@ constexpr uint32_t EYE_BLINK_MAX_MS = 6000;
 
 // ---------------------------------------------------------------------------
 // Jaw (calibrate after mounting; `jaw closed <deg>` / `jaw open <deg>` then
-// `jaw save` stores them in NVS, these are the defaults)
+// `jaw save` stores them in NVS, these are the defaults). The mechanism's safe
+// travel is only ~18 deg (hard stops at -0.5 and +20 deg of jaw rotation), so
+// open = closed - 18. The sign depends on how the horn is fitted: calibrate.
 // ---------------------------------------------------------------------------
 constexpr int JAW_CLOSED_DEG = 90;
-constexpr int JAW_OPEN_DEG = 60;
+constexpr int JAW_TRAVEL_DEG = 18;                             // safe travel; do not exceed
+constexpr int JAW_OPEN_DEG = JAW_CLOSED_DEG - JAW_TRAVEL_DEG;  // 72
 constexpr int SERVO_MIN_US = 500;
 constexpr int SERVO_MAX_US = 2400;
 

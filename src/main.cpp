@@ -4,6 +4,7 @@
 #include "config.h"
 #include "console.h"
 #include "eyes.h"
+#include "jaw.h"
 #include "net.h"
 #include "settings.h"
 
@@ -44,6 +45,8 @@ void setup() {
   settings::begin();  // before the eyes start, so the first frame uses them
   settings::registerCommands();
   eyes::registerCommands();
+  jaw::registerCommands();
+  jaw::begin();  // goes to closed
   eyes::begin(eyes::Backend::Lcd);
   net::registerCommands();
   net::begin();

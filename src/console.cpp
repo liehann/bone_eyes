@@ -55,7 +55,7 @@ void poll() {
     if (c == '\r' || c == '\n') {
       if (len == 0) continue;
       line[len] = 0;
-      Serial.printf("> %s\n", line);
+      if (line[0] != '!') Serial.printf("> %s\n", line);  // brain messages come at 30 fps: no echo
       dispatch(line);
       len = 0;
     } else if (c == 8 || c == 127) {
@@ -65,6 +65,8 @@ void poll() {
     }
   }
 }
+
+void exec(char* s) { dispatch(s); }
 
 bool argInt(int argc, char** argv, int i, long& out) {
   if (i >= argc) return false;

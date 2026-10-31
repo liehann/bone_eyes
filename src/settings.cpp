@@ -47,6 +47,8 @@ const Field kFields[] = {
     FIELD("sclera_hue", kInt, -180, 180, scleraHue),
     FIELD("sclera_sat", kInt, 0, 200, scleraSat),
     FIELD("sclera_tint", kColor, 0, 0xFFFFFF, scleraTint),
+    FIELD("jaw_closed", kInt, 0, 180, jawClosed),
+    FIELD("jaw_open", kInt, 0, 180, jawOpen),
     FIELD("fire_palette", kPalette, 0, eye_tint::kNumPalettes - 1, firePalette),
 };
 #undef FIELD
@@ -220,6 +222,8 @@ Settings defaults() {
   d.irisHue = d.scleraHue = 0;
   d.irisSat = d.scleraSat = 100;
   d.irisTint = d.scleraTint = 0xFFFFFF;
+  d.jawClosed = JAW_CLOSED_DEG;
+  d.jawOpen = JAW_OPEN_DEG;
   d.firePalette = eye_tint::kOrange;
   return d;
 }

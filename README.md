@@ -98,9 +98,28 @@ Type `help` in the monitor.
 | `config` / `config show` | print the settings as JSON |
 | `config set <key> <value>`, `config keys` | change one setting live / list the keys (e.g. `config set iris_hue 120`, `config set sclera_tint #ffc0c0`, `config set fire_palette blue`) |
 | `config save` / `config reset` | keep the current settings across reboots / restore and save the `config.h` defaults |
+| `jaw` / `jaw <deg>` | print the jaw settings / drive the servo to a raw angle (0-180, NOT limited to closed/open: for calibration) |
+| `jaw closed <deg>`, `jaw open <deg>`, `jaw save` | set the closed / open angles (moves the jaw there) / keep them in NVS |
+| `jaw test` | sweep closed, open, closed 3 times |
+| `!j <0-1000>` | brain link (serial or UDP port 4210): jaw opening, 0 = closed, 1000 = open. Clamped between the closed and open angles, slewed at 225 deg/s max |
 | `!a <style>` / `!a` | brain link: override the eye style for the speaking persona (not saved) / back to the saved style |
 | `lcd prof` | frame-time breakdown since the last call: simulation, row rendering on each core, SPI waits |
 | `lcd rot [L\|R\|both <0\|90\|180\|270>]` | show or set each eye's picture rotation (clockwise, seen from the front), then show the test pattern. A setting: `config save` keeps it (`EYE_L_ROT` / `EYE_R_ROT` are the defaults) |
+
+## Jaw calibration
+
+MG90S on GPIO27 (5 V, GND). The mechanism's safe travel is only about 18 deg
+(hard stops at -0.5 and +20 deg of jaw rotation), so the default is closed 90,
+open 72 (closed - 18). Which way the jaw opens depends on how the horn is
+fitted, so calibrate (console, or the Jaw section of the web page: number
+fields for closed/open, a live raw-angle slider, "Jaw test", Save):
+
+1. Horn off: `jaw 90`. Fit the horn pointing down the jaw arm.
+2. Jaw on: step `jaw <deg>` (small moves) until the teeth just touch, then `jaw closed <deg>`.
+3. Open about 18 deg the right way (above or below closed): `jaw open <deg>`. Never more than 18 deg from closed.
+4. `jaw test` to check, then `jaw save`.
+
+Boot goes to the closed angle. `jaw <deg>` ignores the limits; `!j` never leaves them.
 
 ## Settings web page
 
