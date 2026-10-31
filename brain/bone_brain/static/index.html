@@ -88,6 +88,7 @@
     <section>
       <h2>Settings</h2>
       <div class="row"><label>speaker</label><select id="out"></select></div>
+      <div class="row"><label>auto talk</label><input type="checkbox" id="autoOn"> every <input type="number" id="autoSec" min="5" max="600" step="5" value="30" style="width:70px"> s <span class="small">speaks by itself while nobody is visiting</span></div>
       <div class="row"><label>replies</label><select id="llm"></select></div>
       <p class="small" id="linesInfo"></p>
     </section>
@@ -165,6 +166,7 @@ function connect() {
       settings = m;
       fill($('llm'), m.llm_options, m.llm); fill($('out'), m.out_options, m.out);
       $('state').textContent = m.state;
+      $('autoOn').checked = m.auto > 0; if (m.auto > 0) $('autoSec').value = m.auto;
       $('llmPill').textContent = m.llm === 'claude' ? m.model : 'canned replies (no API cost)';
       $('skullPill').textContent = 'skull: ' + m.skull;
       $('skullPill').className = 'pill' + (m.skull.startsWith('error') ? ' bad' : '');
@@ -257,6 +259,8 @@ $('visitor').onclick = () => send({ cmd: 'visitor' });
 $('leave').onclick = () => send({ cmd: 'leave' });
 $('stop').onclick = () => send({ cmd: 'stop' });
 $('askBtn').onclick = () => send({ cmd: 'ask', text: $('ask').value });
+const setAuto = () => send({ cmd: 'set', key: 'auto', value: $('autoOn').checked ? Math.max(5, +$('autoSec').value || 30) : 0 });
+$('autoOn').onchange = setAuto; $('autoSec').onchange = () => { if ($('autoOn').checked) setAuto(); };
 $('llm').onchange = e => send({ cmd: 'set', key: 'llm', value: e.target.value });
 $('out').onchange = e => send({ cmd: 'set', key: 'out', value: e.target.value });
 connect();

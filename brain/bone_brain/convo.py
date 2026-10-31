@@ -1,5 +1,6 @@
 """The conversation loop: greet, listen, think, speak, repeat, say goodbye."""
 import asyncio
+import random
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -46,6 +47,9 @@ class Brain:
         self.present = False
         self.gone = threading.Event()
         self.typed_q: list[str] = []
+        self.auto_interval = 0.0   # seconds between unprompted lines; 0 = off
+        self.auto_due = 0.0        # monotonic time of the next one
+        self.auto_task: asyncio.Task | None = None
 
     # ---- lifecycle -------------------------------------------------------
     async def start(self):
@@ -60,6 +64,40 @@ class Brain:
         await self._refill_fillers(SKELETON)
         self.set_state("idle")
         asyncio.ensure_future(self._prerender_personas())
+        asyncio.ensure_future(self._auto_loop())
+
+    # ---- auto talk: an unprompted line every ~N s while nobody is visiting ---
+    def set_auto(self, seconds: float):
+        self.auto_interval = max(0.0, float(seconds or 0))
+        self._auto_reschedule()
+        self.emit({"type": "auto", "interval": self.auto_interval})
+
+    def _auto_reschedule(self):
+        self.auto_due = time.monotonic() + self.auto_interval * random.uniform(0.8, 1.2)
+
+    async def _auto_loop(self):
+        while True:
+            await asyncio.sleep(0.5)
+            if (self.auto_interval <= 0 or time.monotonic() < self.auto_due or self.present
+                    or self.busy() or self.player.busy() or self.state != "idle"):
+                continue
+            self.auto_task = asyncio.ensure_future(self._auto_say())
+            try:
+                await self.auto_task
+            except Exception as e:
+                self.log("error", f"auto: {type(e).__name__}: {e}")
+            self._auto_reschedule()
+
+    async def _auto_say(self):
+        kind = random.choices(["reply", "greet", "silence"], weights=[3, 1, 1])[0]
+        try:
+            await self.say(self.lines.pick(kind, self.persona.id))
+        except asyncio.CancelledError:
+            self.player.flush()
+            raise
+        finally:
+            if not self.busy():
+                self.set_state("idle")
 
     def set_state(self, state: str, **extra):
         self.state = state
@@ -113,6 +151,8 @@ class Brain:
         self.gone.set()
         if self.session and not self.session.done():
             self.session.cancel()
+        if self.auto_task and not self.auto_task.done():
+            self.auto_task.cancel()
         self.player.flush()
         self.set_state("idle")
 
@@ -144,6 +184,8 @@ class Brain:
         The goodbye comes only when presence clears (radar, or the page's Leave button)."""
         typed = self.typed_q
         try:
+            if self.auto_task and not self.auto_task.done():
+                await asyncio.wait([self.auto_task])  # let the line in progress finish
             self.set_state("greeting")
             await self.say(self.lines.pick("greet", self.persona.id))
             history: list[dict] = []
@@ -201,6 +243,7 @@ class Brain:
             self.present = False
             self.emit({"type": "presence", "present": False})
             self.set_state("idle")
+            self._auto_reschedule()
 
     def _set_persona(self, persona: Persona):
         if persona.id != self.persona.id:

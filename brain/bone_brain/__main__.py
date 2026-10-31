@@ -21,6 +21,8 @@ async def main():
     ap.add_argument("--mic", default=None, help="microphone device name (or part of it)")
     ap.add_argument("--persona", default=None,
                     help="party mode: the skull itself speaks as this persona (e.g. wizard), no possessions")
+    ap.add_argument("--auto", type=float, default=0, metavar="SECONDS",
+                    help="auto talk: say a random line about every N seconds while nobody is visiting (default off)")
     ap.add_argument("--port", type=int, default=cfg.web_port)
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
@@ -42,6 +44,9 @@ async def main():
         brain.possession = personas.Possession(hazard=0, wildcard=0)
         print(f"party mode: skull speaks as {args.persona}")
     server.brain = brain
+    if args.auto > 0:
+        brain.set_auto(args.auto)
+        print(f"auto talk: every ~{args.auto:g}s")
     brain.llm_backend = "claude" if args.claude and brain.llm.available else "canned"
 
     runner = web.AppRunner(server.app())
