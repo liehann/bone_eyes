@@ -1,6 +1,6 @@
 # Skull v2 architecture
 
-This is the Architect's design for v2 of the printed skull. It answers `docs/skull-v2-plan.md` and is the review gate before any code. The builders code against it; `hardware/skull_v2/interfaces.py` is made from the Interfaces table (§4).
+This is the Architect's design for v2 of the printed skull. **Revision 2** (§13) fixes the ten places where the mock-up found the dimensions don't fit together; where §13 and an earlier section disagree, §13 wins. It answers `docs/skull-v2-plan.md` and is the review gate before any code. The builders code against it; `hardware/skull_v2/interfaces.py` is made from the Interfaces table (§4).
 
 All numbers are in the v1 eye frame:
 - origin midway between the orbits;
@@ -32,7 +32,7 @@ Renders are in `docs/skull-v2/`. They were made by `hardware/skull_v2/proto/` fr
 - **One seam plane, y = 100**, 15 mm behind the widest point of the head. Nothing of it can be seen from the front (§2).
 - **Both shells print rim-down on that plane, with no support.** Each slides onto the chassis along Y, which is also its print axis. Every opening a shell needs for the chassis is then a vertical-walled prism in the print. The space between the skin and that cavity is modelled solid and printed as sparse infill (§1, Face shell).
 - **The chassis is a flat base plate with a spine, plus a front module.** The front module carries the eye bar, both LCDs and the ESP32, and it is wired on the bench before it goes in. The servo and pivot brackets are bolt-on. The jaw mechanism sits on the open chassis, and its screws are driven before any shell goes on.
-- **All 15 inserts are in chassis or jaw-mechanism parts.** The shells only take screw heads. Every shell screw goes in from below and can't be seen.
+- **All 15 inserts are in chassis, jaw-mechanism or stand parts** (table in §13). The shells only take screw heads. Every shell screw goes in from below and can't be seen.
 
 ### Fixed source
 
@@ -52,13 +52,13 @@ Times assume a Bambu H2D, PLA, 0.2 mm layers, 4 walls. Skin prints at about 20 c
 |---|---|---|---|---|---|---|
 | **Face shell** | The whole visible front: brow, sockets, nose, cheekbones, arches, upper teeth, forehead and top back to y = 100. Carries the liners and the radar pocket. | 134 W × 160 H × 128 deep | Seam rim down, face up (print +Z = skull −Y) | The face lip's end face on the seam plane, about 330 mm × 2.0 = **660 mm²**, plus the side-wall ends | **None.** The interior follows the 40° fill rule. A 45° backing goes behind the upper teeth, hidden in the mouth. | ~9 h: skin ~150 cm³, sparse fill ~1 L at 8 % |
 | **Cranium shell** | The back of the head and the top behind y = 100, and the base behind the stand column | 134 W × 150 H × 64 deep | Tongue tip down, back of the head up (print +Z = skull +Y) | The tongue tip on y = 92, about 400 mm × 1.6 = **640 mm²** | **None** (fill rule at the occiput, ~300 cm³ sparse) | ~4 h |
-| **Chassis base** | Flat plate under the hinge, servo and stand; spine at y 72–76; front and rear tongues for the shells; 10 inserts | 92 W × 78 deep × 71 H | Plate down (as fitted) | Plate underside, **~5,000 mm²** | None. The tongue joggles rise at 45°; the spine top is a top surface. | ~2 h |
+| **Chassis base** | Flat plate under the hinge, servo and stand; pads, servo pocket, spine at y 76–80; front and rear tongues for the shells; 8 inserts (§13) | 92 W × 78 deep × 71 H | Plate down (as fitted) | Plate underside, **~5,000 mm²** | None. The tongue joggles rise at 45°; the spine top is a top surface. | ~2 h |
 | **Front module** | Brow plate with two eye-bar posts (insert and key peg), two side arms back to the spine, ESP32 ledges, face-shell locator key; 3 inserts | 70 W × 62 deep × 36 H | Front face down (print +Z = skull +Y) | Front faces of the brow plate, posts and key at y = 10: **~520 mm²**. Widen the brow plate's front edge if this comes out under 500 mm². | None. The arms' front edges rise from the brow plate at 45°. | ~1.2 h |
-| **Servo bracket** | v1 L-bracket, minus the ESP32 tray foot; holds the MG90S by its tabs | 40 × 18 × 27 | v1 pose (servo plate's outer face down) | 392 mm² (≥ 30 % of its 486 mm² footprint) | None (v1: 0.5 mm²) | ~15 min |
-| **Pivot bracket** | Mirror of the servo bracket on −X: the jaw pivot insert (X axis) and the stop-block insert | ~30 × 20 × 26 | Outer face (−X) down, so both X inserts stand vertical | ~450 mm² (≥ 30 % of footprint) | None | ~20 min |
-| **Stop block** | Bolt-on hard stops for the jaw (closed −0.5°, open 20°), fitted after the jaw | ~16 × 14 × 12 | Flat side down | ≥ 30 % of footprint | None | ~10 min |
+| **Servo bracket** | Re-stacked (§13): servo plate under the tabs stands in a pocket in the base plate; a foot in front of the servo screws to a pad | 15.6 × 25.6 × 36 | v1 pose (servo plate's outer face down) | 392 mm² (≥ 30 % of its 486 mm² footprint) | None (v1: 0.5 mm²) | ~15 min |
+| **Pivot bracket** | Block inboard of the finger (x −26.5…−18) with an r 4 nose out to the pivot face; the jaw pivot insert and the stop insert, both X (§13) | 13.5 × 38.5 × 13 | Inner face (+X) down, nose up, so both X inserts stand vertical | ~470 mm² | None | ~20 min |
+| **Stop block** | Bolt-on C-shaped hard stop round the jaw's finger (closed −0.5°, open 20°), slid on after the jaw (§13) | 7 × 16 × 19 | Inner face (+X) down | ≥ 30 % of footprint | None | ~10 min |
 | **Jaw** | v1 jaw, closed pose, knuckles, horn screws and pivot hole | 99 × 97 × 74 | **Mandibular plane down**: tilted about 12° so that the chin bottom and both angles touch the bed, on a 1.5 mm sacrificial flat along the inferior border | Inferior-border strip, ~1,000 mm² (the builder confirms the number) | Under the front of the chin only, ≤ 15 mm tall. Knuckles grow on 45° gussets, with no trees under them. | ~3 h |
-| **Stand** | v1 stand, with a new top: a Ø56 flange under the base plate (§3, Exceptions) | Ø110 × 82 | Base down | 8,900 mm² | None | ~3 h |
+| **Stand** | v1 stand, with a new top: a Ø56 × 8 flange (45° chamfer under it) and 2 Z inserts in its top face (§3, Exceptions) | Ø110 × 92 (z −136…−44) | Base down | 8,900 mm² | None | ~3 h |
 | Liners (eyes, nose) | v1 parts, glued into the face shell | v1 | v1 | v1 | v1 | already printed |
 
 Total is about 23 h. The prints that matter first are short: chassis base and front module about 3 h, the jaw mechanism about 4 h.
@@ -124,11 +124,11 @@ These are sections of the v1 skull (black) and jaw (tan) with the v2 envelopes f
 **Base** (plate-down print):
 - **Plate:** z −44 to −40, y 48 to 104.
   - |x| ≤ 30 between the jaw knuckles (y < 80);
-  - |x| ≤ 46 behind them (y 80–104).
+  - |x| ≤ 49.5 behind them (y 81–104, rev 2).
 - **Front tongue:** y 38–48, |x| ≤ 22. It is joggled up on a 45° ramp to z −38 to −34, so the face shell's flange under it sits at the natural base level.
 - **Rear tongue:** y 104–116, |x| ≤ 30, joggled up the same way to z −38 to −34.
-- **Spine:** y 72–76, from the plate up to z +27.
-  - |x| ≤ 30 below z −19 (clear of the knuckles), ≤ 35 above.
+- **Spine:** y 76–80 (rev 2), from the plate up to z +27.
+  - |x| ≤ 16 below z −20, 45° chamfer to ≤ 35 at z −1 (rev 2).
   - Two horizontal teardrop clearance holes for the front-module screws.
   - A cable notch at x −14 to −8 at the bottom, for USB.
 - **Inserts**, all vertical (Z):
@@ -177,19 +177,19 @@ Eye frame, mm. "Owner" is the builder whose part must stay inside the envelope; 
 | USB plug | 90° micro-USB, cable down, envelope x −36…−27.5, y 42…53, z 8…26; cable Ø4.5, R15, down the −X arm, back at x −12, z −36, through the spine notch to the plate hole | hardware / chassis |
 | Front module envelope | \|x\| ≤ 37, y ≥ 8 (swept to S1), z −9…34 | front module / shells |
 | Locator key | x ±8, z 27–32, y 10–24, 1.5 mm 45° lead-ins; socket +0.25 per side | front module / face shell |
-| Front module → spine | 2 × M3 along Y at (±33, z 10); insert faces y 72 | chassis |
+| Front module → spine | 2 × M3 along Y at (±33, z 10); insert faces y 76 (rev 2: spine y 76–80) | chassis |
 | Hinge axis | y 65.13, z −29.43, along X | jaw / all |
 | Servo (MG90S) | +X; horn face x 33.0; case x 3.6–26.3, y 59.0–71.2, z −35.4…−12.6; tabs z −40.3…−7.8 | jaw |
 | Knuckle envelope | \|x\| 32.0–48.5 (hard limit 49.0), y 52–78, z −48…−19 | jaw / shells (hinge bay = this swept to S1 + 1.0) |
 | Jaw sweep | −1.5° to +21.5° about the hinge axis | jaw / shells, chassis |
 | Pivot | M3×20 along X from −X, pad face x −32.0, bracket face x −31.5 | jaw |
-| Servo bracket inserts | 2 × Z on the base (v1 positions, re-based) | jaw / chassis |
-| Pivot bracket inserts | 2 × Z on the base at (−24, 58) and (−24, 72) | jaw / chassis |
+| Servo bracket inserts | 2 × Z on the base pad at (7, 52.3) and (13, 52.3) (rev 2) | jaw / chassis |
+| Pivot bracket inserts | 2 × Z on the base pad at (−22.25, 52) and (−22.25, 59.5) (rev 2) | jaw / chassis |
 | Radar | 35 × 7 board, y 2.2–6.4, z −31…−24, \|x\| ≤ 17.5; lead out of the back | shells (pocket) |
 | Base plate | z −44…−40; outline above; tongues joggled to z −38…−34 | chassis |
 | Face screws | 2 × M3×12 at (±12, 44), from below | chassis inserts / face flange |
-| Cranium screws | 2 × M3×12 at (±20, 110), from below | chassis inserts / cranium flange |
-| Stand | column Ø38 at (0, 90); flange Ø56 under the plate, z −50…−44; 2 × M3×10 at (±24, 90) | stand / chassis |
+| Cranium screws | 2 × M3×12 at (±24, 113), from below (rev 2) | chassis inserts / cranium flange |
+| Stand | column Ø38 at (0, 90); flange Ø56, z −52…−44, 45° chamfer under it; 2 × M3×10 from above at (±22, 97) into the flange (rev 2) | stand / chassis |
 | Hinge bay | \|x\| < 50, y 48–100, z < −19: no face-shell material | shells |
 | Fits | slip 0.25 per side (lap, key, notches); loose 0.75 (dropped-in parts, as v1) | all |
 | Inserts | M3, Ø4.0 × 6.7 bore, Ø3.2 relief, ≥ 1.6 wall, 4 walls (v1 `insert_bore`) | all |
@@ -483,3 +483,56 @@ hardware/skull_v2/
 | Front-heavy head | Face shell about 300 g at y ≈ 20 | 0.2 N·m on the stand flange: trivial for 2 × M3 |
 | Hand room for the face screws (step 14) | The grip ends 5 mm above the stand base | Try it on the printed base (§10). Fallback: drive them with the skull off the stand, base down on a 40 mm block. |
 | Renders use v1 STLs fitted back by ICP (±1 mm) | Seam visibility margins are ±1 mm | y 100 has about 10 mm of margin to the nearest seen point |
+
+## 13. Revision 2: fit fixes from the mock-up
+
+The mock-up (`hardware/skull_v2/proto/mockup.py`, viewer `hardware/skull_v2/viewer/index.html`) modelled §1–§7 and found ten places where the numbers don't fit. Each fix is below, with the clearance the mock-up's fit check prints. Re-run it with `hardware/.venv/bin/python hardware/skull_v2/proto/mockup.py` (about 30 s). Hand model in every check: L-key 50 / 25 mm arms, Ø25 pinch grip over the held arm plus 15 mm, 45 × 60 × 30 knuckle and palm block behind it, 24 poses round the screw; a screw passes if a 60° run of poses is clear, either way round.
+
+### Changes
+
+| # | Finding | Fix | Fit check |
+|---|---|---|---|
+| 1 | Cranium screws at (±20, 110) sit over the Ø56 flange (0.3 mm) and the hand meets the column | Cranium screws move to **(±24, 113)**, 33.2 mm from the stand axis. Rear tongue y 104–118, \|x\| ≤ 30, joggled to z −38…−34 (ramp y 104–110). | Flange edge 2.5 mm past the head; key and hand clear: 3.8 mm, long arm in |
+| 2 | 6.7 mm bores in a 4 mm plate | Base inserts sit in **pads** (plate locally 8 mm, z −44…−36, with a 1 mm locating rim) under the brackets, and in **Ø9 × 4 bosses** on the tongue tops. Bore Ø4.0 × 6.7 from the top, then Ø3.2 relief (bracket screws) or Ø3.4 clearance (shell screws) through. The plate underside stays flat. | Every insert has ≥ 1.3 mm under its bore (table below) |
+| 3 | Servo tab z −40.3 is inside the plate; no room for a flange under it | **Re-stacked.** The servo stays on the hinge axis (case x 3.6–26.3, tabs z −40.28…−7.78). The servo plate (x 16.6–19.6, y 56.1–74.1, z −41.0…−5.0) stands in a **pocket** in the plate top (x 16.35–22.85, y 55.85–74.35, floor z −41.0, 3 mm of plate left). A **foot** in front of the servo (x 4–19.6, y 48.5–56.1, z −36…−33) with a 45° gusset bolts to a pad with 2 × M3×10 from above at (7, 52.3) and (13, 52.3). The pocket ends locate the plate in Y and take the servo torque. | Tab 0.72 mm above the pocket floor; 2.07 mm of plate under the lower tab hole; servo/bracket/base overlap 0; bracket key 2.2 mm clear |
+| 4 | Stop block inside the −X knuckle (106 vertices); knuckle inboard of the bracket face | **New stop.** The v1 finger on the pivot knuckle (x −32…−27.5, 5.5–13.5 behind the axis, ±2.5) runs in a **C-shaped stop block** (x −31…−26.75): lower jaw face = the finger's underside at −0.5°, upper jaw face = its top at 20°, back wall at r 14.7. The block slides forward (−Y) onto the finger after the jaw is in, rests against the pivot bracket's outer face (x −26.5) on a 2 mm rib along Y, and is held by 1 × M3×12 along +X from outside, through an ear at y 80–86.5 (behind the jaw), into the bracket's second X insert at (−26.5, 83, −30). | Jaw sweep −0.5…20° vs stop, both brackets, base, front module, fillers: 0 overlap. Gap just inside each stop 0.1 mm; 4.4–4.6 mm³ overlap 1° past each stop (the stops work). Slide-on path: 0 overlap. Stop key: 6.8 mm clear |
+| 5 | Pivot boss (x −31.5…−16) overhangs the \|x\| ≤ 30 plate | **Boss moved inboard.** Pivot bracket body x −26.5…−18, y 48.5–87, z −36…−23, on a pad; only the **r 4 nose** (x −31.5…−26.5, on the axis, above the plate) reaches the pivot face. 2 × M3×10 from above through counterbores at (−22.25, 52) and (−22.25, 59.5). The plate can't widen there: the rami's inner faces are at \|x\| 31.3. | Body 3.5 mm inside the plate edge; 1.0 mm to the finger, 0.5 mm to the jaw; key 1.7 mm clear |
+| 6 | Insert inventory inconsistent | One table, below. 15 in all. | 8 base + 2 pivot bracket + 3 front module + 2 stand |
+| 7 | Stand 82 vs 88 vs 92 | **Stand z −136…−44, Ø110 × 92.** Top: Ø56 × 8 flange (z −52…−44) on a 45° chamfer from the Ø38 column (z −61.5…−52), Ø30 spigot. | 92 mm |
+| 8 | Below z −19 the S1 lap has no face-shell rebate; the skin y 79–100 behind the knuckles is missing (the face shell must leave it open for the knuckles to slide through, and the cranium can't reach forward in its print pose) | Two bolt-on **mastoid fillers** (L, R) fill the skin from the knuckle passage to S1: y 81–100, \|x\| 36 to the skin, z up to −19. Each carries the S1 rebate (lip and 45° rebate end, as the face shell) for the cranium tongue, so the lap runs all round. A 3 mm tongue on its top edge goes inside the face shell's skin edge (45° root). Fitted after the face shell, in from behind onto the plate wing, 1 × M3×12 self-tapping from below at (±40, 90) into a teardrop pilot. Print: inner face (\|x\| = 36 plane) down, skin up, no support. | Jaw sweep to filler 3.2 mm; filler key 6.0 mm clear |
+| 9 | Plate \|x\| ≤ 46 vs bay edge 50: 4 mm slit | **Plate wings widen to \|x\| ≤ 49.5** for y 81–104 (the jaw sweep ends at y ≈ 79). The fillers sit on them. | 0.5 mm slit; jaw sweep to plate 2.0 mm |
+| 10 | Front module arms in the USB plug; ESP32 ends 3.5 mm off the arms; LCD reach | **USB window** in the −X arm: open from the arm top down to z 7.25, y 41.25–53.75 (plug + 0.75), with a 45° roof back to y 74 at the arm top (its pointed top in the front-down print). **Ledges** \|x\| 25–31 at z 19–22 (6 mm reach, 2.5 mm under each board end, clear of the housings at \|x\| ≤ 25), with 0.5 mm end lips at \|x\| 28; on −X they stop either side of the window (y 33.4–41.25, 53.75–61.4). Arms now run to the moved spine (y 27–76). | Plug vs module overlap 0. LCD leads: longest route 60 of 82 mm free, **22 mm slack** (unchanged: the ESP32 does not move) |
+
+Changes forced by the fixes:
+- **Spine moves back to y 76–80** (was 72–76), so the servo plate's rear rail fits (1.9 mm). Below z −20 it narrows to \|x\| ≤ 16, then widens on a 45° chamfer to \|x\| ≤ 35 at z −1, clear of the finger, the stop and the pivot bracket. The front-module arms lengthen 4 mm; their Y inserts face y 76; spine screws' heads at y 80.
+- **Stand screws come from above** through the plate into 2 inserts in the stand flange top, at (±22, 97). From below, at (±24, 90), the hand meets the column (24 mm from the axis; the grip needs ≥ 31.5). From above they're driven at step 2 with nothing fitted: 6.0 mm clear. The flange no longer carries the base's stand inserts, and the 45° chamfer under it is now free to block nothing. Service: shells off first, then the stand screws are open from above.
+- **USB cable** passes over the pivot bracket: arm → (−14, 52, −18) → down at x −12 → spine notch (x −14…−8) → plate hole. 0 overlap with both brackets.
+- Assembly order: **15 steps**, with the old steps 2 and 3 merged (base onto the stand, screws from above) and a new step 14 (fillers). See the viewer.
+
+### Inserts (all M3, Ø4.0 × 6.7 bore, 4 walls)
+
+| Part | Axis | Position (x, y, z of the mouth) | Count | For |
+|---|---|---|---|---|
+| Base (pad) | Z | (7, 52.3, −36), (13, 52.3, −36) | 2 | Servo bracket, screws from above |
+| Base (pad) | Z | (−22.25, 52, −36), (−22.25, 59.5, −36) | 2 | Pivot bracket, screws from above |
+| Base (tongue boss) | Z | (±12, 44, −30) | 2 | Face shell, screws from below |
+| Base (tongue boss) | Z | (±24, 113, −30) | 2 | Cranium shell, screws from below |
+| Pivot bracket | X | (−31.5, 65.13, −29.43) | 1 | Jaw pivot M3×20 |
+| Pivot bracket | X | (−26.5, 83, −30) | 1 | Stop block M3×12 |
+| Front module | −Y | (−27.5, 21.2, 16) | 1 | Eye-bar bolt |
+| Front module | Y | (±33, 76, 10) | 2 | Spine screws |
+| Stand flange | Z | (±22, 97, −44) | 2 | Base onto the stand, screws from above |
+| **Total** | | | **15** | |
+
+The §3 and §4 entries for these items are superseded by this table and the Changes table.
+
+### New problems found
+
+| Problem | Detail | Proposal for the next round |
+|---|---|---|
+| **Face screws (±12, 44) fail the hand model** | §7 step 14 said "tight but passes". With the full hand model, only about 30–45° of the turn is clear (grip and block meet the rami, the chin or the stand column), with the jaw closed, at 10° or at 20° open. | Not fixed here. Options: a ball-end key tilted toward −X; moving the J2 screws; or the skull off the stand. This touches open question 1 (shell fixing), so it stays with you. |
+| Stand flange overhang | The doc's Ø56 flange overhung the Ø38 column with a flat underside. | Fixed: 45° chamfer under it. |
+| Finger vs spine and pivot bracket | The finger (y up to 78.6) was inside the old spine (\|x\| ≤ 30 at y 72–76) and the old bracket wall. The mock-up's vertex count missed it. | Fixed (spine moved and narrowed, bracket inboard). The fit check now uses mesh overlap volumes, not vertex counts. |
+| Servo bracket insert at (22, 72) | Inside the old spine. | Fixed (foot screws at y 52.3). |
+
+**Open questions (§12):** unchanged. Question 2 (stand interface) now reads: a Ø56 top flange with a 45° chamfer and 2 inserts in it, the base screwed down onto it from above.
