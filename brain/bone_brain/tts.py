@@ -12,6 +12,9 @@ import soundfile as sf
 from pedalboard.io import StreamResampler
 
 from .config import CACHE_TTS, MODELS, Config
+from .llm import split_sentences
+
+FALLBACK_VOICE = "bm_george"  # local British voice when ElevenLabs can't render a line
 
 
 def resample(x: np.ndarray, src: int, dst: int) -> np.ndarray:
@@ -125,13 +128,34 @@ class Tts:
             except Exception as e:
                 print(f"tts: {cls.name} unavailable: {e}")
 
+    def _eleven(self, b, text: str, persona) -> tuple[np.ndarray, int]:
+        """ElevenLabs clips are cached per sentence, so render a multi-sentence line
+        sentence by sentence. A miss that can't be rendered (no key, no network)
+        falls back to a local British Kokoro voice instead of failing."""
+        parts = []
+        for s in split_sentences(text) or [text]:
+            try:
+                audio, sr = b.synth(s, persona.voice, persona.speed, persona.model)
+            except Exception as e:
+                k = self.backends.get("kokoro")
+                if k is None:
+                    raise
+                print(f"tts: WARNING ElevenLabs unavailable for {s!r} ({e}); using Kokoro {FALLBACK_VOICE}")
+                audio, sr = k.synth(s, FALLBACK_VOICE, 1.0, "")
+            parts.append(resample(np.asarray(audio, dtype=np.float32), sr, 24000))
+            parts.append(np.zeros(int(24000 * 0.12), dtype=np.float32))
+        return np.concatenate(parts[:-1]), 24000
+
     def synth(self, text: str, persona) -> np.ndarray:
         """Sentence in a persona's voice -> float32 at cfg.out_rate, peak-normalised so
         the jaw scale is consistent."""
         b = self.backends.get(persona.engine)
         if b is None:
             raise RuntimeError(f"TTS engine {persona.engine!r} unavailable")
-        audio, sr = b.synth(text, persona.voice, persona.speed, persona.model)
+        if persona.engine == "elevenlabs":
+            audio, sr = self._eleven(b, text, persona)
+        else:
+            audio, sr = b.synth(text, persona.voice, persona.speed, persona.model)
         audio = resample(np.asarray(audio, dtype=np.float32), sr, self.cfg.out_rate)
         peak = float(np.max(np.abs(audio))) if len(audio) else 0
         return audio * (0.7 / peak) if peak > 1e-4 else audio
