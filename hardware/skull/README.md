@@ -553,7 +553,7 @@ before that fill.
 | M2×16 self-tapping | 2 | jaw to horn arm, from outside the ramus |
 | servo tab screws (supplied) | 2 | servo to the servo bracket |
 | zip tie, 2.5 mm wide | 1 | ESP32 to the tray |
-| horn screw (supplied) | 1 | horn to spline |
+| horn screw (supplied) | 1 | horn to spline (printed replacement horn: `horn/README.md`) |
 
 What changed:
 
