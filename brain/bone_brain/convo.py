@@ -52,7 +52,8 @@ class Brain:
         self.loop = asyncio.get_running_loop()
         self.set_state("warming up")
         await self.loop.run_in_executor(self.work_pool, self.stt.warmup)
-        await self.loop.run_in_executor(self.tts_pool, self.tts.synth, "Ready.", PERSONAS[SKELETON])
+        if PERSONAS[SKELETON].engine != "elevenlabs":  # don't spend an API call on a warm-up
+            await self.loop.run_in_executor(self.tts_pool, self.tts.synth, "Ready.", PERSONAS[SKELETON])
         self.skull.art()  # drop any override left from an earlier run
         self.player.start()
         self.mic.start()
@@ -144,7 +145,7 @@ class Brain:
         typed = self.typed_q
         try:
             self.set_state("greeting")
-            await self.say(self.lines.pick("greet"))
+            await self.say(self.lines.pick("greet", self.persona.id))
             history: list[dict] = []
             prompted_silence = False
             turns = 0

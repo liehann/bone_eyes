@@ -15,7 +15,7 @@ FALLBACK = {
     "offline": ["The spirits are silent tonight. Ask me again later."],
     "unpossessed": ["Ugh. Sorry about that. Something was borrowing my skull."],
 }
-PERSONA_KINDS = ("intro", "reply", "thinking", "goodbye", "silence", "unheard")
+PERSONA_KINDS = ("greet", "intro", "reply", "thinking", "goodbye", "silence", "unheard")
 
 
 class Lines:
@@ -36,6 +36,13 @@ class Lines:
                     key = f"{d.name}/{kind}"
                     self.pools[key] = lines
                     self.recent[key] = deque(maxlen=max(0, min(len(lines) // 2, 50)))
+
+    def adopt(self, persona: str, into: str = "skeleton"):
+        """Make `persona`'s lines the skull's own (party mode: --persona wizard)."""
+        for kind in PERSONA_KINDS:
+            if f"{persona}/{kind}" in self.pools:
+                self.pools[f"{into}/{kind}"] = self.pools[f"{persona}/{kind}"]
+                self.recent[f"{into}/{kind}"] = self.recent[f"{persona}/{kind}"]
 
     def counts(self) -> dict[str, int]:
         return {k: len(v) for k, v in self.pools.items() if "/" not in k}

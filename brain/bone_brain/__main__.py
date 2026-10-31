@@ -19,6 +19,8 @@ async def main():
     ap.add_argument("--env", default="prod", help="Infisical environment for API keys")
     ap.add_argument("--out", default=None, help="speaker device name (or part of it), e.g. DELL")
     ap.add_argument("--mic", default=None, help="microphone device name (or part of it)")
+    ap.add_argument("--persona", default=None,
+                    help="party mode: the skull itself speaks as this persona (e.g. wizard), no possessions")
     ap.add_argument("--port", type=int, default=cfg.web_port)
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
@@ -33,6 +35,12 @@ async def main():
     ensure_eye_art()
     server = Server()
     brain = Brain(cfg, keys, server.emit)
+    if args.persona:
+        from . import personas
+        personas.adopt(args.persona)
+        brain.lines.adopt(args.persona)
+        brain.possession = personas.Possession(hazard=0, wildcard=0)
+        print(f"party mode: skull speaks as {args.persona}")
     server.brain = brain
     brain.llm_backend = "claude" if args.claude and brain.llm.available else "canned"
 

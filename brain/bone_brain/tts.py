@@ -1,5 +1,6 @@
 """Swappable text-to-speech. Each backend turns one sentence into mono float32
 audio at the player's rate."""
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -10,7 +11,7 @@ import numpy as np
 import soundfile as sf
 from pedalboard.io import StreamResampler
 
-from .config import MODELS, Config
+from .config import CACHE_TTS, MODELS, Config
 
 
 def resample(x: np.ndarray, src: int, dst: int) -> np.ndarray:
@@ -77,6 +78,12 @@ class Say:
         return audio, sr
 
 
+def cache_file(voice: str, model: str, text: str) -> Path:
+    """On-disk clip for one ElevenLabs line: keyed on voice + model + text."""
+    h = hashlib.sha256(f"{voice}\n{model or 'eleven_flash_v2_5'}\n{text}".encode()).hexdigest()[:24]
+    return CACHE_TTS / f"{h}.wav"
+
+
 class ElevenLabs:
     name = "elevenlabs"
 
@@ -88,6 +95,10 @@ class ElevenLabs:
         return []  # free-form voice id
 
     def synth(self, text: str, voice: str, speed: float, model: str) -> tuple[np.ndarray, int]:
+        f = cache_file(voice, model, text)
+        if f.exists():  # pre-rendered (brain/tools/prerender.py): no network, no API call
+            audio, sr = sf.read(f, dtype="float32")
+            return audio, sr
         if not self.key or not voice:
             raise RuntimeError("ElevenLabs needs ELEVENLABS_API_KEY and a voice id")
         req = urllib.request.Request(
@@ -95,7 +106,13 @@ class ElevenLabs:
             data=json.dumps({"text": text, "model_id": model or "eleven_flash_v2_5"}).encode(),
             headers={"xi-api-key": self.key, "Content-Type": "application/json"})
         pcm = urllib.request.urlopen(req, timeout=20).read()
-        return np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768, 24000
+        audio = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768
+        try:  # keep every live result so the same line is free next time
+            f.parent.mkdir(parents=True, exist_ok=True)
+            sf.write(f, audio, 24000, subtype="PCM_16")
+        except OSError as e:
+            print(f"tts: cache write failed: {e}")
+        return audio, 24000
 
 
 class Tts:

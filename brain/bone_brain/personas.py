@@ -85,6 +85,18 @@ def load() -> dict[str, Persona]:
 PERSONAS = load()
 
 
+def adopt(pid: str) -> None:
+    """Party mode: the skull itself speaks as persona `pid` (voice, effects, eyes,
+    character) and no other spirit possesses it. In memory only."""
+    src = PERSONAS[pid]
+    for k in FIELDS:
+        if k not in ("id", "name", "weight"):
+            setattr(PERSONAS[SKELETON], k, getattr(src, k))
+    PERSONAS[SKELETON].name = src.name
+    for p in PERSONAS.values():
+        p.weight = 0
+
+
 class Possession:
     def __init__(self, min_gap: int = 2, hazard: float = 0.06, cap: float = 0.35,
                  wildcard: float = 0.03, max_extra: int = 2):
