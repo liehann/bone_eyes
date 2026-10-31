@@ -4,6 +4,12 @@
 #include "console.h"
 #include "settings.h"
 
+#include <driver/gpio.h>
+#include <esp_timer.h>
+#include <soc/gpio_reg.h>
+#include <soc/gpio_sig_map.h>
+#include <soc/io_mux_reg.h>
+
 namespace jaw {
 namespace {
 
@@ -49,6 +55,42 @@ void setTarget(float d) {
   portEXIT_CRITICAL(&mux);
 }
 
+// Reads the pad back: enables the input buffer (FUN_IE) without touching the output matrix,
+// then samples GPIO_IN for ~130 ms and measures high time and period from the edges.
+void diag() {
+  const int pin = PIN_SERVO;
+  const uint32_t sel = REG_READ(GPIO_FUNC0_OUT_SEL_CFG_REG + 4 * pin);
+  Serial.printf("jaw diag: GPIO%d matrix out sel=%u (LEDC ch0 high-speed sig = %d), oen_sel=%u\n", pin,
+                (unsigned)(sel & 0xFF), LEDC_HS_SIG_OUT0_IDX, (unsigned)((sel >> 10) & 1));
+  Serial.printf("jaw diag: LEDC ch%u duty=%lu (of %d) freq=%lu Hz, our pos=%.1f deg\n", kChannel,
+                (unsigned long)ledcRead(kChannel), 1 << kBits, (unsigned long)ledcReadFreq(kChannel), (float)pos);
+  REG_SET_BIT(GPIO_PIN_MUX_REG[pin], FUN_IE);
+  int64_t rise[16], fall[16];
+  int nr = 0, nf = 0, highs = 0, samples = 0;
+  const int64_t t0 = esp_timer_get_time();
+  int prev = gpio_get_level((gpio_num_t)pin);
+  while (esp_timer_get_time() - t0 < 130000) {
+    const int v = gpio_get_level((gpio_num_t)pin);
+    const int64_t now = esp_timer_get_time();
+    samples++;
+    highs += v;
+    if (v && !prev && nr < 16) rise[nr++] = now;
+    if (!v && prev && nf < 16) fall[nf++] = now;
+    prev = v;
+  }
+  Serial.printf("jaw diag: %d samples, %d high (%.1f%%), %d rising, %d falling edges\n", samples, highs,
+                100.0f * highs / samples, nr, nf);
+  if (nr >= 2) Serial.printf("jaw diag: period %.2f ms\n", (rise[nr - 1] - rise[0]) / 1000.0f / (nr - 1));
+  if (nr >= 1) {
+    for (int i = 0; i < nf; i++)
+      if (fall[i] > rise[0]) {
+        Serial.printf("jaw diag: high time %.3f ms\n", (fall[i] - rise[0]) / 1000.0f);
+        break;
+      }
+  }
+  if (nr == 0) Serial.printf("jaw diag: NO PULSES on the pad (level stuck %s)\n", prev ? "high" : "low");
+}
+
 void printSettings() {
   const settings::Settings s = settings::get();
   Serial.printf("jaw: closed %ld deg, open %ld deg (travel %ld deg), now %.1f deg; 'jaw save' keeps them\n",
@@ -60,6 +102,8 @@ void cmdJaw(int argc, char** argv) {
   long v;
   if (!strcmp(argv[1], "save")) {
     Serial.println(settings::save() ? "jaw: saved (with the other settings)" : "jaw: save failed");
+  } else if (!strcmp(argv[1], "diag")) {
+    diag();
   } else if (!strcmp(argv[1], "test")) {
     test();
   } else if (!strcmp(argv[1], "closed") || !strcmp(argv[1], "open")) {
@@ -79,7 +123,7 @@ void cmdJaw(int argc, char** argv) {
     Serial.printf("jaw: raw angle %ld (not limited to closed/open; configured closed %ld, open %ld)\n", v,
                   (long)settings::get().jawClosed, (long)settings::get().jawOpen);
   } else {
-    Serial.println("usage: jaw | jaw <deg> | jaw closed <deg> | jaw open <deg> | jaw save | jaw test");
+    Serial.println("usage: jaw | jaw <deg> | jaw closed <deg> | jaw open <deg> | jaw save | jaw test | jaw diag");
   }
 }
 
