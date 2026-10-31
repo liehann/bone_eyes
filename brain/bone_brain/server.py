@@ -63,7 +63,7 @@ class Server:
             "llm": b.llm_backend, "llm_options": ["claude", "canned"] if b.llm.available else ["canned"],
             "model": c.llm_model,
             "out": c.out_device or default_name("output"), "out_options": output_devices(),
-            "skull": b.skull.status, "auto": b.auto_interval, "lines": b.lines.counts(),
+            "skull": b.skull.status, "auto": b.auto_interval, "sync_ms": c.sync_ms, "lines": b.lines.counts(),
             "persona": b.persona.id, "possess_chance": round(b.possession.chance(), 2),
             "personas": {k: v.to_json() for k, v in PERSONAS.items()},
             "engines": self.voices(),
@@ -78,6 +78,11 @@ class Server:
         elif key == "auto":
             try:
                 b.set_auto(float(value))
+            except (TypeError, ValueError):
+                pass
+        elif key == "sync_ms":
+            try:
+                c.sync_ms = max(-300.0, min(500.0, float(value)))
             except (TypeError, ValueError):
                 pass
         elif key == "possess":

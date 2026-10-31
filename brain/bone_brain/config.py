@@ -38,6 +38,7 @@ class Config:
     jaw_gamma: float = 1.4
     jaw_attack_ms: float = 20.0
     jaw_release_ms: float = 50.0
+    sync_ms: float = 100.0                # audio delay: + = jaw earlier relative to audio (-300..500)
     jaw_lead_ms: float = 60.0             # send jaw early: the servo lags the command
 
     # Skull link: "" = none, a serial port path, or "udp://host:port"

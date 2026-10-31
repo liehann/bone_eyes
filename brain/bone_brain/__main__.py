@@ -23,10 +23,13 @@ async def main():
                     help="party mode: the skull itself speaks as this persona (e.g. wizard), no possessions")
     ap.add_argument("--auto", type=float, default=0, metavar="SECONDS",
                     help="auto talk: say a random line about every N seconds while nobody is visiting (default off)")
+    ap.add_argument("--sync-ms", type=float, default=cfg.sync_ms,
+                    help="audio delay in ms (-300..500): positive = audio later vs the jaw (default %(default)g)")
     ap.add_argument("--port", type=int, default=cfg.web_port)
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
     cfg.skull, cfg.web_port = args.skull, args.port
+    cfg.sync_ms = max(-300.0, min(500.0, args.sync_ms))
     import sounddevice as sd
     # Resolve "DELL" -> "DELL U3818DW" so the page shows the full name.
     cfg.out_device = sd.query_devices(args.out, "output")["name"] if args.out else None

@@ -144,7 +144,7 @@ class Player:
         """~50 Hz: forward jaw levels whose audio is about to be heard."""
         last = -1.0
         while not self._stop:
-            now = self.stream.time + self.cfg.jaw_lead_ms / 1000
+            now = self.stream.time + (self.cfg.jaw_lead_ms + self.cfg.sync_ms) / 1000
             level = None
             while self.jaw_q and self.jaw_q[0][0] <= now:
                 level = self.jaw_q.popleft()[1]

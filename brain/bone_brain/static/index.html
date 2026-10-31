@@ -88,6 +88,7 @@
     <section>
       <h2>Settings</h2>
       <div class="row"><label>speaker</label><select id="out"></select></div>
+      <div class="row"><label>audio delay</label><input type="range" id="syncR" min="-300" max="500" step="10" value="100" style="width:160px"> <input type="number" id="syncMs" min="-300" max="500" step="10" value="100" style="width:70px"> ms <span class="small">+ = audio later vs the jaw (jaw moves earlier); applies live</span></div>
       <div class="row"><label>auto talk</label><input type="checkbox" id="autoOn"> every <input type="number" id="autoSec" min="5" max="600" step="5" value="30" style="width:70px"> s <span class="small">speaks by itself while nobody is visiting</span></div>
       <div class="row"><label>replies</label><select id="llm"></select></div>
       <p class="small" id="linesInfo"></p>
@@ -166,6 +167,7 @@ function connect() {
       settings = m;
       fill($('llm'), m.llm_options, m.llm); fill($('out'), m.out_options, m.out);
       $('state').textContent = m.state;
+      if (document.activeElement !== $('syncMs')) { $('syncMs').value = m.sync_ms; $('syncR').value = m.sync_ms; }
       $('autoOn').checked = m.auto > 0; if (m.auto > 0) $('autoSec').value = m.auto;
       $('llmPill').textContent = m.llm === 'claude' ? m.model : 'canned replies (no API cost)';
       $('skullPill').textContent = 'skull: ' + m.skull;
@@ -259,6 +261,9 @@ $('visitor').onclick = () => send({ cmd: 'visitor' });
 $('leave').onclick = () => send({ cmd: 'leave' });
 $('stop').onclick = () => send({ cmd: 'stop' });
 $('askBtn').onclick = () => send({ cmd: 'ask', text: $('ask').value });
+const setSync = v => send({ cmd: 'set', key: 'sync_ms', value: +v || 0 });
+$('syncR').oninput = () => { $('syncMs').value = $('syncR').value; setSync($('syncR').value); };
+$('syncMs').onchange = () => { $('syncR').value = $('syncMs').value; setSync($('syncMs').value); };
 const setAuto = () => send({ cmd: 'set', key: 'auto', value: $('autoOn').checked ? Math.max(5, +$('autoSec').value || 30) : 0 });
 $('autoOn').onchange = setAuto; $('autoSec').onchange = () => { if ($('autoOn').checked) setAuto(); };
 $('llm').onchange = e => send({ cmd: 'set', key: 'llm', value: e.target.value });
