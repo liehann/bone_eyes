@@ -92,7 +92,7 @@ Type `help` in the monitor.
 | `eyes blink`, `eyes mood idle\|alert\|talking\|goodbye` | trigger a blink / set the mood |
 | `eyes bl <0-255>` | backlight (a setting: `config save` keeps it) |
 | `eyes lcd` / `eyes pixel` | switch eye backend |
-| `art <style>` | LCD eye style (a setting). `default` is the regular hazel eye; `dragon`; `fire` (default): burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids; `m4`: the Adafruit M4_Eyes renderer with eye sets from LittleFS (see `docs/m4_eyes.md`); `cat`, `goat`, `owl`, `newt`, `terminator`, `nosclera`, `doe`, `nauga`: more Uncanny Eyes artwork from LittleFS (see `docs/eye_styles.md`) |
+| `art <style>` | LCD eye style (a setting). `default` is the regular hazel eye; `dragon`; `fire`: burning iris whose flame tips turn to smoke, which flows around the iris and up over the lids; `m4` (default, hazel set): the Adafruit M4_Eyes renderer with eye sets from LittleFS (see `docs/m4_eyes.md`); `cat`, `goat`, `owl`, `newt`, `terminator`, `nosclera`, `doe`, `nauga`: more Uncanny Eyes artwork from LittleFS (see `docs/eye_styles.md`) |
 | `m4`, `m4 <key> <value>`, `m4 set <json>` | M4 eye parameters: show / change one / patch (e.g. `m4 eye snake_green`, `m4 irisTint #ff8080`). Also `m4 list`, `m4 reset` (the eye set's defaults), `m4 rescan`, `m4 mem tables int\|psram tex psram\|int\|flash`, `m4 bench [n]` |
 | `flames on\|off` | flames and smoke rising from hazel/dragon eyes (a setting) |
 | `config` / `config show` | print the settings as JSON |

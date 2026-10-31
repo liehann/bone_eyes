@@ -79,7 +79,7 @@ constexpr bool EYE_GAZE_X_INVERT = false;  // `eyes look 1 0` should look toward
 // tools/eye_preview.cpp).
 constexpr bool EYE_L_LID_FLIP = false;
 constexpr bool EYE_R_LID_FLIP = true;
-constexpr const char* EYE_ART_DEFAULT = "fire";   // "default" (hazel), "dragon", "fire" (burning, smoking iris), "m4",
+constexpr const char* EYE_ART_DEFAULT = "m4";     // "default" (hazel), "dragon", "fire" (burning, smoking iris), "m4" (hazel set by default),
                                                   // or an Uncanny Eyes set on LittleFS ("cat", "owl", ...; docs/eye_styles.md)
 constexpr bool EYE_FLAMES_DEFAULT = false;         // flames + smoke around hazel/dragon eyes
 constexpr bool EYE_SMOKE_DEFAULT = true;           // flame tips give off smoke (fire eye and flames)
