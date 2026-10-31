@@ -4,7 +4,9 @@ Line art is rasterised here from the assembled meshes (lineart.py: numpy z-buffe
 part / depth / crease edges); matplotlib composes the US Letter pages and draws
 the screws, callouts and arrows as vectors.
 
-    hardware/.venv/bin/python hardware/skull/assembly/make_guide.py [--pngs DIR]
+    hardware/.venv/bin/python hardware/skull/assembly/make_guide.py [--pngs DIR] [--long]
+
+Default: 4 pages (2 sheets, double-sided). --long: the 13-page layout (cover, 1:1 chart, a page per step).
 """
 import os, sys, hashlib, pickle
 import numpy as np
@@ -28,16 +30,22 @@ P = scene.load_parts()
 FA = {**scene.fasteners(), **scene.cover_fasteners(P)}
 INS = scene.inserts(P)
 LW = 1.4                    # vector line weight (pt)
+K_CALLOUT = 1.0             # callout offset scale (smaller panels: < 1)
+FS_CALLOUT = 1.0            # callout font scale
 FONT = 'DejaVu Sans'
 plt.rcParams.update({'font.family': FONT, 'font.size': 11})
 
 
 # ------------------------------------------------------------------ rendering
+WIDTHS = None              # line widths (render px at ss=2) per style level; set per layout
+
+
 def view(parts, az, el, styles=None, off=None, s=0.10, pad=6.0, bounds_extra=()):
     """parts: names; off: name -> translation (mm). Cached on disk."""
     off = off or {}; styles = styles or {}
     key = hashlib.md5(repr((parts, az, el, sorted(styles.items()), sorted((k, tuple(v)) for k, v in off.items()),
-                            s, pad, [tuple(np.round(b, 2)) for b in bounds_extra], 3)).encode()).hexdigest()
+                            s, pad, [tuple(np.round(b, 2)) for b in bounds_extra], 3,
+                            sorted(WIDTHS.items()) if WIDTHS else None)).encode()).hexdigest()
     fn = os.path.join(RCACHE, key + '.pkl')
     if os.path.exists(fn):
         return pickle.load(open(fn, 'rb'))
@@ -53,7 +61,7 @@ def view(parts, az, el, styles=None, off=None, s=0.10, pad=6.0, bounds_extra=())
         V = np.vstack([m.vertices for _, m in ms] + [np.atleast_2d(b) for b in bounds_extra])
         X, Y = V @ r, V @ u
         b2 = (X.min() - pad, X.max() + pad, Y.min() - pad, Y.max() + pad)
-    img, cam = lineart.render(ms, az, el, s=s, pad=pad, styles=styles, bounds2d=b2)
+    img, cam = lineart.render(ms, az, el, s=s, pad=pad, styles=styles, bounds2d=b2, widths=WIDTHS)
     pickle.dump((img, cam), open(fn, 'wb'))
     print('rendered', parts, az, el, img.shape)
     return img, cam
@@ -62,8 +70,9 @@ def view(parts, az, el, styles=None, off=None, s=0.10, pad=6.0, bounds_extra=())
 class Panel:
     """An axes at (x, y, w, h) inches on the page showing a rendered image, with
     3D -> axes helpers."""
-    def __init__(self, fig, rect, img, cam, zoom=None):
+    def __init__(self, fig, rect, img, cam, zoom=None, k=None):
         x, y, w, h = rect
+        self.k = K_CALLOUT if k is None else k
         self.ax = fig.add_axes([x / PW, y / PH, w / PW, h / PH])
         self.ax.set_axis_off()
         self.cam = cam
@@ -89,8 +98,9 @@ def explode_pts(f, e):
     return f['head'] + f['axis'] * e
 
 
-def screw2d(pn, head, axis, L, d, e=0.0, washer=None, dash=True, lw=LW):
+def screw2d(pn, head, axis, L, d, e=0.0, washer=None, dash=True, lw=None):
     """Draw a screw on its axis: head seat at `head`, pulled out e mm along `axis`."""
+    lw = LW if lw is None else lw
     ax = pn.ax
     hp = head + axis * e
     H2, T2 = pn.p(hp), pn.p(hp - axis * L)
@@ -137,7 +147,7 @@ def _ring(pn, c, axis, R, r, lw):
 
 def bubble(pn, xy, text, dxy, fs=12):
     """Callout bubble at xy + dxy (inches on paper) with a leader to xy (px)."""
-    k = pn.ppi
+    k = pn.ppi * pn.k; fs = fs * FS_CALLOUT
     pn.ax.annotate(text, xy=xy, xytext=(xy[0] + dxy[0] * k, xy[1] - dxy[1] * k), fontsize=fs, fontweight='bold',
                    ha='center', va='center', zorder=20,
                    bbox=dict(boxstyle='round,pad=0.35,rounding_size=0.6', fc='white', ec='k', lw=1.3),
@@ -145,7 +155,7 @@ def bubble(pn, xy, text, dxy, fs=12):
 
 
 def num_bubble(pn, xy, n, dxy, fs=13):
-    k = pn.ppi
+    k = pn.ppi * pn.k; fs = fs * FS_CALLOUT
     pn.ax.annotate(str(n), xy=xy, xytext=(xy[0] + dxy[0] * k, xy[1] - dxy[1] * k), fontsize=fs, fontweight='bold',
                    ha='center', va='center', zorder=20,
                    bbox=dict(boxstyle='circle,pad=0.3', fc='white', ec='k', lw=1.5),
@@ -156,13 +166,13 @@ def num_bubble(pn, xy, n, dxy, fs=13):
 def arrow3(pn, p0, p1, w=1.0):
     a, b = pn.p(p0), pn.p(p1)
     pn.ax.add_patch(FancyArrowPatch(a, b, arrowstyle='simple,head_length=1.1,head_width=1.2,tail_width=0.45',
-                                    mutation_scale=18 * w, fc='#9a9a9a', ec='k', lw=1.1, zorder=15))
+                                    mutation_scale=18 * w * max(0.55, K_CALLOUT), fc='#9a9a9a', ec='k', lw=1.1, zorder=15))
 
 
 def arrow2(ax, a, b, w=1.0, curved=0.0):
     ax.add_patch(FancyArrowPatch(a, b, arrowstyle='simple,head_length=1.1,head_width=1.2,tail_width=0.45',
                                  connectionstyle='arc3,rad=%.2f' % curved,
-                                 mutation_scale=18 * w, fc='#9a9a9a', ec='k', lw=1.1, zorder=15))
+                                 mutation_scale=18 * w * max(0.55, K_CALLOUT), fc='#9a9a9a', ec='k', lw=1.1, zorder=15))
 
 
 def page(n_step=None, title=None):
@@ -606,8 +616,333 @@ def p_stand(pdf):
     pdf.savefig(fig); return fig
 
 
+# ================================================================== compact layout (4 pages, 2 sheets duplex)
+CW, CG = 3.7, 0.1           # cell width, gutter (2 columns)
+
+
+def cell(fig, rect, n, title, note_txt=None, nfs=26):
+    """Step cell: circled number + title at the top left, note at the bottom, thin frame.
+    Returns the drawing area (x, y, w, h)."""
+    x, y, w, h = rect
+    ax = fig.add_axes([x / PW, y / PH, w / PW, h / PH]); ax.set_axis_off()
+    ax.add_patch(FancyBboxPatch((0.004, 0.004), 0.992, 0.992, boxstyle='round,pad=0,rounding_size=0.015',
+                                transform=ax.transAxes, fc='none', ec='0.75', lw=0.8))
+    if n is not None:
+        fig.text((x + 0.32) / PW, (y + h - 0.32) / PH, str(n), fontsize=nfs if len(str(n)) == 1 else nfs * 0.68, fontweight='bold', ha='center', va='center',
+                 bbox=dict(boxstyle='circle,pad=0.2', fc='white', ec='k', lw=2.2), zorder=30)
+    fig.text((x + 0.72) / PW, (y + h - 0.32) / PH, title, fontsize=14, fontweight='bold', ha='left', va='center')
+    nb = 0.0
+    if note_txt:
+        nl = note_txt.count('\n') + 1
+        nb = 0.12 + 0.19 * nl
+        fig.text((x + 0.12) / PW, (y + 0.1) / PH, note_txt, fontsize=9.5, ha='left', va='bottom', linespacing=1.35)
+    return (x + 0.05, y + nb + 0.05, w - 0.1, h - nb - 0.7)
+
+
+def grid(r, c, rows=2, h_total=10.0 - 0.25, y0=M + 0.25, cols=2):
+    hh = (h_total - CG * (rows - 1)) / rows
+    return (M + c * (CW + CG), y0 + (rows - 1 - r) * (hh + CG), CW, hh)
+
+
+def legend(fig, rect):
+    x, y, w, h = rect
+    ax = fig.add_axes([x / PW, y / PH, w / PW, h / PH]); ax.set_axis_off()
+    ax.set_xlim(0, w * MM); ax.set_ylim(0, h * MM); ax.set_aspect('equal')
+    ax.add_patch(FancyBboxPatch((0.5, 0.5), w * MM - 1, h * MM - 1, boxstyle='round,pad=0,rounding_size=2',
+                                fc='#f0f0f0', ec='k', lw=1.0))
+    items = [(l, d, L, q, hd, hh) for l, d, L, q, hd, hh, _ in SCREWS]
+    xx = 6.0; yc = h * MM * 0.6
+    for (lab, d, L, q, hd, hh), slot in zip(items, (20, 25, 20, 22, 28)):
+        ax.add_patch(Polygon([(xx, yc - hd / 2 * 0.8), (xx, yc + hd / 2 * 0.8), (xx + hh, yc + hd / 2), (xx + hh, yc - hd / 2)],
+                             closed=True, fc='white', ec='k', lw=0.8))
+        ax.add_patch(Polygon([(xx + hh, yc - d / 2), (xx + hh, yc + d / 2), (xx + hh + L, yc + d / 2), (xx + hh + L, yc - d / 2)],
+                             closed=True, fc='white', ec='k', lw=0.8))
+        ax.text(xx + (hh + L) / 2, yc - 6.5, '%s ×%d' % (lab, q), fontsize=8, fontweight='bold', ha='center', va='center')
+        xx += slot
+    for lab, D, q in (('Ø9 washer', 9.0, 1), ('M3 washer', 7.0, 1)):
+        ax.add_patch(Circle((xx + D / 2, yc), D / 2, fc='white', ec='k', lw=0.8))
+        ax.add_patch(Circle((xx + D / 2, yc), 1.6, fc='white', ec='k', lw=0.8))
+        ax.text(xx + D / 2, yc - 6.5, '%s ×%d' % (lab, q), fontsize=8, fontweight='bold', ha='center', va='center')
+        xx += 26
+    ax.add_patch(Rectangle((xx, yc - 2.3), 5.7, 4.6, fc='white', ec='k', lw=0.8, hatch='////'))
+    ax.text(xx + 3, yc - 6.5, 'insert ×7', fontsize=8, fontweight='bold', ha='center', va='center')
+
+
+def c_inserts(fig, rect):
+    x, y, w, h = cell(fig, rect, '1a', 'Inserts  M3 ×7', 'Heat-set flush, square to the hole.')
+    img, cam = view(['face'], 150, 38, s=0.17)
+    pa = Panel(fig, (x, y, 4.6, h), img, cam)
+    dx = {1: (-0.9, 0.7), 2: (-1.1, -0.4), 3: (-0.9, -0.9), 5: (1.0, 0.6), 6: (1.3, -0.4)}
+    for k in (1, 2, 3, 5, 6):
+        num_bubble(pa, pa.p(INS[k][0]), k, dx[k])
+    hh = (h - 0.1) / 2
+    img, cam = view(['face'], -90, 5, s=0.2)
+    pb = Panel(fig, (x + 4.65, y + hh + 0.1, w - 4.65, hh), img, cam)
+    num_bubble(pb, pb.p(INS[4][0]), 4, (-0.6, -0.7))
+    fig.text((x + 4.7) / PW, (y + 2 * hh) / PH, 'face, side', fontsize=9, color='0.35', va='top')
+    img, cam = view(['back'], 200, 30, s=0.2)
+    pc = Panel(fig, (x + 4.65, y, w - 4.65, hh), img, cam)
+    num_bubble(pc, pc.p(INS[7][0]), 7, (0.7, 0.6))
+    fig.text((x + 4.7) / PW, (y + hh) / PH, 'back cover', fontsize=9, color='0.35', va='top')
+
+
+def c_bench(fig, rect):
+    x, y, w, h = cell(fig, rect, '1b', 'Servo + bracket', 'Tab screws in. Centre the servo (90°), then the horn, pointing down the jaw arm.')
+    S = ['bracket', 'servo', 'horn']
+    e_servo, e_horn = 45.0, 78.0
+    off = {'servo': (e_servo, 0, 0), 'horn': (e_horn, 0, 0)}
+    tabs = [FA['tab_0'], FA['tab_1']]
+    extra = [t['head'] + [e_servo + 18, 0, 0] for t in tabs] + [FA['horn_screw']['head'] + [e_horn + 14, 0, 0]]
+    img, cam = view(S, 28, 18, styles={'servo': 'hi', 'horn': 'hi'}, off=off, s=0.1, pad=10, bounds_extra=extra)
+    pn = Panel(fig, (x, y, 5.0, h), img, cam)
+    c = np.array([25.0, 65.13, -24.0])
+    arrow3(pn, c + [e_servo + 6, 0, 18], c + [10, 0, 18])
+    for t in tabs:
+        tip = screw2d(pn, t['head'] + [e_servo, 0, 0], t['axis'], 8, 2, e=12.0)
+    bubble(pn, tip, 'servo tab screw ×2', (0.6, 0.45))
+    hs = FA['horn_screw']
+    tip = screw2d(pn, hs['head'] + [e_horn, 0, 0], hs['axis'], 5, 2, e=8.0)
+    bubble(pn, tip, 'horn screw', (0.1, -0.75))
+    ax = fig.add_axes([(x + 5.2) / PW, (y + 0.05) / PH, (w - 5.25) / PW, (h - 0.1) / PH]); ax.set_axis_off(); ax.set_aspect('equal')
+    ax.set_xlim(-1.3, 1.3); ax.set_ylim(-1.5, 1.35)
+    ax.add_patch(Circle((0, 0), 1.0, fc='white', ec='k', lw=1.8))
+    ax.add_patch(Polygon([(-0.12, 0), (0.12, 0), (0.07, -0.95), (-0.07, -0.95)], closed=True,
+                         fc='#d8d8d8', ec='k', lw=1.8, transform=matplotlib.transforms.Affine2D().rotate_deg(-20) + ax.transData))
+    ax.add_patch(Circle((0, 0), 0.18, fc='white', ec='k', lw=1.8))
+    ax.text(0, 1.2, 'centre 90°', ha='center', fontsize=10, fontweight='bold')
+    ax.text(0, -1.3, 'horn down', ha='center', fontsize=10)
+
+
+def c_liners(fig, rect):
+    x, y, w, h = cell(fig, rect, 2, 'Liners', '2–3 dabs of glue on the seat.\nPush in from the front, lip flush.')
+    L = ['liner_eye_L', 'liner_eye_R', 'liner_nose']
+    e = 70.0
+    img, cam = view(['face'] + L, -40, 10, styles={**{n: 'hi' for n in L}, 'face': 'norm'},
+                    off={n: (0, -e, 0) for n in L}, s=0.2, pad=6)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    for n in L:
+        c = P[n].bounds.mean(0)
+        arrow3(pn, c + [0, -e + 12, 0], c + [0, -8, 0], 1.1)
+
+
+def c_eyes(fig, rect):
+    x, y, w, h = cell(fig, rect, 3, 'Eyes', 'Plug the LCD cables in first. Bolt hole on the post ①,\nother hole on the key peg. Centre the screens.')
+    eb = 60.0
+    B = ['bar', 'modules', 'screens']
+    names = ['face', 'liner_eye_L', 'liner_eye_R'] + B
+    sty = {'face': 'norm', 'liner_eye_L': 'ghost', 'liner_eye_R': 'ghost', 'bar': 'hi', 'modules': 'hi', 'screens': 'hi'}
+    es = 26.0
+    extra = [FA['bar_bolt']['head'] + [0, eb + es + 20, 0]]
+    img, cam = view(names, 125, 22, styles=sty, off={n: (0, eb, 0) for n in B}, s=0.15, pad=6, bounds_extra=extra)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    arrow3(pn, np.array([0, 40.0 + eb, -2]), np.array([0, 36.0, -2]), 1.2)
+    bubble(pn, pn.p(INS[1][0]), 'post ①', (-0.25, 0.75), fs=10)
+    bubble(pn, pn.p([27.5, INS[1][0][1], 16.0]), 'key peg', (-0.3, 0.55), fs=10)
+    tips = []
+    for k in range(4):
+        f = FA['m2_%d' % k]
+        tips.append(screw2d(pn, f['head'] + [0, eb, 0], f['axis'], 8, 2, e=es))
+    bubble(pn, tips[2], 'M2×8 ×4', (0.5, -0.9))
+    f = FA['bar_bolt']
+    t = screw2d(pn, f['head'] + [0, eb, 0], f['axis'], 12, 3, e=es + 8, washer=9.0)
+    bubble(pn, t, 'M3×12 + washer Ø9', (-0.6, 0.55))
+    for hx in (-27.5, 27.5):
+        a, b = pn.p([hx, scene.B.EYE_DEPTH + 9 + eb, 16]), pn.p([hx, scene.B.EYE_DEPTH + 9, 16])
+        pn.ax.plot([a[0], b[0]], [a[1], b[1]], ls=(0, (2, 3)), color='k', lw=0.8, zorder=4)
+
+
+def c_radar(fig, rect):
+    x, y, w, h = cell(fig, rect, 4, 'Radar', 'On edge down the slot between the eyes,\nthen flat and forward into its frame. Hot glue.')
+    up = 50.0
+    img, cam = view(['face', 'radar', 'radar_edge'], 150, 45, styles={'face': 'norm', 'radar': 'hi', 'radar_edge': 'hi'},
+                    s=0.17, pad=6, off={'radar_edge': (0, 14, up)})
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    c = P['radar'].bounds.mean(0)
+    arrow3(pn, c + [24, 14, up - 4], c + [24, 14, 12], 1.0)
+    arrow3(pn, c + [24, 16, 2], c + [24, 2, 2], 0.8)
+    bubble(pn, pn.p(c), 'hot glue', (1.0, -0.35), fs=10)
+
+
+def c_usb(fig, rect):
+    x, y, w, h = cell(fig, rect, 5, 'USB cable', 'USB-A end down the neck bore from inside.\nMicro-USB end stays inside.')
+    img, cam = view(['face'], 160, 28, styles={'face': 'norm'}, s=0.17, pad=4)
+    pu = Panel(fig, (x, y, w, h), img, cam)
+    pts = np.array([[-25, 70, -5], [-10, 85, -6], [0, 90, -10], [0, 90, -35], [0, 90, -66]], float)
+    q = pu.cam.project(pts)
+    pu.ax.plot(q[:3, 0], q[:3, 1], color='k', lw=2.4, zorder=10, solid_capstyle='round')
+    pu.ax.plot(q[2:, 0], q[2:, 1], color='k', lw=2.4, zorder=10, ls=(0, (3, 2)))
+    a = q[-1]
+    pu.ax.add_patch(Rectangle((a[0] - pu.px(6), a[1]), pu.px(12), pu.px(9), fc='white', ec='k', lw=1.2, zorder=11))
+    pu.ax.text(a[0] + pu.px(9), a[1] + pu.px(5), 'USB-A', fontsize=9, va='center', fontweight='bold')
+    arrow3(pu, [14, 90, -8], [14, 90, -40], 0.9)
+    bubble(pu, q[0], 'micro-USB', (-0.7, 0.45), fs=10)
+
+
+def c_servo(fig, rect):
+    x, y, w, h = cell(fig, rect, 6, 'Servo', 'Gear tower down the slot in the cup wall.\nBolts into inserts ② ③.')
+    up = 50.0
+    S = ['bracket', 'servo', 'horn']
+    names = ['face', 'bar', 'modules', 'radar'] + S
+    sty = {'face': 'norm', 'bar': 'ghost', 'modules': 'ghost', 'radar': 'ghost', **{n: 'hi' for n in S}}
+    es = 22.0
+    extra = [FA['bracket_0']['head'] + [0, 0, up + es + 12]]
+    img, cam = view(names, 140, 40, styles=sty, off={n: (0, 0, up) for n in S}, s=0.15, pad=6, bounds_extra=extra)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    c = np.array([18.0, 65.0, -10.0])
+    arrow3(pn, c + [8, 0, up - 5], c + [8, 0, 8], 1.1)
+    for k in (0, 1):
+        f = FA['bracket_%d' % k]
+        t = screw2d(pn, f['head'] + [0, 0, up], f['axis'], 8, 3, e=es)
+        a, b = pn.p(f['head'] + [0, 0, up - 3.5]), pn.p(INS[2 + k][0])
+        pn.ax.plot([a[0], b[0]], [a[1], b[1]], ls=(0, (2, 3)), color='k', lw=0.8, zorder=4)
+    bubble(pn, t, 'M3×8 ×2', (-0.8, 0.25))
+
+
+def c_esp32(fig, rect):
+    x, y, w, h = cell(fig, rect, 7, 'ESP32', 'No tray: foam tape, flat behind the eye bar (solder\nside covered). Plug in: LCD ×2, radar, servo, USB.')
+    up = 40.0
+    names = ['face', 'bar', 'modules', 'radar', 'bracket', 'servo', 'horn', 'esp32']
+    sty = {**ghost(names), 'face': 'norm', 'esp32': 'hi'}
+    img, cam = view(names, 150, 45, styles=sty, off={'esp32': (0, 0, up)}, s=0.15, pad=6)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    c = P['esp32'].bounds.mean(0)
+    arrow3(pn, c + [0, 0, up - 6], c + [0, 0, 5], 1.0)
+    tb = np.array([[-46, 40, -14.6], [-22, 40, -14.6], [-22, 80, -14.6], [-46, 80, -14.6]], float)
+    pn.ax.add_patch(Polygon(pn.cam.project(tb + [0, 0, up * 0.45]), closed=True, fc='#cfcfcf', ec='k', lw=0.8, hatch='///', zorder=9))
+    bubble(pn, pn.p([-34, 60, -14.6 + up * 0.45]), 'foam tape', (-0.9, -0.5), fs=10)
+
+
+def c_jaw(fig, rect):
+    x, y, w, h = cell(fig, rect, 8, 'Jaw', 'Left: M2×16 from outside the jaw into the horn arm.\n'
+                      'Right: pivot bolt + washer into insert ④. Snug, free to swing.')
+    names = ['face', 'jaw', 'horn', 'servo', 'bracket']
+    sty = {'face': 'norm', 'jaw': 'hi', 'horn': 'ghost', 'servo': 'ghost', 'bracket': 'ghost'}
+    es = 30.0
+    ww = (w - 0.1) / 2
+    extra = [FA['horn_jaw_0']['head'] + [es + 20, 0, 0]]
+    img, cam = view(names, 50, 8, styles=sty, s=0.15, pad=6, bounds_extra=extra)
+    pa = Panel(fig, (x, y, ww, h), img, cam)
+    for k in (0, 1):
+        f = FA['horn_jaw_%d' % k]
+        t = screw2d(pa, f['head'], f['axis'], 16, 2, e=es)
+    bubble(pa, t, 'M2×16 ×2', (0.35, -0.6))
+    extra = [FA['pivot']['head'] + [-es - 25, 0, 0]]
+    img, cam = view(names, -50, 8, styles=sty, s=0.15, pad=6, bounds_extra=extra)
+    pb = Panel(fig, (x + ww + 0.1, y, ww, h), img, cam)
+    f = FA['pivot']
+    t = screw2d(pb, f['head'], f['axis'], 20, 3, e=es, washer=7.0)
+    bubble(pb, t, 'M3×20 + washer', (-0.2, -0.65))
+
+
+def c_test(fig, rect):
+    x, y, w, h = cell(fig, rect, 9, 'Bench test', 'Power up before closing the skull.')
+    img, cam = view(['face', 'jaw', 'liner_eye_L', 'liner_eye_R', 'liner_nose', 'screens', 'bar', 'modules'], -20, 8, s=0.2)
+    Panel(fig, (x + 0.1, y + 1.3, w - 0.2, h - 1.3), img, cam)
+    for i, t in enumerate(['eyes', 'jaw', 'radar', 'sound']):
+        check_box(fig, x + 0.3 + (i % 2) * 1.7, y + 0.75 - (i // 2) * 0.45, t, fs=12)
+
+
+def c_back(fig, rect):
+    x, y, w, h = cell(fig, rect, 10, 'Back cover', 'Drop it onto the floor lip.\nScrew low at the back, into insert ⑤.')
+    up = 45.0
+    names = ['face', 'jaw', 'back', 'bar', 'modules', 'servo', 'horn', 'bracket']
+    sty = {**ghost(names), 'face': 'norm', 'jaw': 'norm', 'back': 'hi'}
+    es = 28.0
+    extra = [FA['back_screw']['head'] + [0, es + 15, up]]
+    img, cam = view(names, 155, 22, styles=sty, off={'back': (0, 0, up)}, s=0.16, pad=6, bounds_extra=extra)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    c = np.array([45.0, 120.0, 10.0])
+    arrow3(pn, c + [0, 0, up + 8], c + [0, 0, 18], 1.1)
+    f = FA['back_screw']
+    a, b = pn.p(f['head'] + [0, 0, up]), pn.p(INS[5][0])
+    pn.ax.plot([a[0], b[0]], [a[1], b[1]], ls=(0, (2, 3)), color='k', lw=0.8, zorder=4)
+    t = screw2d(pn, f['head'] + [0, 0, up], f['axis'], 12, 3, e=es)
+    bubble(pn, t, 'M3×12', (0.45, 0.35))
+
+
+def c_cap(fig, rect):
+    x, y, w, h = cell(fig, rect, 11, 'Cap', 'Straight down onto the cut.\nScrew high at the back, into insert ⑦.')
+    up = 55.0
+    names = ['face', 'jaw', 'back', 'cap']
+    sty = {'face': 'norm', 'jaw': 'norm', 'back': 'norm', 'cap': 'hi'}
+    es = 28.0
+    f = FA['cap_screw']
+    extra = [f['head'] + f['axis'] * (es + 15) + [0, 0, up]]
+    img, cam = view(names, 150, 20, styles=sty, off={'cap': (0, 0, up)}, s=0.17, pad=6, bounds_extra=extra)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    c = np.array([-50.0, 70.0, 45.0])
+    arrow3(pn, c + [0, 0, up + 5], c + [0, 0, 8], 1.1)
+    a, b = pn.p(f['head'] + [0, 0, up]), pn.p(INS[7][0])
+    pn.ax.plot([a[0], b[0]], [a[1], b[1]], ls=(0, (2, 3)), color='k', lw=0.8, zorder=4)
+    t = screw2d(pn, f['head'] + [0, 0, up], f['axis'], 12, 3, e=es)
+    bubble(pn, t, 'M3×12', (0.45, 0.35))
+
+
+def c_stand(fig, rect):
+    x, y, w, h = cell(fig, rect, 12, 'Stand', 'Cable in the column slot. Push the stand onto\nthe neck, screw from behind into insert ⑥.')
+    dn = 60.0
+    names = ['face', 'jaw', 'back', 'cap', 'stand']
+    sty = {'face': 'norm', 'jaw': 'norm', 'back': 'norm', 'cap': 'norm', 'stand': 'hi'}
+    es = 30.0
+    f = FA['stand']
+    extra = [f['head'] + [0, es + 20, -dn]]
+    img, cam = view(names, 215, 12, styles=sty, off={'stand': (0, 0, -dn)}, s=0.17, pad=6, bounds_extra=extra)
+    pn = Panel(fig, (x, y, w, h), img, cam)
+    arrow3(pn, [40, 90, -125], [40, 90, -78], 1.1)
+    q2 = pn.cam.project(np.array([[-8, 90, -30], [-8, 90, -58], [-17.5, 90, -52 - dn], [-17.5, 90, -126 - dn],
+                                  [-20, 90, -129 - dn], [-62, 90, -129 - dn]]))
+    pn.ax.plot(q2[:2, 0], q2[:2, 1], color='k', lw=2.4, zorder=10, ls=(0, (3, 2)))
+    pn.ax.plot(q2[2:, 0], q2[2:, 1], color='k', lw=2.4, zorder=10, solid_joinstyle='round')
+    bubble(pn, q2[3], 'cable', (0.5, -0.3), fs=10)
+    a, b = pn.p(f['head'] + [0, 0, -dn]), pn.p(INS[6][0])
+    pn.ax.plot([a[0], b[0]], [a[1], b[1]], ls=(0, (2, 3)), color='k', lw=0.8, zorder=4)
+    t = screw2d(pn, f['head'] + [0, 0, -dn], f['axis'], 8, 3, e=es)
+    bubble(pn, t, 'M3×8', (-0.6, 0.3))
+
+
+def compact_pages():
+    global WIDTHS, K_CALLOUT, FS_CALLOUT, LW
+    WIDTHS = {0: 2, 1: 3, 2: 5, 3: 1}
+    K_CALLOUT, FS_CALLOUT, LW = 0.55, 0.85, 1.0
+    figs = []
+    full = PW - 2 * M
+    # page 1: inserts, servo + bracket, screw legend
+    fig = plt.figure(figsize=(PW, PH))
+    c_inserts(fig, (M, 4.75, full, PH - M - 4.75))
+    c_bench(fig, (M, 1.35, full, 3.3))
+    legend(fig, (M, M, full, 0.75))
+    figs.append(fig)
+    # page 2: liners, eyes, radar, USB
+    fig = plt.figure(figsize=(PW, PH))
+    for (r, c), fn in zip([(0, 0), (0, 1), (1, 0), (1, 1)], [c_liners, c_eyes, c_radar, c_usb]):
+        fn(fig, grid(r, c))
+    figs.append(fig)
+    # page 3: servo, ESP32, jaw (full width)
+    fig = plt.figure(figsize=(PW, PH))
+    c_servo(fig, grid(0, 0)); c_esp32(fig, grid(0, 1))
+    g = grid(1, 0); c_jaw(fig, (g[0], g[1], full, g[3]))
+    figs.append(fig)
+    # page 4: test, back cover, cap, stand
+    fig = plt.figure(figsize=(PW, PH))
+    for (r, c), fn in zip([(0, 0), (0, 1), (1, 0), (1, 1)], [c_test, c_back, c_cap, c_stand]):
+        fn(fig, grid(r, c))
+    figs.append(fig)
+    for i, f in enumerate(figs):
+        f.text(0.5, (M - 0.25) / PH, 'bone eyes skull  ·  %d / %d' % (i + 1, len(figs)), fontsize=8, ha='center', color='0.45')
+    return figs
+
+
 def main():
     pngdir = sys.argv[sys.argv.index('--pngs') + 1] if '--pngs' in sys.argv else None
+    if '--long' not in sys.argv:          # default: 4 pages (2 sheets, double-sided)
+        with PdfPages(PDF) as pdf:
+            for i, fig in enumerate(compact_pages()):
+                pdf.savefig(fig)
+                if pngdir:
+                    fig.savefig(os.path.join(pngdir, 'c%02d.png' % (i + 1)), dpi=110)
+                plt.close(fig)
+        print('wrote', PDF, '%.1f MB' % (os.path.getsize(PDF) / 1e6))
+        return
     only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
     pages = [p_cover, p_hardware, p_inserts, p_bench, p_liners, p_eyes, p_radar_usb, p_servo, p_esp32, p_jaw, p_back,
              p_cap, p_stand]
