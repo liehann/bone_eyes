@@ -110,8 +110,8 @@ constexpr int SERVO_MAX_US = 2400;
 #ifndef AUDIO_OUT
 #define AUDIO_OUT AUDIO_OUT_A2DP  // platformio.ini env "skull_i2s" overrides
 #endif
-constexpr const char* BT_SPEAKER_NAME = "CHANGE_ME";  // exact name your speaker advertises
-constexpr int AUDIO_LATENCY_MS_DEFAULT = 200;       // jaw delay vs audio; tune with `lat <ms>`
+constexpr const char* BT_SPEAKER_NAME = "soundcore Select 4 Go";  // standalone mode: name prefix, any case
+constexpr int AUDIO_LATENCY_MS_DEFAULT = 150;       // standalone: jaw delay vs audio; tune with `lat <ms>`
 constexpr uint32_t CLIP_RATE = 22050;               // stored rate; played at 44100 (2x upsample)
 
 // ---------------------------------------------------------------------------

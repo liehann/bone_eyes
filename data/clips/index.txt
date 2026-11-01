@@ -1,0 +1,77 @@
+000	reply	Ah, a fine question! In my day we answered those with a dramatic pause and a wave of the wand.
+001	reply	I would say yes, but the potion I am stirring just turned purple, which means no.
+002	reply	Ten points to your house for asking! Not many dare to speak to a skull.
+003	reply	Hmm, I would need to consult the great book of spells, but a spider is sitting on it.
+004	reply	The answer is hidden in a cauldron, but I lost the spoon about four hundred years ago.
+005	reply	In my opinion, wizards should always carry a snack. That is my best advice for most problems.
+006	reply	Which house are you in? I will not judge, but the Sorting Hat definitely would.
+007	reply	That reminds me of a potions lesson, where somebody added the newt eyes before the beetles. We never found the ceiling.
+008	reply	Quidditch is the finest sport ever invented, and I have the broken ribs to prove it. Well, I used to have ribs.
+009	reply	Ask the Sorting Hat, it has opinions about everything, and most of them are about hats.
+010	reply	Oh, that is simple. Wave your wand, say something Latin sounding, and look confident.
+011	reply	If a staircase moves while you are on it, just smile and pretend you meant to go that way.
+012	reply	Yes, magic is real, but so is homework. I am afraid you cannot escape both.
+013	reply	The castle ghosts and I have a bet on that one, and I am not allowed to say who won.
+014	reply	Five points to the house of whoever knows the answer. Sadly, it is not me, I only have a skull.
+015	reply	A wizard never reveals the secret ingredient. Mostly because I forgot it.
+016	reply	I would help, but I left my wand in the other head. I mean, I do not have another head.
+017	reply	Absolutely! Although, in the dungeons, absolutely sometimes means "absolutely not, and run".
+018	reply	Between you and me, the Great Hall serves the best pudding in the world. I have not tasted it in centuries and I still think about it.
+019	reply	My advice is to be brave, be kind, and never trust a door that whispers.
+020	reply	Ah, that is a question for the Headmaster. He is busy tonight, so you get a skull instead.
+021	reply	The golden snitch is smaller than you think, faster than you hope, and utterly unforgiving to anybody trying to catch it with their face.
+022	reply	Potions are mostly chemistry, with extra stirring and a great deal of shouting.
+023	reply	Do not worry about the three-headed dog. He only wants a belly rub and a very large biscuit.
+024	reply	I once won a staring contest against a basilisk. Well, I drew, because I had no eyes to speak of.
+025	reply	If you ever find a talking hat, be polite. It has seen a lot of heads.
+026	reply	The correct answer is probably cake. It is nearly always cake.
+027	reply	That is a spell I know, but the spell is a secret, and secrets cost a toad.
+028	reply	Yes, no, maybe! I am a skull, not a fortune teller, but I did study the stars once.
+029	reply	Be careful what you wish for. The last wizard who wished for a pet dragon ended up with a very hot sofa.
+030	reply	Splendid thinking! That is worth at least ten points, and a small round of applause.
+031	reply	Invisibility cloaks are wonderful, until you trip over your own feet and nobody can see why.
+032	reply	The enchanted ceiling shows the weather outside, which is handy, since the dungeons have no windows at all.
+033	reply	Make sure you eat your vegetables. Even heroic wizards need their strength for broom races.
+034	reply	Owls deliver the post, but they never knock, and they leave feathers everywhere.
+035	reply	I tried to learn a spell for making my jaw stop clacking. It did not work, as you can hear.
+036	reply	Off you go to bed at a sensible hour, young wizard. The castle has curfew, and the ghosts enforce it.
+037	reply	A broom is just a stick with confidence. Sit on it firmly, and believe.
+038	reply	Yes, I have heard of those, but I prefer old fashioned magic. Fewer wires and more smoke.
+039	reply	Hmm, that sounds like a question for a certain very clever witch who always reads the book first.
+040	reply	Careful with that sort of talk, the portraits listen, and they love to gossip.
+041	greet	Ah, a visitor to the dungeons! Come closer, and mind the cauldron.
+042	greet	Welcome, welcome! I am the skull of the potions cellar, and I have been waiting centuries for a decent conversation.
+043	greet	Good evening! Have you been sorted yet, or are you still wandering about like a lost first year?
+044	greet	Ahem. Step forward, young witch or wizard, and ask me anything you like.
+045	greet	Splendid, company! Do sit down, but not on the cauldron, that bit is still bubbling.
+046	greet	Greetings, traveller! I am the oldest skull in the castle, and also the most handsome.
+047	greet	Hello there! Please keep your wands pointed at the floor, I am rather attached to my head.
+048	greet	Ah, you found me! Most students only come down here to hide from a test.
+049	greet	Good evening, one and all! The skull of the dungeons is in session.
+050	greet	Well now, fresh faces! Tell me, which house are you hoping for?
+051	greet	Welcome to the cellar of questionable potions. Everything here is perfectly safe, probably.
+052	greet	Oh good, someone to talk to. The portraits upstairs are terrible listeners.
+053	greet	Hail, young sorcerer! Ask your question, and I shall consult my vast and dusty wisdom.
+054	greet	Enter, enter! I have not had a visitor since the last troll wandered in.
+055	greet	Greetings, magical guests! Your wizard skull is at your service, and slightly haunted.
+056	greet	Ah, the party has arrived! Mind your robes, the floor is full of ancient spills.
+057	greet	Hello! I do hope you brought sweets, because I am far too dead to bake.
+058	greet	Welcome, brave souls! The dungeons are cold, but the conversation is warm.
+059	greet	Splendid timing! I was just beginning to mutter to the spiders.
+060	greet	Good evening! I am the wise old skull of the castle, and I know every secret passage, bad joke and cake recipe.
+061	silence	Has a troll got your tongue? Or is it just the dungeon draught?
+062	silence	Come now, do not be shy. I only bite on alternate Tuesdays.
+063	silence	Hello? Anybody home? I can wait, being dead and all.
+064	silence	Speak up! Even the portraits are leaning in to listen.
+065	silence	Cat got your tongue? Dreadful creatures, always stealing things.
+066	silence	Do not be afraid, young wizard. I am merely a talking skull, nothing to worry about.
+067	silence	Silence is golden, but a question would be even better.
+068	silence	Perhaps you need a moment to think. Take your time, I have centuries.
+069	silence	I can hear you thinking from here. It sounds a bit like a kettle.
+070	silence	Did my beard make you speechless? I do not have a beard, but still.
+071	silence	Ask me anything! Anything at all, except where I left my jaw.
+072	silence	The cauldron is bubbling and still no questions. Whatever shall we do?
+073	silence	Quiet as a library on exam day. Go on, say something clever.
+074	silence	Is it a hex? Has someone silenced you? Blink twice if you need help.
+075	silence	Speak, young one! The owls are waiting for a message to carry.
+076	silence	Not a single word? Even the spiders are getting bored.

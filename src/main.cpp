@@ -7,6 +7,7 @@
 #include "jaw.h"
 #include "net.h"
 #include "settings.h"
+#include "standalone.h"
 
 namespace {
 
@@ -38,6 +39,12 @@ void setup() {
   }
   if (!psramFound()) Serial.println("WARNING: no PSRAM detected");
 
+  standalone::loadMode();
+  Serial.printf("mode: %s\n", standalone::active() ? "standalone (no WiFi, A2DP to the speaker)" : "laptop");
+  // Standalone image: BT starts before the eyes so the BT stack gets internal RAM first.
+  standalone::begin();
+  printHeap();
+
   console::add("heap", "show free heap", cmdHeap);
   console::add("info", "chip / flash / build info", cmdInfo);
   console::add("reboot", "restart the ESP32", cmdReboot);
@@ -46,10 +53,13 @@ void setup() {
   settings::registerCommands();
   eyes::registerCommands();
   jaw::registerCommands();
+  standalone::registerCommands();
   jaw::begin();  // goes to closed
   eyes::begin(eyes::Backend::Lcd);
-  net::registerCommands();
-  net::begin();
+  if (!standalone::active()) {  // standalone: no WiFi, no web page
+    net::registerCommands();
+    net::begin();
+  }
   delay(500);  // let the eye task init the panels before reporting heap
 
   printHeap();

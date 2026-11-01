@@ -1,8 +1,8 @@
-# ESP32-WROVER-IE, 8 MB flash. No OTA: one big app slot (A2DP + BT stack is
-# ~1.5 MB) and everything else for LittleFS clips (~5.9 MB = ~2.3 min of
-# 22.05 kHz mono audio).
+# ESP32-WROVER-IE, 8 MB flash. No OTA: one 3 MB app slot (the A2DP + BT stack
+# takes the image to ~2.5 MB) and everything else (~4.9 MB) for LittleFS: the
+# hazel eye set and the standalone clips (data/clips, IMA ADPCM).
 # Name,     Type, SubType,  Offset,   Size
 nvs,        data, nvs,      0x9000,   0x5000
 phy_init,   data, phy,      0xe000,   0x2000
-factory,    app,  factory,  0x10000,  0x200000
-spiffs,     data, spiffs,   0x210000, 0x5F0000
+factory,    app,  factory,  0x10000,  0x300000
+spiffs,     data, spiffs,   0x310000, 0x4F0000
